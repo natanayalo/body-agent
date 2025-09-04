@@ -59,7 +59,7 @@ body-agent/
 
 ## Run
 ```bash
-git clone <this-repo>
+git clone https://github.com/natanayalo/body-agent.git
 cd body-agent
 cp .env.example .env
 docker compose up --build -d
