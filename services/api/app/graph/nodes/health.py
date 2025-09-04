@@ -31,8 +31,8 @@ def run(state: BodyState) -> BodyState:
     messages = []
     for d in docs[:3]:
         if d.get("section", "").lower() in {"warnings","interactions"}:
-        alerts.append(f"Check: {d.get('title')} — {d.get('section')}")
-        citations.append(d.get("source_url", ""))
+            alerts.append(f"Check: {d.get('title')} — {d.get('section')}")
+            citations.append(d.get("source_url", ""))
     if not messages:
         messages.append({"role":"assistant","content":"I found guidance and possible warnings. Review the summary and citations."})
 

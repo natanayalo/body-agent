@@ -27,11 +27,11 @@ def run(state: BodyState) -> BodyState:
     if intent == "appointment":
         # Pick top candidate and create 1h slot tomorrow at 09:00Z
         if cand := (state.get("candidates") or [{}])[0]:
-        start = datetime(now.year, now.month, now.day) + timedelta(days=1, hours=9)
-        evt = CalendarEvent(title=f"Visit: {cand.get('name','Clinic')}", start=start, end=start+timedelta(hours=1), location=cand.get("name"))
-        path = create_event(evt)
-        state["plan"] = {"type": "appointment", "event_path": path, "provider": cand}
-        return state
+            start = datetime(now.year, now.month, now.day) + timedelta(days=1, hours=9)
+            evt = CalendarEvent(title=f"Visit: {cand.get('name','Clinic')}", start=start, end=start+timedelta(hours=1), location=cand.get("name"))
+            path = create_event(evt)
+            state["plan"] = {"type": "appointment", "event_path": path, "provider": cand}
+            return state
 
 
     # Fallback
