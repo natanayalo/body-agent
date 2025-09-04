@@ -1,0 +1,30 @@
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.14.0
+    container_name: es
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+
+
+  api:
+    build: ./services/api
+    container_name: body-agent-api
+    env_file: .env
+    depends_on:
+      - elasticsearch
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./services/api/app:/app/app:rw
+      - ./seeds:/app/seeds:ro
+      - ./scripts:/app/scripts:ro
+
+
+volumes:
+  es-data:

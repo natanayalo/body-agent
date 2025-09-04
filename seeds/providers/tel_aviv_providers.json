@@ -1,0 +1,34 @@
+[
+    {
+        "name": "Tel Aviv Family Clinic",
+        "kind": "clinic",
+        "services": [
+            "primary_care",
+            "lab"
+        ],
+        "geo": {
+            "lat": 32.0809,
+            "lon": 34.7806
+        },
+        "hours": "Sun-Thu 08:00-20:00",
+        "book_url": "https://example.org/taf-clinic",
+        "phone": "+972-3-555-0101",
+        "text": "Family medicine and basic lab services"
+    },
+    {
+        "name": "Dizengoff Lab Center",
+        "kind": "lab",
+        "services": [
+            "blood_test",
+            "urinalysis"
+        ],
+        "geo": {
+            "lat": 32.0871,
+            "lon": 34.7754
+        },
+        "hours": "Sun-Fri 07:00-14:00",
+        "book_url": "https://example.org/diz-lab",
+        "phone": "+972-3-555-0202",
+        "text": "Walk-in lab draws and fast results"
+    }
+]
