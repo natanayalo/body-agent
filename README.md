@@ -11,6 +11,7 @@ Privacy-first personal health & life copilot. LangGraph-style orchestration, Ela
 
 ## Getting Started
 
+
 ### Prerequisites
 
 - Docker + Docker Compose
@@ -40,9 +41,10 @@ Privacy-first personal health & life copilot. LangGraph-style orchestration, Ela
    The following scripts will populate the Elasticsearch indices with public health information and local provider data.
 
    ```bash
-   docker compose exec body-agent-api python scripts/es_bootstrap.py
-   docker compose exec body-agent-api python scripts/ingest_public_kb.py
-   docker compose exec body-agent-api python scripts/ingest_providers.py
+   docker compose exec api python scripts/es_bootstrap.py
+   docker compose exec api python scripts/ingest_public_kb.py
+   docker compose exec api python scripts/ingest_providers.py
+
    ```
 
 ## Usage
@@ -69,10 +71,12 @@ curl -X POST "http://localhost:8000/api/graph/run" -H "Content-Type: application
 To run the linters, use the following command:
 
 ```bash
-docker compose exec body-agent-api ruff check .
+
+docker compose exec api ruff check .
 ```
 
 ### File Structure
+
 ```
 body-agent/
 ├── README.md
