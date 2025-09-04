@@ -3,53 +3,40 @@ from pydantic import BaseModel
 from app.config import settings
 from app.tools.es_client import ensure_indices
 from app.graph.state import BodyState
+from app.graph.build import build_graph
 
-
-# Wire up nodes as a simple pipeline (LangGraph-like, but linear for MVP)
+# Wire up nodes (legacy linear path kept for back-compat)
 from app.graph.nodes import supervisor, memory, health, places, planner, critic
 
-
 app = FastAPI(title="Body Agent API")
-
 
 class Query(BaseModel):
     user_id: str = "demo-user"
     query: str
 
-
 @app.on_event("startup")
 async def startup():
     ensure_indices()
+    # Compile the LangGraph once
+    app.state.graph = build_graph().compile()
 
+def _invoke_graph(user_id: str, text: str) -> BodyState:
+    state: BodyState = {
+        "user_id": user_id,
+        "user_query": text,
+        "messages": []
+    }
+    # Execute compiled graph
+    return app.state.graph.invoke(state)
+
+@app.post("/api/graph/run")
+def run_graph(q: Query):
+    return _invoke_graph(q.user_id, q.query)
 
 @app.post("/api/run")
 def run(q: Query):
-    state: BodyState = {
-    "user_id": q.user_id,
-    "user_query": q.query,
-    "messages": []
-    }
-    # Supervisor decides high-level path
-    state = supervisor.run(state)
-
-
-    # Memory lookup first
-    state = memory.run(state)
-
-
-    # Branch by intent
-    if state["intent"] in ("meds", "symptom"):
-        state = health.run(state)
-    if state["intent"] == "appointment":
-        state = places.run(state)
-
-
-    # Planner + critic
-    state = planner.run(state)
-    state = critic.run(state)
-
-
-    return state
+    """Legacy endpoint; now routes through the compiled LangGraph graph."""
+    return _invoke_graph(q.user_id, q.query)
 
 
 # Helper endpoints for demo: add a medication to private memory
