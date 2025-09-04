@@ -40,3 +40,7 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db
+
+# runtime artifacts
+services/api/app/data/
+*.ics
