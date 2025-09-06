@@ -1,6 +1,7 @@
 from langgraph.graph import StateGraph, END
 from app.graph.state import BodyState
 from app.graph.nodes import supervisor, memory, health, places, planner, critic
+from app.graph.nodes import risk_ml
 
 
 def _route_after_memory(state: BodyState) -> str:
@@ -29,6 +30,7 @@ def build_graph() -> StateGraph:
     g.add_node("places", places.run)
     g.add_node("planner", planner.run)
     g.add_node("critic", critic.run)
+    g.add_node("risk_ml", risk_ml.run)
 
     # Entry & base edges
     g.set_entry_point("supervisor")
@@ -46,7 +48,9 @@ def build_graph() -> StateGraph:
     )
 
     # Converge to planner, then critic, then END
-    g.add_edge("health", "planner")
+    # After health retrieval, run ML risk classifier, then plan
+    g.add_edge("health", "risk_ml")
+    g.add_edge("risk_ml", "planner")
     g.add_edge("places", "planner")
     g.add_edge("planner", "critic")
     g.add_edge("critic", END)

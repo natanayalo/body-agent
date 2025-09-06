@@ -12,3 +12,4 @@ class BodyState(TypedDict, total=False):
     messages: list[dict]
     alerts: list[str]
     citations: list[str]
+    debug: dict

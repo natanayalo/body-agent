@@ -93,6 +93,13 @@ def run(state: BodyState) -> BodyState:
 
     state["public_snippets"] = docs
     state["alerts"] = alerts
-    state["citations"] = [c for c in citations if c]
+    # dedupe citations
+    seen = set()
+    dedup = []
+    for c in citations:
+        if c and c not in seen:
+            seen.add(c)
+            dedup.append(c)
+    state["citations"] = dedup
     state.setdefault("messages", []).extend(messages)
     return state

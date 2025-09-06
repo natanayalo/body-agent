@@ -3,7 +3,7 @@ from app.graph.state import BodyState
 
 MED_TRIGGERS = ("med", "pill", "dose", "refill")
 APPT_TRIGGERS = ("appointment", "book", "clinic", "lab")
-SYMPTOM_TRIGGERS = ("symptom", "fever", "pain", "sore", "headache")
+SYMPTOM_TRIGGERS = ("symptom", "fever", "pain", "sore", "headache", "חום", "צמרמורת")
 
 
 # Lightweight intent classifier (rule-based to avoid LLM dependency for MVP)
