@@ -22,21 +22,18 @@ The Body Agent is a multi-agent system orchestrated by LangGraph. It uses a loca
 
 ## Getting Started
 
-### Prerequisites
+1.  **Prerequisites:**
+    -   Docker + Docker Compose
+    -   ~2.5 GB free disk (Elasticsearch + model cache)
 
-- Docker + Docker Compose
-- ~2.5 GB free disk (Elasticsearch + model cache)
-
-### Installation and Setup
-
-1.  **Clone the repository:**
+2.  **Clone the repository:**
 
     ```bash
     git clone <this-repo>
     cd body-agent
     ```
 
-2.  **Set up environment variables:**
+3.  **Set up environment variables:**
 
     ```bash
     cp .env.example .env
@@ -44,7 +41,7 @@ The Body Agent is a multi-agent system orchestrated by LangGraph. It uses a loca
 
     Update the `.env` file with your desired settings.
 
-3.  **Build and run the services:**
+4.  **Build and run the services:**
 
     ```bash
     docker compose up --build -d
@@ -52,7 +49,7 @@ The Body Agent is a multi-agent system orchestrated by LangGraph. It uses a loca
 
     Wait ~10–20s for Elasticsearch and the API to be ready.
 
-4.  **Ingest initial data:**
+5.  **Ingest initial data:**
 
     The following scripts will populate the Elasticsearch indices with public health information and local provider data.
 
@@ -91,6 +88,28 @@ curl -X POST "http://localhost:8000/api/graph/run" -H "Content-Type: application
 ```
 
 ## Development
+
+### Pre-commit Hooks
+
+This project uses pre-commit to enforce code style and quality. To use it, you need to have pre-commit installed on your system.
+
+1.  **Install pre-commit:**
+
+    ```bash
+    pip install pre-commit
+    ```
+
+2.  **Install the git hooks:**
+
+    ```bash
+    pre-commit install
+    ```
+
+Now, the pre-commit hooks will run automatically every time you make a commit. You can also run them manually on all files:
+
+```bash
+pre-commit run --all-files
+```
 
 ### Running the linters
 

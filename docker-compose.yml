@@ -14,6 +14,7 @@ services:
     build: ./services/api
     container_name: body-agent-api
     env_file: .env
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       - elasticsearch
     ports:
