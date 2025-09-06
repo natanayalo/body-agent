@@ -1,23 +1,42 @@
-from typing import Any
 from app.graph.state import BodyState
 from app.tools.es_client import es
 from app.tools.embeddings import embed
 from app.config import settings
+import re
 
 
-# Query private_user_memory for facts relevant to the query
+def _base_name(name: str) -> str:
+    return (
+        re.sub(r"\b(\d+\s?(mg|mcg|ml))\b", "", name, flags=re.IGNORECASE)
+        .strip()
+        .lower()
+    )
+
 
 def run(state: BodyState) -> BodyState:
     vector = embed([state["user_query"]])[0]
     body = {
-    "knn": {
-        "field": "embedding",
-        "query_vector": vector,
-        "k": 8,
-        "num_candidates": 50,
+        "knn": {
+            "field": "embedding",
+            "query_vector": vector,
+            "k": 8,
+            "num_candidates": 50,
         },
-        "_source": {"excludes": ["embedding"]}
+        "_source": {"excludes": ["embedding"]},
     }
     res = es.search(index=settings.es_private_index, body=body)
-    state["memory_facts"] = [h["_source"] for h in res["hits"]["hits"]]
+    hits = [h["_source"] for h in res["hits"]["hits"]]
+
+    seen = set()
+    uniq = []
+    for m in hits:
+        ent = m.get("entity")
+        base = (m.get("normalized") or {}).get("ingredient") or _base_name(
+            m.get("name", "")
+        )
+        key = (ent, base)
+        if key not in seen:
+            seen.add(key)
+            uniq.append(m)
+    state["memory_facts"] = uniq
     return state

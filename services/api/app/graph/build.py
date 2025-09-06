@@ -24,11 +24,11 @@ def build_graph() -> StateGraph:
 
     # Register nodes
     g.add_node("supervisor", supervisor.run)
-    g.add_node("memory",     memory.run)
-    g.add_node("health",     health.run)
-    g.add_node("places",     places.run)
-    g.add_node("planner",    planner.run)
-    g.add_node("critic",     critic.run)
+    g.add_node("memory", memory.run)
+    g.add_node("health", health.run)
+    g.add_node("places", places.run)
+    g.add_node("planner", planner.run)
+    g.add_node("critic", critic.run)
 
     # Entry & base edges
     g.set_entry_point("supervisor")

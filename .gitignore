@@ -41,6 +41,10 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# runtime artifacts
+# Runtime artifacts
 services/api/app/data/
 *.ics
+
+# Python cache
+__pycache__/
+*.pyc
