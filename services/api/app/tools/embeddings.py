@@ -2,7 +2,9 @@ from sentence_transformers import SentenceTransformer
 from app.config import settings
 
 
-_model = SentenceTransformer(settings.embeddings_model, device=settings.embeddings_device)
+_model = SentenceTransformer(
+    settings.embeddings_model, device=settings.embeddings_device
+)
 
 
 def embed(texts: list[str]) -> list[list[float]]:

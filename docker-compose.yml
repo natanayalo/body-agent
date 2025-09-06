@@ -10,8 +10,6 @@ services:
       - "9200:9200"
     volumes:
       - es-data:/usr/share/elasticsearch/data
-
-
   api:
     build: ./services/api
     container_name: body-agent-api
@@ -30,7 +28,5 @@ services:
           memory: 4G
         reservations:
           memory: 2G
-
-
 volumes:
   es-data:

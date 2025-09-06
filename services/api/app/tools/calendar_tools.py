@@ -1,6 +1,7 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from pydantic import BaseModel
 import os
+
 
 class CalendarEvent(BaseModel):
     title: str
@@ -8,6 +9,7 @@ class CalendarEvent(BaseModel):
     end: datetime
     location: str | None = None
     notes: str | None = None
+
 
 # Stub: write to ICS file (real impl could use CalDAV)
 def create_event(event: CalendarEvent) -> str:
@@ -24,7 +26,9 @@ def create_event(event: CalendarEvent) -> str:
     )
     os.makedirs("/app/app/data", exist_ok=True)
     stamp = event.start.strftime("%Y%m%dT%H%M%S")
-    safe_title = "".join([c if c.isalnum() else "_" for c in (event.title or "event")])[:40]
+    safe_title = "".join([c if c.isalnum() else "_" for c in (event.title or "event")])[
+        :40
+    ]
     path = f"/app/app/data/{safe_title}_{stamp}.ics"
     with open(path, "w", encoding="utf-8") as f:
         f.write(ics)

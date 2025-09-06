@@ -1,4 +1,7 @@
-import os, json, re, hashlib
+import os
+import json
+import re
+import hashlib
 from elasticsearch import Elasticsearch
 from sentence_transformers import SentenceTransformer
 
