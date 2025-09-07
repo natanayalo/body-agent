@@ -1,0 +1,8 @@
+feat: Enhance ML risk classifier and refine alert logic
+
+This commit refines the ML risk classifier and alert mechanisms.
+
+Key changes include:
+- Updated `risk_ml.py` for multi-label classification with per-label thresholds and detailed debug output.
+- Modified `health.py` to make interaction alerts conditional on multiple user medications.
+- Gated the critic banner in `critic.py` based on ML risk assessment.

@@ -5,17 +5,15 @@ from app.config import settings
 import re
 
 
-def _norm(s: str) -> str:
-    return re.sub(r"\W+", " ", (s or "").lower()).strip()
-
-
 def run(state: BodyState) -> BodyState:
     q = state["user_query"]
 
     # Build a set of normalized ingredients from memory (e.g., {"ibuprofen", "warfarin"})
     mem_ings = set()
     for m in state.get("memory_facts") or []:
-        ing = (m.get("normalized") or {}).get("ingredient") or _norm(m.get("name", ""))
+        ing = (m.get("normalized") or {}).get("ingredient") or (
+            m.get("name") or ""
+        ).lower()
         if ing:
             mem_ings.add(ing)
 
@@ -54,31 +52,35 @@ def run(state: BodyState) -> BodyState:
     alerts: list[str] = []
     messages: list[dict] = []
 
-    # Relevance-gated alerts:
-    # - Always allow "warnings" sections (e.g., Ibuprofen — Warnings)
-    # - Only allow "interactions" if at least TWO distinct memory ingredients are implicated
-    #   (e.g., user has both "warfarin" and "ibuprofen")
-    mem_list = list(mem_ings)
-    for d in docs[:5]:
-        section = (d.get("section") or "").lower()
-        title = _norm(d.get("title") or "")
-        text = _norm(d.get("text") or "")
+    # Build a memory ingredient set for generic interaction gating
+    mem_ings = set()
+    for m in state.get("memory_facts") or []:
+        if m.get("entity") == "medication":
+            ing = (m.get("normalized") or {}).get("ingredient") or (
+                m.get("name") or ""
+            ).lower()
+            if ing:
+                mem_ings.add(ing)
 
-        is_warning = section == "warnings"
-        is_interactions = section == "interactions"
+    def _norm(s: str) -> str:
+        return re.sub(r"\W+", " ", (s or "")).lower()
 
+    for d in docs[:3]:
+        section = (d.get("section", "") or "").lower()
+        title = _norm(d.get("title"))
+        text = _norm(d.get("text"))
         add_alert = False
-        if is_warning:
+        if section == "warnings":
             add_alert = True
-        elif is_interactions:
-            # require at least two different memory meds to appear across title/text
-            implicated = set()
-            for ing in mem_list:
+        elif section == "interactions":
+            # Only alert if >=2 distinct memory meds appear in the snippet
+            seen = 0
+            for ing in mem_ings:
                 if ing and (ing in title or ing in text):
-                    implicated.add(ing)
-            if len(implicated) >= 2:
-                add_alert = True  # user actually has both sides of the interaction
-
+                    seen += 1
+                if seen >= 2:
+                    add_alert = True
+                    break
         if add_alert:
             alerts.append(f"Check: {d.get('title')} — {d.get('section')}")
         citations.append(d.get("source_url", ""))
@@ -94,11 +96,11 @@ def run(state: BodyState) -> BodyState:
     state["public_snippets"] = docs
     state["alerts"] = alerts
     # dedupe citations
-    seen = set()
+    seen_citations = set()
     dedup = []
     for c in citations:
-        if c and c not in seen:
-            seen.add(c)
+        if c and c not in seen_citations:
+            seen_citations.add(c)
             dedup.append(c)
     state["citations"] = dedup
     state.setdefault("messages", []).extend(messages)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 import os
-from typing import Dict
+from typing import List, Dict, Tuple
 from app.graph.state import BodyState
 
 _PIPE = None
@@ -13,21 +13,14 @@ def _get_pipe():
     Falls back to no-op if model can't be loaded (offline build, etc.).
     """
     global _PIPE
-    print("risk_ml.py: _get_pipe() called")
     if _PIPE is not None:
-        print("risk_ml.py: returning cached pipe")
         return _PIPE
     try:
-        print("risk_ml.py: importing pipeline from transformers")
         from transformers import pipeline
 
-        print("risk_ml.py: pipeline imported successfully")
         model_id = os.getenv("RISK_MODEL_ID", "MoritzLaurer/mDeBERTa-v3-base-mnli-xnli")
-        print(f"risk_ml.py: loading model {model_id}")
         _PIPE = pipeline("zero-shot-classification", model=model_id, device=-1)
-        print("risk_ml.py: pipeline created successfully")
-    except Exception as e:
-        print(f"risk_ml.py: exception in _get_pipe: {e}")
+    except Exception:
         _PIPE = None
     return _PIPE
 
@@ -52,7 +45,6 @@ def run(state: BodyState) -> BodyState:
     Inputs: state.user_query (+ meds context if available)
     Outputs: appends alerts/messages with an ML-backed label and confidence.
     """
-    print("risk_ml.py: run() called")
     pipe = _get_pipe()
     labels = [
         s.strip()
@@ -68,7 +60,6 @@ def run(state: BodyState) -> BodyState:
 
     # Build text with lightweight context (med names only)
     text = state.get("user_query", "")
-    print(f"risk_ml.py: initial text: {text}")
     meds = []
     for m in state.get("memory_facts") or []:
         if m.get("entity") == "medication":
@@ -80,24 +71,19 @@ def run(state: BodyState) -> BodyState:
             text + "\nContext meds: " + ", ".join(sorted(set([m for m in meds if m])))
         )
 
-    print(f"risk_ml.py: text with context: {text}")
-
     if pipe is None or not labels:
-        print("risk_ml.py: pipe is None or no labels, returning")
         # Model couldn't load (offline) — degrade gracefully
         return state
 
     try:
-        print("risk_ml.py: calling pipeline")
+        # Use multi_label=True so each label is independently scored
         res = pipe(
-            text, candidate_labels=labels, hypothesis_template=hyp, multi_label=False
+            text, candidate_labels=labels, hypothesis_template=hyp, multi_label=True
         )
-        print(f"risk_ml.py: pipeline result: {res}")
-        top_label = res.get("labels", [None])[0]
-        top_score = float(res.get("scores", [0.0])[0])
-        print(f"risk_ml.py: top_label: {top_label}, top_score: {top_score}")
-    except Exception as e:
-        print(f"risk_ml.py: exception in run: {e}")
+        pairs: List[Tuple[str, float]] = list(
+            zip(res.get("labels", []), [float(s) for s in res.get("scores", [])])
+        )
+    except Exception:
         return state
 
     # Map to UX
@@ -107,26 +93,31 @@ def run(state: BodyState) -> BodyState:
         "self_care": "Likely self-care with monitoring.",
         "info_only": "General information only.",
     }
+    triggered = []
+    for label, score in pairs:
+        thr = thresholds.get(
+            label, 1.1
+        )  # default high so only listed thresholds can trigger
+        if score >= thr:
+            triggered.append((label, score))
+            if label in ("urgent_care", "see_doctor"):
+                state.setdefault("alerts", []).append(
+                    f"ML risk: {label} (p={score:.2f})"
+                )
+                state.setdefault("messages", []).append(
+                    {"role": "assistant", "content": msg_map.get(label, "")}
+                )
+    # If nothing triggered and we have no messages yet, provide the top-scoring label as gentle guidance
+    if not triggered and not state.get("messages") and pairs:
+        pairs_sorted = sorted(pairs, key=lambda x: x[1], reverse=True)
+        label, score = pairs_sorted[0]
+        state.setdefault("messages", []).append(
+            {"role": "assistant", "content": msg_map.get(label, "")}
+        )
 
-    if top_label in ("urgent_care", "see_doctor"):
-        thr = thresholds.get(top_label, 0.5)
-        if top_score >= thr:
-            print(f"risk_ml.py: adding alert for {top_label}")
-            state.setdefault("alerts", []).append(
-                f"ML risk: {top_label} (p={top_score:.2f})"
-            )
-            state.setdefault("messages", []).append(
-                {"role": "assistant", "content": msg_map.get(top_label, "")}
-            )
-    elif top_label in ("self_care", "info_only"):
-        # add a gentle message if no other guidance present
-        if not state.get("messages"):
-            print(f"risk_ml.py: adding gentle message for {top_label}")
-            state.setdefault("messages", []).append(
-                {"role": "assistant", "content": msg_map.get(top_label, "")}
-            )
-
-    # Always stash the raw result for debugging (non-PII)
-    print("risk_ml.py: setting debug.risk")
-    state.setdefault("debug", {})["risk"] = {"label": top_label, "score": top_score}
+    # Stash raw results for debugging
+    state.setdefault("debug", {})["risk"] = {
+        "scores": {label: s for label, s in pairs},
+        "triggered": [{"label": label, "score": s} for label, s in triggered],
+    }
     return state
