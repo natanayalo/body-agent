@@ -1,3 +1,4 @@
+from app.graph.state import BodyState
 import numpy as np
 from app.tools.embeddings import embed
 
@@ -17,3 +18,8 @@ def detect_intent(text: str) -> str:
         if score > best_score:
             best, best_score = label, score
     return best if best_score > 0.30 else "other"
+
+
+def run(state: BodyState) -> BodyState:
+    state["intent"] = detect_intent(state["user_query"])
+    return state

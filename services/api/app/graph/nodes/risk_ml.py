@@ -18,7 +18,7 @@ def _get_pipe():
     try:
         from transformers import pipeline
 
-        model_id = os.getenv("RISK_MODEL_ID", "MoritzLaurer/mDeBERTa-v3-base-mnli-xnli")
+        model_id = os.getenv("RISK_MODEL_ID", "MoritzLaurer/mDeBERta-v3-base-mnli-xnli")
         _PIPE = pipeline("zero-shot-classification", model=model_id, device=-1)
     except Exception:
         _PIPE = None
