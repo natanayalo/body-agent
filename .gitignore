@@ -48,3 +48,4 @@ services/api/app/data/
 # Python cache
 __pycache__/
 *.pyc
+.mypy_cache

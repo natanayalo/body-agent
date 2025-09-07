@@ -1,6 +1,6 @@
-from app.graph.state import BodyState
 import numpy as np
 from app.tools.embeddings import embed
+from app.graph.state import BodyState
 
 INTENT_EXAMPLES = {
     "symptom": ["I have a fever", "my head hurts", "יש לי חום", "כואב לי"],
