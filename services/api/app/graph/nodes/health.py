@@ -87,7 +87,7 @@ def run(state: BodyState) -> BodyState:
                 logger.debug(f"Found active medication: {ing}")
 
     def _norm(s: str) -> str:
-        return re.sub(r"\W+", " ", (s or "")).lower()
+        return re.sub(r"\W+", " ", (s or "")).lower().strip()
 
     logger.debug(f"Processing top {min(3, len(docs))} documents for alerts")
     for d in docs[:3]:
