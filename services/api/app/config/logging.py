@@ -31,7 +31,7 @@ def configure_logging():
             "file": {
                 "class": "logging.handlers.RotatingFileHandler",
                 "formatter": "detailed",
-                "filename": "/var/log/body-agent/api.log",
+                "filename": settings.log_file,
                 "maxBytes": 10485760,  # 10MB
                 "backupCount": 5,
             },
