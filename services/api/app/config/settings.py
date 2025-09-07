@@ -1,17 +1,26 @@
 """Settings for the API service."""
 
+from pydantic import BaseModel
 import os
 
-# Elasticsearch settings
-es_host = os.getenv("ES_HOST", "http://localhost:9200")
-es_private_index = os.getenv("ES_PRIVATE_INDEX", "private_user_memory")
-es_public_index = os.getenv("ES_PUBLIC_INDEX", "public_kb")
-es_places_index = os.getenv("ES_PLACES_INDEX", "places")
 
-# Embeddings settings
-embeddings_model = os.getenv("EMBEDDINGS_MODEL", "all-MiniLM-L6-v2")
-embeddings_device = os.getenv("EMBEDDINGS_DEVICE", "cpu")
+class Settings(BaseModel):
+    app_env: str = os.getenv("APP_ENV", "dev")
+    host: str = os.getenv("HOST", "0.0.0.0")
+    port: int = int(os.getenv("PORT", 8000))
 
-# Logging settings
-log_level = os.getenv("LOG_LEVEL", "INFO")
-log_file = os.getenv("LOG_FILE", "/var/log/body-agent/api.log")
+    es_host: str = os.getenv("ES_HOST", "http://localhost:9200")
+    es_private_index: str = os.getenv("ES_PRIVATE_INDEX", "private_user_memory")
+    es_public_index: str = os.getenv("ES_PUBLIC_INDEX", "public_medical_kb")
+    es_places_index: str = os.getenv("ES_PLACES_INDEX", "providers_places")
+
+    embeddings_model: str = os.getenv(
+        "EMBEDDINGS_MODEL", "sentence-transformers/all-MiniLM-L6-v2"
+    )
+    embeddings_device: str = os.getenv("EMBEDDINGS_DEVICE", "cpu")
+
+    llm_provider: str = os.getenv("LLM_PROVIDER", "none")
+
+    # Logging settings
+    log_level: str = os.getenv("LOG_LEVEL", "INFO")
+    log_file: str = os.getenv("LOG_FILE", "/var/log/body-agent/api.log")

@@ -4,6 +4,7 @@ from typing import Literal, TypedDict
 class BodyState(TypedDict, total=False):
     user_id: str
     user_query: str
+    user_query_redacted: str
     intent: Literal["meds", "appointment", "symptom", "routine", "other"]
     memory_facts: list[dict]
     public_snippets: list[dict]

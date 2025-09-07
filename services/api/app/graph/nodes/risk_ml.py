@@ -91,9 +91,7 @@ def run(state: BodyState) -> BodyState:
                 logger.debug(f"Added medication context: {med_name}")
 
     if meds:
-        text = (
-            text + "\nContext meds: " + ", ".join(sorted(set([m for m in meds if m])))
-        )
+        text += "\nContext meds: " + ", ".join(sorted(set(meds)))
         logger.debug(f"Final text with med context: {text}")
 
     if not labels:

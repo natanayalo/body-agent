@@ -4,12 +4,20 @@ from app.tools.embeddings import embed
 from app.config import settings
 import re
 import logging
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 
+def _norm(s: Optional[str]) -> str:
+    """Normalize text by removing non-word characters and converting to lowercase"""
+    return re.sub(r"\W+", " ", (s or "").lower())
+
+
 def run(state: BodyState) -> BodyState:
     logger.info("Processing health query")
+    if "user_query" not in state:
+        raise ValueError("user_query is required in state")
     q = state["user_query"]
     logger.debug(f"Original query: {q}")
 
@@ -17,9 +25,7 @@ def run(state: BodyState) -> BodyState:
     mem_ings = set()
     logger.debug("Processing medical context from memory")
     for m in state.get("memory_facts") or []:
-        ing = (m.get("normalized") or {}).get("ingredient") or (
-            m.get("name") or ""
-        ).lower()
+        ing = (m.get("normalized") or {}).get("ingredient") or _norm(m.get("name", ""))
         if ing:
             mem_ings.add(ing)
             logger.debug(f"Added medical context: {ing}")
@@ -85,10 +91,6 @@ def run(state: BodyState) -> BodyState:
             if ing:
                 med_mem_ings.add(ing)
                 logger.debug(f"Found active medication: {ing}")
-
-    def _norm(s: str) -> str:
-        return re.sub(r"\W+", " ", (s or "")).lower().strip()
-
     logger.debug(f"Processing top {min(3, len(docs))} documents for alerts")
     for d in docs[:3]:
         section = (d.get("section", "") or "").lower()
