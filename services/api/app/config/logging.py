@@ -60,7 +60,8 @@ def configure_logging():
     }
 
     # Ensure log directory exists
-    os.makedirs("/var/log/body-agent", exist_ok=True)
+    log_dir = os.path.dirname(settings.log_file)
+    os.makedirs(log_dir, exist_ok=True)
 
     # Apply configuration
     logging.config.dictConfig(config)
