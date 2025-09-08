@@ -46,6 +46,7 @@ services/api/app/data/
 *.ics
 
 # Python cache
-__pycache__/
+*__pycache__/
 *.pyc
-.mypy_cache
+.mypy_cache/
+.pytest_cache/

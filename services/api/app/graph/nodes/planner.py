@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
 from app.graph.state import BodyState
 from app.tools.calendar_tools import CalendarEvent, create_event
-
+import app.tools.es_client as es
+import os
 
 # Minimal planner for two demo flows
 
@@ -29,8 +30,47 @@ def run(state: BodyState) -> BodyState:
         return state
 
     if intent == "appointment":
+        # Get user preferences from memory
+        prefs = {}
+        if user_id := state.get("user_id"):
+            docs = es.search(
+                index=os.environ["ES_PRIVATE_INDEX"],
+                body={
+                    "query": {
+                        "bool": {
+                            "must": [
+                                {"term": {"user_id": user_id}},
+                                {"term": {"entity": "preference"}},
+                            ]
+                        }
+                    }
+                },
+            )
+            for d in docs["hits"]["hits"]:
+                prefs[d["_source"]["name"]] = d["_source"]["value"]
+
+        # Rank candidates
+        ranked_candidates = []
+        for cand in state.get("candidates", []):
+            score = 0
+            reasons = []
+            if prefs.get("preferred_kind") == cand.get("kind"):
+                score += 1
+                reasons.append("preferred kind")
+            if prefs.get("preferred_hours") and cand.get("hours"):
+                if prefs.get("preferred_hours") in cand.get("hours", "").lower():
+                    score += 1
+                    reasons.append(f"preferred hours: {prefs.get('preferred_hours')}")
+
+            ranked_candidates.append({"score": score, "reasons": reasons, "cand": cand})
+
+        ranked_candidates.sort(key=lambda x: x["score"], reverse=True)
+
+        best_cand = ranked_candidates[0]["cand"] if ranked_candidates else None
+        reasons = ranked_candidates[0]["reasons"] if ranked_candidates else []
+
         # Pick top candidate and create 1h slot tomorrow at 09:00Z
-        if cand := (state.get("candidates") or [{}])[0]:
+        if cand := best_cand:
             start = datetime(now.year, now.month, now.day) + timedelta(days=1, hours=9)
             evt = CalendarEvent(
                 title=f"Visit: {cand.get('name','Clinic')}",
@@ -43,6 +83,7 @@ def run(state: BodyState) -> BodyState:
                 "type": "appointment",
                 "event_path": path,
                 "provider": cand,
+                "reasons": ", ".join(reasons),
             }
             return state
 

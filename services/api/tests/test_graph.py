@@ -1,15 +1,7 @@
 from fastapi.testclient import TestClient
-from conftest import configure_test_logging
-from app.main import app
-
-# Configure test logging before importing app
-configure_test_logging()
-
-# Create test client
-client = TestClient(app)
 
 
-def test_graph_run_basic_query():
+def test_graph_run_basic_query(client: TestClient):
     response = client.post(
         "/api/graph/run",
         json={"user_id": "test-user", "query": "I have a fever of 38.8C"},
@@ -21,7 +13,7 @@ def test_graph_run_basic_query():
     assert data["state"]["user_query"] == "I have a fever of 38.8C"
 
 
-def test_graph_run_with_pii():
+def test_graph_run_with_pii(client: TestClient):
     response = client.post(
         "/api/graph/run",
         json={

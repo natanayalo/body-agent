@@ -3,6 +3,7 @@
 import logging.config
 import os
 from typing import Dict, Any
+from . import settings
 
 
 def configure_logging():
