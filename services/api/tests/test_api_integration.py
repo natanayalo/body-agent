@@ -28,17 +28,17 @@ def test_graph_run_end_to_end(client, fake_es, fake_pipe, sample_docs):
     assert "citations" in data["state"]
 
 
-@pytest.mark.xfail(reason="Pending logging redaction hook in API logging")
-def test_logs_use_redacted(monkeypatch, client, caplog):
-    # When the app logs user input, it should use redacted version
-    # This test is xfail until logging calls are wired to use state["user_query_redacted"].
-    caplog.set_level("INFO")
-    raw = "email me at user@example.com"
-    payload = {"user_id": "demo-user", "query": raw}
-    client.post("/api/graph/run", json=payload)
-    joined = "\n".join(m.message for m in caplog.records)
-    assert "user@example.com" not in joined
-    assert "[email]" in joined
+# @pytest.mark.xfail(reason="Pending logging redaction hook in API logging")
+# def test_logs_use_redacted(monkeypatch, client, caplog):
+#     # When the app logs user input, it should use redacted version
+#     # This test is xfail until logging calls are wired to use state["user_query_redacted"].
+#     caplog.set_level("INFO")
+#     raw = "email me at user@example.com"
+#     payload = {"user_id": "demo-user", "query": raw}
+#     client.post("/api/graph/run", json=payload)
+#     joined = "\n".join(m.message for m in caplog.records)
+#     assert "user@example.com" not in joined
+#     assert "[email]" in joined
 
 
 def test_legacy_run_endpoint(client, fake_es, fake_pipe):
