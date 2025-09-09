@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from app.graph.state import BodyState
 from app.tools.calendar_tools import CalendarEvent, create_event
-import app.tools.es_client as es
+from app.tools.es_client import es
 import os
 
 # Minimal planner for two demo flows
