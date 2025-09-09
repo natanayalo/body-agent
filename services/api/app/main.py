@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List
 import logging
 import re
@@ -31,7 +31,7 @@ async def _invoke_graph(user_id: str, text: str) -> BodyState:
 
 
 class Query(BaseModel):
-    user_id: str = "demo-user"
+    user_id: str = Field(..., min_length=1)
     query: str
 
 
@@ -74,7 +74,7 @@ def routes() -> List[str]:
 
 # Helper endpoints for demo: add a medication to private memory (upsert)
 class MedInput(BaseModel):
-    user_id: str = "demo-user"
+    user_id: str = Field(..., min_length=1)
     name: str
     value: str = ""
 
