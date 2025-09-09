@@ -32,7 +32,7 @@ async def _invoke_graph(user_id: str, text: str) -> BodyState:
 
 class Query(BaseModel):
     user_id: str = Field(..., min_length=1)
-    query: str
+    query: str = Field(..., min_length=1)
 
 
 @app.on_event("startup")

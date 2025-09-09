@@ -94,3 +94,11 @@ def test_symptom_flow_with_stub_risk(client, fake_es, fake_pipe, sample_docs):
     # Check alerts - should not have ML risk alerts
     alerts = data["state"].get("alerts", [])
     assert not any("ML risk" in a for a in alerts)
+
+
+def test_enforce_non_empty_query(client):
+    payload = {"user_id": "test-user", "query": ""}
+    r = client.post("/api/graph/run", json=payload)
+    assert r.status_code == 422
+    assert "query" in r.json()["detail"][0]["loc"]
+    assert "ensure this value has at least 1 characters" in r.json()["detail"][0]["msg"]
