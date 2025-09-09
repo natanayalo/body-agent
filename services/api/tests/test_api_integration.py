@@ -72,3 +72,25 @@ def test_run_graph_exception(mock_invoke, client):
     with pytest.raises(Exception) as e:
         client.post("/api/graph/run", json={"user_id": "test", "query": "hello"})
     assert "Graph error" in str(e.value)
+
+
+def test_symptom_flow_with_stub_risk(client, fake_es, fake_pipe, sample_docs):
+    hits, fever_doc, _, _ = sample_docs
+    fake_es.add_handler(lambda i, b: i.endswith("public_medical_kb"), hits([fever_doc]))
+
+    # Stub the risk model to be non-urgent
+    fake_pipe.run(urgent_care=0.1, see_doctor=0.2, self_care=0.8, info_only=0.1)
+
+    payload = {"user_id": "demo-user", "query": "I have a fever"}
+    r = client.post("/api/graph/run", json=payload)
+    assert r.status_code == 200
+    data = r.json()
+
+    # Check intent and basic structure
+    assert data["state"]["intent"] == "symptom"
+    assert "public_snippets" in data["state"]
+    assert "citations" in data["state"]
+
+    # Check alerts - should not have ML risk alerts
+    alerts = data["state"].get("alerts", [])
+    assert not any("ML risk" in a for a in alerts)

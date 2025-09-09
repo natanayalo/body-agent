@@ -59,3 +59,28 @@ def test_interaction_alert_requires_two_user_meds(fake_es, sample_docs):
     assert any(
         "Warfarin — interactions" in a for a in alerts2
     ), "Interaction should show when both meds present"
+
+
+def test_health_dedupes_citations_and_alerts(fake_es, sample_docs):
+    hits, _, _, _ = sample_docs
+    doc1 = {
+        "title": "Ibuprofen",
+        "section": "warnings",
+        "source_url": "file://ibuprofen.md",
+        "text": "Do not combine with warfarin",
+    }
+    doc2 = {
+        "title": "Ibuprofen",
+        "section": "warnings",
+        "source_url": "file://ibuprofen.md",
+        "text": "Do not combine with warfarin",
+    }
+    fake_es.add_handler(
+        lambda i, b: i.endswith("public_medical_kb"), hits([doc1, doc2])
+    )
+
+    state = {"user_query": "Ibuprofen", "messages": []}
+    out = health.run(state)
+
+    assert out.get("citations", []) == ["file://ibuprofen.md"]
+    assert out.get("alerts", []) == ["Check: Ibuprofen — warnings"]

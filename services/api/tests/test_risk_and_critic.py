@@ -34,6 +34,21 @@ def test_critic_banner_gated_by_ml(fake_pipe):
     out2 = critic.run(risk_ml.run(state2))
     assert any("Potential red-flag" in a for a in out2.get("alerts", []))
 
+    # ML urgent care and see_doctor -> critic should add banner only once
+    fake_pipe.run(urgent_care=0.7, see_doctor=0.7, self_care=0.1, info_only=0.1)
+    state3 = {
+        "user_query": "Severe chest pain and high fever",
+        "public_snippets": [{"section": "general"}],
+        "citations": ["x"],
+    }
+    out3 = critic.run(risk_ml.run(state3))
+    assert (
+        out3.get("alerts", []).count(
+            "Potential red-flag detected. Consider urgent care if symptoms worsen."
+        )
+        == 1
+    )
+
 
 def test_risk_ml_no_pipe(monkeypatch):
     # Test that the node returns the state as-is if the ML pipeline can't be loaded.

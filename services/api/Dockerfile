@@ -5,9 +5,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     LOG_LEVEL=INFO
 
-# Create log directory with proper permissions
-RUN mkdir -p /var/log/body-agent && \
-    chown -R 1000:1000 /var/log/body-agent
+# Create log directory
+RUN mkdir -p /var/log/body-agent
 
 WORKDIR /app
 COPY requirements.txt ./

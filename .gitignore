@@ -50,3 +50,4 @@ services/api/app/data/
 *.pyc
 .mypy_cache/
 .pytest_cache/
+.coverage

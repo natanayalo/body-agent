@@ -28,7 +28,9 @@ def test_memory_run(mock_es, mock_embed):
     }
 
     # Initial state
-    initial_state = BodyState(user_query="what meds am i on", memory_facts=[])
+    initial_state = BodyState(
+        user_id="test-user", user_query="what meds am i on", memory_facts=[]
+    )
 
     # Run the memory node
     result_state = memory.run(initial_state)
@@ -36,6 +38,10 @@ def test_memory_run(mock_es, mock_embed):
     # Assertions
     mock_embed.assert_called_once_with(["what meds am i on"])
     mock_es.search.assert_called_once()
+
+    # Check that the user_id is in the query
+    search_body = mock_es.search.call_args.kwargs["body"]
+    assert search_body["knn"]["filter"]["term"]["user_id"] == "test-user"
 
     # Check that the results are deduplicated
     assert len(result_state["memory_facts"]) == 2

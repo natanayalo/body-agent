@@ -11,7 +11,6 @@ _PIPE = None
 
 def _get_pipe():
     """Lazy-load a zero-shot classifier pipeline.
-
     Uses a multilingual NLI model by default so Hebrew/English both work.
     Falls back to no-op if model can't be loaded (offline build, etc.).
     """
@@ -19,10 +18,23 @@ def _get_pipe():
     if _PIPE is not None:
         logger.debug("Using existing ML pipeline")
         return _PIPE
+
+    model_id = os.getenv("RISK_MODEL_ID", "MoritzLaurer/mDeBERta-v3-base-mnli-xnli")
+
+    if model_id == "__stub__":
+        logger.info("Using stub ML pipeline")
+
+        def stub_pipeline(text, candidate_labels, **kwargs):
+            # default deterministic scores
+            scores = [0.1] * len(candidate_labels)
+            return {"labels": candidate_labels, "scores": scores}
+
+        _PIPE = stub_pipeline
+        return _PIPE
+
     try:
         from transformers import pipeline
 
-        model_id = os.getenv("RISK_MODEL_ID", "MoritzLaurer/mDeBERta-v3-base-mnli-xnli")
         logger.info(f"Loading ML model: {model_id}")
         _PIPE = pipeline("zero-shot-classification", model=model_id, device=-1)
         logger.info("ML pipeline initialized successfully")
@@ -80,7 +92,7 @@ def run(state: BodyState) -> BodyState:
 
     # Build text with lightweight context (med names only)
     text = state.get("user_query", "")
-    logger.debug(f"Base query text: {text}")
+    logger.debug(f"Base query text: {state.get('user_query_redacted', text)}")
 
     meds = []
     for m in state.get("memory_facts") or []:

@@ -19,7 +19,7 @@ def run(state: BodyState) -> BodyState:
     if "user_query" not in state:
         raise ValueError("user_query is required in state")
     q = state["user_query"]
-    logger.debug(f"Original query: {q}")
+    logger.debug(f"Redacted query: {state.get('user_query_redacted', q)}")
 
     # Build a set of normalized ingredients from memory (e.g., {"ibuprofen", "warfarin"})
     mem_ings = set()
@@ -140,7 +140,7 @@ def run(state: BodyState) -> BodyState:
     )
 
     state["public_snippets"] = docs
-    state["alerts"] = alerts
+    state["alerts"] = list(dict.fromkeys(alerts))
     # dedupe citations
     state["citations"] = list(dict.fromkeys(c for c in citations if c))
     state.setdefault("messages", []).extend(messages)
