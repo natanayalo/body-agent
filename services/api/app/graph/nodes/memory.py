@@ -21,6 +21,7 @@ def run(state: BodyState) -> BodyState:
             "query_vector": vector,
             "k": 8,
             "num_candidates": 50,
+            "filter": {"term": {"user_id": state["user_id"]}},
         },
         "_source": {"excludes": ["embedding"]},
     }

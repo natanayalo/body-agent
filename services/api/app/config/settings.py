@@ -1,3 +1,5 @@
+"""Settings for the API service."""
+
 from pydantic import BaseModel
 import os
 
@@ -18,7 +20,7 @@ class Settings(BaseModel):
     embeddings_device: str = os.getenv("EMBEDDINGS_DEVICE", "cpu")
 
     llm_provider: str = os.getenv("LLM_PROVIDER", "none")
-    openai_api_key: str | None = os.getenv("OPENAI_API_KEY")
 
-
-settings = Settings()
+    # Logging settings
+    log_level: str = os.getenv("LOG_LEVEL", "INFO")
+    log_file: str = os.getenv("LOG_FILE", "/var/log/body-agent/api.log")

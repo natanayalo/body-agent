@@ -24,12 +24,12 @@ def create_event(event: CalendarEvent) -> str:
         f"DESCRIPTION:{event.notes or ''}\n"
         "END:VEVENT\nEND:VCALENDAR\n"
     )
-    os.makedirs("/app/app/data", exist_ok=True)
+    os.makedirs("app/data", exist_ok=True)
     stamp = event.start.strftime("%Y%m%dT%H%M%S")
     safe_title = "".join([c if c.isalnum() else "_" for c in (event.title or "event")])[
         :40
     ]
-    path = f"/app/app/data/{safe_title}_{stamp}.ics"
+    path = f"app/data/{safe_title}_{stamp}.ics"
     with open(path, "w", encoding="utf-8") as f:
         f.write(ics)
     return path

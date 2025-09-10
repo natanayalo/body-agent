@@ -1,22 +1,38 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List
+import logging
+import re
+
 from app.config import settings
 from app.tools.es_client import ensure_indices
 from app.graph.state import BodyState
 from app.graph.build import build_graph
 from app.tools.es_client import es
 from app.tools.embeddings import embed
-import re
 
-# keep node imports available (legacy)
+logger = logging.getLogger(__name__)
+
+
+async def run_and_await_completion(graph, state: BodyState):
+    """Execute the graph and wait for completion"""
+    # Run the compiled graph
+    results = await graph.abatch([state])
+    return results[0]
+
 
 app = FastAPI(title="Body Agent API")
 
 
+async def _invoke_graph(user_id: str, text: str) -> BodyState:
+    state: BodyState = {"user_id": user_id, "user_query": text, "messages": []}
+    result = await run_and_await_completion(app.state.graph, state)
+    return result
+
+
 class Query(BaseModel):
-    user_id: str = "demo-user"
-    query: str
+    user_id: str = Field(..., min_length=1)
+    query: str = Field(..., min_length=1)
 
 
 @app.on_event("startup")
@@ -25,20 +41,24 @@ async def startup():
     app.state.graph = build_graph().compile()
 
 
-def _invoke_graph(user_id: str, text: str) -> BodyState:
-    state: BodyState = {"user_id": user_id, "user_query": text, "messages": []}
-    return app.state.graph.invoke(state)
-
-
 @app.post("/api/graph/run")
-def run_graph(q: Query):
-    return _invoke_graph(q.user_id, q.query)
+async def run_graph(q: Query):
+    logger.info(f"Running graph for user {q.user_id}")
+    logger.debug(f"Query: {q.query}")
+    try:
+        state = await _invoke_graph(q.user_id, q.query)
+        logger.info(f"Graph run completed for user {q.user_id}")
+        return {"state": state}
+    except Exception as e:
+        logger.error(f"Graph run failed for user {q.user_id}: {str(e)}", exc_info=True)
+        raise
 
 
 @app.post("/api/run")
-def run_legacy(q: Query):
+async def run_legacy(q: Query):
     """Legacy endpoint; now routes through the compiled LangGraph graph."""
-    return _invoke_graph(q.user_id, q.query)
+    logger.info(f"Legacy endpoint called for user {q.user_id}")
+    return await run_graph(q)
 
 
 # Simple health and route inspection
@@ -54,7 +74,7 @@ def routes() -> List[str]:
 
 # Helper endpoints for demo: add a medication to private memory (upsert)
 class MedInput(BaseModel):
-    user_id: str = "demo-user"
+    user_id: str = Field(..., min_length=1)
     name: str
     value: str = ""
 
