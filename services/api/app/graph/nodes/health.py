@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 def _norm(s: Optional[str]) -> str:
     """Normalize text by removing non-word characters and converting to lowercase"""
-    return re.sub(r"\W+", " ", (s or "").lower())
+    return re.sub(r"\W+", " ", (s or "").lower()).strip()
 
 
 def run(state: BodyState) -> BodyState:
