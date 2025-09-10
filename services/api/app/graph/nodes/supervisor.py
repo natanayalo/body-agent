@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Literal, cast
 from app.tools.embeddings import embed
 from app.graph.state import BodyState
 
@@ -7,6 +8,8 @@ INTENT_EXAMPLES = {
     "meds": ["refill my prescription", "took ibuprofen", "נטלתי תרופה"],
     "appointment": ["book a lab", "schedule a doctor visit", "קבע תור"],
 }
+
+Intent = Literal["meds", "appointment", "symptom", "routine", "other"]
 
 
 def detect_intent(text: str) -> str:
@@ -21,5 +24,6 @@ def detect_intent(text: str) -> str:
 
 
 def run(state: BodyState) -> BodyState:
-    state["intent"] = detect_intent(state["user_query"])
+    intent_str = detect_intent(state.get("user_query", ""))
+    state["intent"] = cast(Intent, intent_str)
     return state

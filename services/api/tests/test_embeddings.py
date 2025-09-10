@@ -12,7 +12,7 @@ def test_embed_list_of_strings():
 
 def test_embed_single_string():
     text = "hello world"
-    embeddings = embed(text)
+    embeddings = embed([text])
     assert isinstance(embeddings, list)
     assert len(embeddings) == 1
     assert isinstance(embeddings[0], list)

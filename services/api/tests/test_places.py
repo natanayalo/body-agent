@@ -27,8 +27,8 @@ def test_places_run():
         mock_search.assert_called_once()
 
         # Assert that the candidates are deduplicated, keeping the one with the highest score
-        assert len(result_state["candidates"]) == 3
-        candidates = result_state["candidates"]
+        assert len(result_state.get("candidates", [])) == 3
+        candidates = result_state.get("candidates", [])
         # The provider with the highest score should be kept
         assert any(p["name"] == "Provider A" and p["_score"] == 0.9 for p in candidates)
         # The other providers should be present

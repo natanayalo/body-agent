@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from starlette.routing import Route
 from pydantic import BaseModel, Field
 from typing import List
 import logging
@@ -69,7 +70,7 @@ def healthz():
 
 @app.get("/__routes")
 def routes() -> List[str]:
-    return [r.path for r in app.routes]
+    return [r.path for r in app.routes if isinstance(r, Route)]
 
 
 # Helper endpoints for demo: add a medication to private memory (upsert)

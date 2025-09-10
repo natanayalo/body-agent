@@ -14,17 +14,19 @@ def _base_name(name: str) -> str:
 
 
 def run(state: BodyState) -> BodyState:
-    vector = embed([state["user_query"]])[0]
+    vector = embed([state.get("user_query", "")])[0]
     body = {
         "knn": {
             "field": "embedding",
             "query_vector": vector,
             "k": 8,
             "num_candidates": 50,
-            "filter": {"term": {"user_id": state["user_id"]}},
         },
         "_source": {"excludes": ["embedding"]},
     }
+    if user_id := state.get("user_id"):
+        body["knn"]["filter"] = {"term": {"user_id": user_id}}
+
     res = es.search(index=settings.es_private_index, body=body)
     hits = [h["_source"] for h in res["hits"]["hits"]]
 

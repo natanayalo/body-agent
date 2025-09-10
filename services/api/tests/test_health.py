@@ -1,6 +1,7 @@
 from app.graph.nodes import health
 from unittest.mock import patch
 import pytest
+from app.graph.state import BodyState
 
 
 def test_health_knn_then_bm25_fallback(fake_es, sample_docs):
@@ -16,10 +17,12 @@ def test_health_knn_then_bm25_fallback(fake_es, sample_docs):
     fake_es.add_handler(pred_knn, {"hits": {"hits": []}})
     fake_es.add_handler(pred_bm25, hits([fever_doc]))
 
-    state = {"user_query": "I have a fever of 38.5C", "messages": []}
+    state: BodyState = {"user_query": "I have a fever of 38.5C", "messages": []}
     out = health.run(state)
-    assert out["public_snippets"], "BM25 fallback should supply docs when kNN is empty"
-    assert out["citations"] == ["file://fever.md"]
+    assert out.get(
+        "public_snippets"
+    ), "BM25 fallback should supply docs when kNN is empty"
+    assert out.get("citations") == ["file://fever.md"]
 
 
 def test_interaction_alert_requires_two_user_meds(fake_es, sample_docs):
@@ -30,7 +33,7 @@ def test_interaction_alert_requires_two_user_meds(fake_es, sample_docs):
     )
 
     # Case 1: only ibuprofen in memory → NO interaction alert
-    state = {
+    state: BodyState = {
         "user_query": "Can I take something for fever?",
         "messages": [],
         "memory_facts": [
@@ -81,7 +84,7 @@ def test_health_dedupes_citations_and_alerts(fake_es, sample_docs):
         lambda i, b: i.endswith("public_medical_kb"), hits([doc1, doc2])
     )
 
-    state = {"user_query": "Ibuprofen", "messages": []}
+    state: BodyState = {"user_query": "Ibuprofen", "messages": []}
     out = health.run(state)
 
     assert out.get("citations", []) == ["file://ibuprofen.md"]
@@ -91,9 +94,9 @@ def test_health_dedupes_citations_and_alerts(fake_es, sample_docs):
 @patch("app.graph.nodes.health.es")
 def test_health_knn_search_exception(mock_es):
     mock_es.search.side_effect = Exception("k-NN search failed")
-    state = {"user_query": "test", "messages": []}
+    state: BodyState = {"user_query": "test", "messages": []}
     out = health.run(state)
-    assert not out["public_snippets"]  # No snippets should be added
+    assert not out.get("public_snippets")  # No snippets should be added
 
 
 @patch("app.graph.nodes.health.es")
@@ -103,16 +106,16 @@ def test_health_bm25_search_exception(mock_es):
         {"hits": {"hits": []}},  # k-NN returns no hits
         Exception("BM25 search failed"),  # BM25 raises exception
     ]
-    state = {"user_query": "test", "messages": []}
+    state: BodyState = {"user_query": "test", "messages": []}
     out = health.run(state)
-    assert not out["public_snippets"]  # No snippets should be added
+    assert not out.get("public_snippets")  # No snippets should be added
 
 
 def test_health_default_guidance_message(fake_es, sample_docs):
     hits, _, _, _ = sample_docs
     # Mock ES to return no relevant documents, so no specific alerts/messages are generated
     fake_es.add_handler(lambda i, b: i.endswith("public_medical_kb"), hits([]))
-    state = {"user_query": "test", "messages": []}
+    state: BodyState = {"user_query": "test", "messages": []}
     out = health.run(state)
     assert "messages" in out
     assert len(out["messages"]) == 1
@@ -123,6 +126,6 @@ def test_health_default_guidance_message(fake_es, sample_docs):
 
 
 def test_health_raises_error_if_no_user_query():
-    state = {"messages": []}  # Missing user_query
+    state: BodyState = {"messages": []}  # Missing user_query
     with pytest.raises(ValueError, match="user_query is required in state"):
         health.run(state)

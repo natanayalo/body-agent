@@ -128,7 +128,7 @@ def test_ensure_indices_does_not_create_existing(mock_es):
 
 def test_embed_single_string():
     text = "hello world"
-    result = embed(text)
+    result = embed([text])
     assert isinstance(result, list)
     assert len(result) == 1
     assert isinstance(result[0], list)

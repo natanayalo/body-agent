@@ -44,7 +44,7 @@ def test_memory_run(mock_es, mock_embed):
     assert search_body["knn"]["filter"]["term"]["user_id"] == "test-user"
 
     # Check that the results are deduplicated
-    assert len(result_state["memory_facts"]) == 2
-    fact_names = [fact["name"] for fact in result_state["memory_facts"]]
+    assert len(result_state.get("memory_facts", [])) == 2
+    fact_names = [fact["name"] for fact in result_state.get("memory_facts", [])]
     assert "Ibuprofen 200mg" in fact_names
     assert "Aspirin 100mg" in fact_names
