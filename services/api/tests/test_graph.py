@@ -28,3 +28,15 @@ def test_graph_run_with_pii(client: TestClient):
     assert "[email]" in data["state"]["user_query_redacted"]
     assert "123-456-7890" not in data["state"]["user_query_redacted"]
     assert "test@example.com" not in data["state"]["user_query_redacted"]
+
+
+def test_graph_run_other_intent_routes_to_planner(client: TestClient):
+    response = client.post(
+        "/api/graph/run",
+        json={"user_id": "test-user", "query": "What is the weather like today?"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "state" in data
+    assert data["state"]["intent"] == "other"
+    assert data["state"]["plan"]["type"] == "none"

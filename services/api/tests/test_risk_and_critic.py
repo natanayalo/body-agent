@@ -1,4 +1,5 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+import os
 from app.graph.nodes import risk_ml, critic
 
 
@@ -122,3 +123,86 @@ def test_risk_ml_no_labels(monkeypatch):
     state = {"user_query": "I have a question"}
     out = risk_ml.run(state)
     assert out == state
+
+
+def test_critic_no_citations_alert():
+    state = {
+        "user_query": "Some query",
+        "public_snippets": [{"title": "Doc1"}],
+        "citations": [],  # No citations
+    }
+    out = critic.run(state)
+    assert "alerts" in out
+    assert "No citations found; verify guidance." in out["alerts"]
+
+
+@patch.dict(os.environ, {"RISK_MODEL_ID": "non-existent-model"})
+def test_risk_ml_get_pipe_exception():
+    # This test will try to load a non-existent model, triggering the exception
+    # The _PIPE should be None after this.
+    risk_ml._PIPE = None  # Reset global pipe
+    pipe = risk_ml._get_pipe()
+    assert pipe is None
+
+
+@patch.dict(os.environ, {"RISK_THRESHOLDS": "urgent_care:invalid_value"})
+def test_risk_ml_parse_thresholds_value_error():
+    # This test will provide an invalid threshold value, triggering the ValueError
+    thresholds = risk_ml._parse_thresholds(os.environ["RISK_THRESHOLDS"])
+    assert thresholds == {}
+
+
+def test_risk_ml_score_below_threshold(fake_pipe):
+    # Set scores below threshold
+    fake_pipe.run(urgent_care=0.1, see_doctor=0.1, self_care=0.1, info_only=0.1)
+    state = {"user_query": "I am fine", "messages": []}
+    out = risk_ml.run(state)
+    assert "alerts" not in out or not any("ML risk" in a for a in out.get("alerts", []))
+    assert "messages" in out
+    assert len(out["messages"]) == 1  # Gentle guidance should be added
+
+
+def test_risk_ml_non_urgent_label_triggered(fake_pipe):
+    # Set scores to trigger a non-urgent label (e.g., self_care)
+    fake_pipe.run(urgent_care=0.1, see_doctor=0.1, self_care=0.8, info_only=0.1)
+    state = {"user_query": "I have a minor issue", "messages": []}
+    out = risk_ml.run(state)
+    assert "alerts" not in out or not any("ML risk" in a for a in out.get("alerts", []))
+    assert "messages" in out
+    assert len(out["messages"]) == 1
+    assert "Likely self-care with monitoring." in out["messages"][0]["content"]
+
+
+def test_risk_ml_no_gentle_guidance_if_triggered(fake_pipe):
+    # Set scores to trigger an alert, so no gentle guidance is added
+    fake_pipe.run(urgent_care=0.8, see_doctor=0.1, self_care=0.1, info_only=0.1)
+    state = {"user_query": "Urgent issue", "messages": []}
+    out = risk_ml.run(state)
+    assert any("ML risk: urgent_care" in a for a in out.get("alerts", []))
+    assert "messages" not in out or not any(
+        "gentle guidance" in m.get("content", "") for m in out.get("messages", [])
+    )
+
+
+def test_risk_ml_no_gentle_guidance_if_messages_present(fake_pipe):
+    # Set scores below threshold, but messages already present
+    fake_pipe.run(urgent_care=0.1, see_doctor=0.1, self_care=0.1, info_only=0.1)
+    state = {
+        "user_query": "Some query",
+        "messages": [{"role": "assistant", "content": "Existing message"}],
+    }
+    out = risk_ml.run(state)
+    assert "messages" in out
+    assert len(out["messages"]) == 1  # Only existing message
+    assert "Existing message" in out["messages"][0]["content"]
+    assert "gentle guidance" not in out["messages"][0]["content"]
+
+
+def test_risk_ml_no_gentle_guidance_if_no_pairs(monkeypatch):
+    # Mock pipe to return no pairs
+    mock_pipe = MagicMock()
+    mock_pipe.return_value = {"labels": [], "scores": []}
+    monkeypatch.setattr(risk_ml, "_get_pipe", lambda: mock_pipe)
+    state = {"user_query": "Some query", "messages": []}
+    out = risk_ml.run(state)
+    assert "messages" not in out or not out["messages"]

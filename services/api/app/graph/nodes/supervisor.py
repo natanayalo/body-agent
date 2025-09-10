@@ -17,7 +17,7 @@ def detect_intent(text: str) -> str:
         score = (ex @ q).max()
         if score > best_score:
             best, best_score = label, score
-    return best if best_score > 0.30 else "other"
+    return best if best_score > 0.40 else "other"
 
 
 def run(state: BodyState) -> BodyState:

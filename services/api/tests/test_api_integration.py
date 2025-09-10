@@ -1,5 +1,7 @@
 import pytest
 from unittest.mock import patch
+from app.tools.es_client import ensure_indices
+from app.tools.embeddings import embed
 
 
 def test_healthz(client):
@@ -101,4 +103,32 @@ def test_enforce_non_empty_query(client):
     r = client.post("/api/graph/run", json=payload)
     assert r.status_code == 422
     assert "query" in r.json()["detail"][0]["loc"]
-    assert "ensure this value has at least 1 characters" in r.json()["detail"][0]["msg"]
+    assert "String should have at least 1 character" in r.json()["detail"][0]["msg"]
+
+
+@patch("app.tools.es_client.es")
+def test_ensure_indices_creates_missing(mock_es):
+    mock_es.indices.exists.side_effect = [
+        False,
+        False,
+        False,
+    ]  # All indices don't exist
+    mock_es.indices.create.reset_mock()  # Reset call count
+    ensure_indices()
+    assert mock_es.indices.create.call_count == 3  # Should create all three
+
+
+@patch("app.tools.es_client.es")
+def test_ensure_indices_does_not_create_existing(mock_es):
+    mock_es.indices.exists.side_effect = [True, True, True]  # All indices exist
+    mock_es.indices.create.reset_mock()  # Reset call count
+    ensure_indices()
+    assert mock_es.indices.create.call_count == 0  # Should not create any
+
+
+def test_embed_single_string():
+    text = "hello world"
+    result = embed(text)
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert isinstance(result[0], list)
