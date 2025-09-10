@@ -85,8 +85,9 @@ def run(state: BodyState) -> BodyState:
     med_mem_ings = set()
     for m in state.get("memory_facts") or []:
         if m.get("entity") == "medication":
-            ing = (m.get("normalized") or {}).get("ingredient") or (
-                m.get("name") or ""
+            ing = (m.get("normalized") or {}).get("ingredient") or _norm(
+                m.get("name", "")
+            )
             ).lower()
             if ing:
                 med_mem_ings.add(ing)
