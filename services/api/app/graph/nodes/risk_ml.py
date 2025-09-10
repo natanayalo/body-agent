@@ -97,7 +97,7 @@ def run(state: BodyState) -> BodyState:
     meds = []
     for m in state.get("memory_facts") or []:
         if m.get("entity") == "medication":
-            med_name = m.get("name") or m.get("normalized", {}).get("ingredient") or ""
+            med_name = m.get("normalized", {}).get("ingredient") or m.get("name") or ""
             if med_name:
                 meds.append(med_name)
                 logger.debug(f"Added medication context: {med_name}")
