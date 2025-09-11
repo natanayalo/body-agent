@@ -52,7 +52,7 @@ def test_planner_preferences_ranking(fake_es):
             },
         ],
     )
-    out = planner.run(state)
+    out = planner.run(state, fake_es)
     plan = out.get("plan", {})
     assert plan.get("type") == "appointment"
     assert plan.get("provider", {}).get("name") == "Dizengoff Lab Center"
@@ -61,9 +61,9 @@ def test_planner_preferences_ranking(fake_es):
     )
 
 
-def test_planner_meds_intent():
+def test_planner_meds_intent(fake_es):
     state = BodyState(intent="meds", user_query="I need meds", messages=[])
-    out = planner.run(state)
+    out = planner.run(state, fake_es)
     plan = out.get("plan", {})
     assert plan.get("type") == "med_schedule"
     assert len(plan.get("items", [])) == 2
@@ -79,7 +79,7 @@ def test_planner_appointment_no_candidates(fake_es):
         user_query="book appointment",
         candidates=[],
     )
-    out = planner.run(state)
+    out = planner.run(state, fake_es)
     assert out.get("plan", {}).get("type") == "none"
 
 
@@ -95,20 +95,20 @@ def test_planner_appointment_no_preferences(fake_es):
             {"name": "Clinic A", "kind": "clinic", "hours": "Sun-Thu 12:00-20:00"}
         ],
     )
-    out = planner.run(state)
+    out = planner.run(state, fake_es)
     plan = out.get("plan", {})
     assert plan.get("type") == "appointment"
     assert plan.get("provider", {}).get("name") == "Clinic A"
     assert plan.get("reasons") == ""
 
 
-def test_planner_fallback_intent():
+def test_planner_fallback_intent(fake_es):
     state = BodyState(intent="other", user_query="What is the weather?", messages=[])
-    out = planner.run(state)
+    out = planner.run(state, fake_es)
     assert out.get("plan", {}).get("type") == "none"
 
 
-def test_planner_appointment_no_user_id():
+def test_planner_appointment_no_user_id(fake_es):
     state = BodyState(
         intent="appointment",
         user_query="book appointment",
@@ -116,7 +116,7 @@ def test_planner_appointment_no_user_id():
             {"name": "Clinic A", "kind": "clinic", "hours": "Sun-Thu 12:00-20:00"}
         ],
     )
-    out = planner.run(state)
+    out = planner.run(state, fake_es)
     plan = out.get("plan", {})
     assert plan.get("type") == "appointment"
     assert plan.get("provider", {}).get("name") == "Clinic A"
@@ -135,7 +135,7 @@ def test_planner_appointment_user_id_no_prefs(fake_es):
             {"name": "Clinic A", "kind": "clinic", "hours": "Sun-Thu 12:00-20:00"}
         ],
     )
-    out = planner.run(state)
+    out = planner.run(state, fake_es)
     plan = out.get("plan", {})
     assert plan.get("type") == "appointment"
     assert plan.get("provider", {}).get("name") == "Clinic A"
@@ -169,7 +169,7 @@ def test_planner_appointment_candidate_no_hours(fake_es):
             {"name": "Clinic B", "kind": "clinic", "hours": None},  # None hours
         ],
     )
-    out = planner.run(state)
+    out = planner.run(state, fake_es)
     plan = out.get("plan", {})
     assert plan.get("type") == "appointment"
     assert plan.get("provider", {}).get("name") in ["Clinic A", "Clinic B"]

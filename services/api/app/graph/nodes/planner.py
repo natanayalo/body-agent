@@ -1,15 +1,14 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from app.graph.state import BodyState
 from app.tools.calendar_tools import CalendarEvent, create_event
-from app.tools.es_client import es
 import os
 
 # Minimal planner for two demo flows
 
 
-def run(state: BodyState) -> BodyState:
+def run(state: BodyState, es_client) -> BodyState:
     intent = state.get("intent")
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
 
     if intent == "meds":
         # Produce a toy schedule: morning/evening entries for next 24h
@@ -33,6 +32,7 @@ def run(state: BodyState) -> BodyState:
         # Get user preferences from memory
         prefs = {}
         if user_id := state.get("user_id"):
+            es = es_client
             docs = es.search(
                 index=os.environ["ES_PRIVATE_INDEX"],
                 body={

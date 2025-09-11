@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from app.graph.nodes import memory
 from app.graph.state import BodyState
 
@@ -13,11 +13,10 @@ def test_base_name():
 
 
 @patch("app.graph.nodes.memory.embed", return_value=[[0.1, 0.2, 0.3]])
-@patch("app.graph.nodes.memory.es")
-def test_memory_run(mock_es, mock_embed):
+def test_memory_run(mock_embed, fake_es, monkeypatch):
     """Test the memory node run function."""
     # Mock Elasticsearch result
-    mock_es.search.return_value = {
+    mock_search_return_value = {
         "hits": {
             "hits": [
                 {"_source": {"name": "Ibuprofen 200mg", "entity": "medication"}},
@@ -26,6 +25,9 @@ def test_memory_run(mock_es, mock_embed):
             ]
         }
     }
+    monkeypatch.setattr(
+        fake_es, "search", MagicMock(return_value=mock_search_return_value)
+    )
 
     # Initial state
     initial_state = BodyState(
@@ -33,14 +35,14 @@ def test_memory_run(mock_es, mock_embed):
     )
 
     # Run the memory node
-    result_state = memory.run(initial_state)
+    result_state = memory.run(initial_state, fake_es)
 
     # Assertions
     mock_embed.assert_called_once_with(["what meds am i on"])
-    mock_es.search.assert_called_once()
+    fake_es.search.assert_called_once()
 
     # Check that the user_id is in the query
-    search_body = mock_es.search.call_args.kwargs["body"]
+    search_body = fake_es.search.call_args.kwargs["body"]
     assert search_body["knn"]["filter"]["term"]["user_id"] == "test-user"
 
     # Check that the results are deduplicated

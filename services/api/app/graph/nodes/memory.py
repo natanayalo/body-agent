@@ -1,5 +1,4 @@
 from app.graph.state import BodyState
-from app.tools.es_client import es
 from app.tools.embeddings import embed
 from app.config import settings
 import re
@@ -13,7 +12,8 @@ def _base_name(name: str) -> str:
     )
 
 
-def run(state: BodyState) -> BodyState:
+def run(state: BodyState, es_client) -> BodyState:
+    es = es_client
     vector = embed([state.get("user_query", "")])[0]
     body = {
         "knn": {

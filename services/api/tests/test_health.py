@@ -1,36 +1,57 @@
 from app.graph.nodes import health
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 import pytest
 from app.graph.state import BodyState
 
 
-def test_health_knn_then_bm25_fallback(fake_es, sample_docs):
-    hits, fever_doc, ibu_warn, warf_inter = sample_docs
+def test_health_knn_then_bm25_fallback(sample_docs, monkeypatch):
+    hits_func, fever_doc, ibu_warn, warf_inter = sample_docs
 
-    # First call (kNN) returns no hits; second (BM25) returns fever doc
-    def pred_knn(idx, body):
-        return idx.endswith("public_medical_kb") and "knn" in body
+    mock_es_instance = MagicMock()
+    mock_es_instance.search.side_effect = [
+        {"hits": {"hits": []}},  # First call (kNN) returns no hits
+        {
+            "hits": {"hits": [{"_source": fever_doc}]}
+        },  # Directly provide the expected structure
+    ]
+    # Patch get_es_client to return our mock instance
+    monkeypatch.setattr("app.tools.es_client.get_es_client", lambda: mock_es_instance)
 
-    def pred_bm25(idx, body):
-        return idx.endswith("public_medical_kb") and "query" in body
+    # Force reload the health module to pick up the patched get_es_client
+    import importlib
+    import app.graph.nodes.health
 
-    fake_es.add_handler(pred_knn, {"hits": {"hits": []}})
-    fake_es.add_handler(pred_bm25, hits([fever_doc]))
+    importlib.reload(app.graph.nodes.health)
+    from app.graph.nodes import (
+        health as reloaded_health,
+    )  # Use a different name to avoid confusion
 
     state: BodyState = {"user_query": "I have a fever of 38.5C", "messages": []}
-    out = health.run(state)
+    out = reloaded_health.run(state, None)  # Call the reloaded module's run function
     assert out.get(
         "public_snippets"
     ), "BM25 fallback should supply docs when kNN is empty"
     assert out.get("citations") == ["file://fever.md"]
 
 
-def test_interaction_alert_requires_two_user_meds(fake_es, sample_docs):
+@patch("app.tools.es_client.get_es_client")
+def test_interaction_alert_requires_two_user_meds(
+    mock_get_es_client, sample_docs, monkeypatch
+):
     hits, fever_doc, ibu_warn, warf_inter = sample_docs
-    # Always return both warning and interaction docs
-    fake_es.add_handler(
-        lambda i, b: i.endswith("public_medical_kb"), hits([ibu_warn, warf_inter])
-    )
+
+    mock_es_instance = MagicMock()
+    mock_es_instance.search.side_effect = [
+        hits([ibu_warn, warf_inter]),  # First search (kNN)
+        hits([ibu_warn, warf_inter]),  # Second search (BM25, if fallback occurs)
+    ]
+    mock_get_es_client.return_value = mock_es_instance
+
+    import importlib
+    import app.graph.nodes.health
+
+    importlib.reload(app.graph.nodes.health)
+    from app.graph.nodes import health as reloaded_health
 
     # Case 1: only ibuprofen in memory → NO interaction alert
     state: BodyState = {
@@ -44,7 +65,7 @@ def test_interaction_alert_requires_two_user_meds(fake_es, sample_docs):
             },
         ],
     }
-    out = health.run(state)
+    out = reloaded_health.run(state, None)
     alerts = out.get("alerts", [])
     assert any("Ibuprofen — warnings" in a for a in alerts)
     assert not any(
@@ -59,14 +80,23 @@ def test_interaction_alert_requires_two_user_meds(fake_es, sample_docs):
             "normalized": {"ingredient": "warfarin"},
         }
     )
-    out2 = health.run(state)
+    # Reset mock for the second run
+    mock_es_instance.search.reset_mock()
+    mock_es_instance.search.side_effect = [
+        hits([ibu_warn, warf_inter]),  # First search (kNN)
+        hits([ibu_warn, warf_inter]),  # Second search (BM25, if fallback occurs)
+    ]
+    out2 = reloaded_health.run(state, None)
     alerts2 = out2.get("alerts", [])
     assert any(
         "Warfarin — interactions" in a for a in alerts2
     ), "Interaction should show when both meds present"
 
 
-def test_health_dedupes_citations_and_alerts(fake_es, sample_docs):
+@patch("app.tools.es_client.get_es_client")
+def test_health_dedupes_citations_and_alerts(
+    mock_get_es_client, sample_docs, monkeypatch
+):
     hits, _, _, _ = sample_docs
     doc1 = {
         "title": "Ibuprofen",
@@ -80,34 +110,61 @@ def test_health_dedupes_citations_and_alerts(fake_es, sample_docs):
         "source_url": "file://ibuprofen.md",
         "text": "Do not combine with warfarin",
     }
-    fake_es.add_handler(
-        lambda i, b: i.endswith("public_medical_kb"), hits([doc1, doc2])
-    )
+
+    mock_es_instance = MagicMock()
+    mock_es_instance.search.side_effect = [
+        hits([doc1, doc2]),  # First search (kNN)
+        hits([doc1, doc2]),  # Second search (BM25, if fallback occurs)
+    ]
+    mock_get_es_client.return_value = mock_es_instance
+
+    import importlib
+    import app.graph.nodes.health
+
+    importlib.reload(app.graph.nodes.health)
+    from app.graph.nodes import health as reloaded_health
 
     state: BodyState = {"user_query": "Ibuprofen", "messages": []}
-    out = health.run(state)
+    out = reloaded_health.run(state, None)
 
     assert out.get("citations", []) == ["file://ibuprofen.md"]
     assert out.get("alerts", []) == ["Check: Ibuprofen — warnings"]
 
 
-@patch("app.graph.nodes.health.es")
-def test_health_knn_search_exception(mock_es):
-    mock_es.search.side_effect = Exception("k-NN search failed")
+@patch("app.tools.es_client.get_es_client")
+def test_health_knn_search_exception(mock_get_es_client, monkeypatch):
+    mock_es_instance = MagicMock()
+    mock_es_instance.search.side_effect = Exception("k-NN search failed")
+    mock_get_es_client.return_value = mock_es_instance
+
+    import importlib
+    import app.graph.nodes.health
+
+    importlib.reload(app.graph.nodes.health)
+    from app.graph.nodes import health as reloaded_health
+
     state: BodyState = {"user_query": "test", "messages": []}
-    out = health.run(state)
+    out = reloaded_health.run(state, None)
     assert not out.get("public_snippets")  # No snippets should be added
 
 
-@patch("app.graph.nodes.health.es")
-def test_health_bm25_search_exception(mock_es):
-    # Mock k-NN to return no hits, then BM25 to raise exception
-    mock_es.search.side_effect = [
+@patch("app.tools.es_client.get_es_client")
+def test_health_bm25_search_exception(mock_get_es_client, monkeypatch):
+    mock_es_instance = MagicMock()
+    mock_es_instance.search.side_effect = [
         {"hits": {"hits": []}},  # k-NN returns no hits
         Exception("BM25 search failed"),  # BM25 raises exception
     ]
+    mock_get_es_client.return_value = mock_es_instance
+
+    import importlib
+    import app.graph.nodes.health
+
+    importlib.reload(app.graph.nodes.health)
+    from app.graph.nodes import health as reloaded_health
+
     state: BodyState = {"user_query": "test", "messages": []}
-    out = health.run(state)
+    out = reloaded_health.run(state, None)
     assert not out.get("public_snippets")  # No snippets should be added
 
 
@@ -116,7 +173,7 @@ def test_health_default_guidance_message(fake_es, sample_docs):
     # Mock ES to return no relevant documents, so no specific alerts/messages are generated
     fake_es.add_handler(lambda i, b: i.endswith("public_medical_kb"), hits([]))
     state: BodyState = {"user_query": "test", "messages": []}
-    out = health.run(state)
+    out = health.run(state, fake_es)
     assert "messages" in out
     assert len(out["messages"]) == 1
     assert (
@@ -125,7 +182,7 @@ def test_health_default_guidance_message(fake_es, sample_docs):
     )
 
 
-def test_health_raises_error_if_no_user_query():
+def test_health_raises_error_if_no_user_query(fake_es):
     state: BodyState = {"messages": []}  # Missing user_query
     with pytest.raises(ValueError, match="user_query is required in state"):
-        health.run(state)
+        health.run(state, fake_es)

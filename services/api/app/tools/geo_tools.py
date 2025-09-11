@@ -1,5 +1,4 @@
 from typing import Dict, Any
-from app.tools.es_client import es
 from app.config import settings
 from app.tools.embeddings import embed
 
@@ -8,11 +7,13 @@ from app.tools.embeddings import embed
 
 
 def search_providers(
+    es_client,
     query: str,
     lat: float | None = None,
     lon: float | None = None,
     radius_km: float = 10.0,
 ) -> list[Dict[str, Any]]:
+    es = es_client
     vector = embed([query])[0]
     knn = {
         "field": "embedding",
