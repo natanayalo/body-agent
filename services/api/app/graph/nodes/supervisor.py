@@ -109,5 +109,7 @@ def detect_intent(
 
 
 def run(state: BodyState) -> BodyState:
-    state["intent"] = detect_intent(state["user_query"])
+    detected_intent = detect_intent(state["user_query"])
+    state["intent"] = detected_intent
+    logging.debug(f"Detected intent: {detected_intent}")
     return state

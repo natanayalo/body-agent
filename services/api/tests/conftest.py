@@ -39,6 +39,7 @@ def set_test_env(monkeypatch):
     monkeypatch.setenv("RISK_LABELS", "urgent_care,see_doctor,self_care,info_only")
     monkeypatch.setenv("RISK_THRESHOLDS", "urgent_care:0.65,see_doctor:0.55")
     monkeypatch.setenv("RISK_MODEL_ID", "__stub__")
+    monkeypatch.setenv("LOG_LEVEL", "INFO")
 
 
 @pytest.fixture(autouse=True)  # Apply automatically to all tests

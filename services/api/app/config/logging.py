@@ -53,6 +53,11 @@ def configure_logging():
                 "handlers": ["console", "file"],
                 "propagate": False,
             },
+            "app.graph.nodes.places": {  # Specific logger for places node
+                "level": "DEBUG",
+                "handlers": ["console", "file"],
+                "propagate": False,
+            },
         },
         "root": {  # Root logger
             "level": "WARNING",

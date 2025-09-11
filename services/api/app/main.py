@@ -6,6 +6,7 @@ import logging
 import re
 
 from app.config import settings
+from app.config.logging import configure_logging
 
 from app.tools.es_client import ensure_indices, get_es_client
 from app.graph.state import BodyState
@@ -26,6 +27,7 @@ async def run_and_await_completion(graph, state: BodyState):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    configure_logging()  # Call configure_logging here
     ensure_indices()
     app.state.graph = build_graph(get_es_client()).compile()
     yield

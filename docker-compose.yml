@@ -23,7 +23,7 @@ services:
       - ES_PRIVATE_INDEX=private_user_memory
       - ES_PUBLIC_INDEX=public_medical_kb
       - ES_PLACES_INDEX=providers_places
-      - INTENT_EXEMPLARS_PATH=/app/seeds/intent_exemplars.json
+      - INTENT_EXEMPLARS_PATH=/app/data/intent_exemplars.json
       - INTENT_THRESHOLD=0.30
       - INTENT_MARGIN=0.05
       - INTENT_LANGS=en,he

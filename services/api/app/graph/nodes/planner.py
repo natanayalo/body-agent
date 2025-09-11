@@ -2,6 +2,9 @@ from datetime import datetime, timedelta, UTC
 from app.graph.state import BodyState
 from app.tools.calendar_tools import CalendarEvent, create_event
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Minimal planner for two demo flows
 
@@ -29,6 +32,7 @@ def run(state: BodyState, es_client) -> BodyState:
         return state
 
     if intent == "appointment":
+        logger.debug("Planner: Handling 'appointment' intent.")
         # Get user preferences from memory
         prefs = {}
         if user_id := state.get("user_id"):
@@ -48,6 +52,7 @@ def run(state: BodyState, es_client) -> BodyState:
             )
             for d in docs["hits"]["hits"]:
                 prefs[d["_source"]["name"]] = d["_source"]["value"]
+        logger.debug(f"Planner: User preferences: {prefs}")
 
         # Rank candidates
         ranked_candidates = []
@@ -68,6 +73,7 @@ def run(state: BodyState, es_client) -> BodyState:
 
         best_cand = ranked_candidates[0]["cand"] if ranked_candidates else None
         reasons = ranked_candidates[0]["reasons"] if ranked_candidates else []
+        logger.debug(f"Planner: Best candidate: {best_cand}")
 
         # Pick top candidate and create 1h slot tomorrow at 09:00Z
         if cand := best_cand:
@@ -79,6 +85,7 @@ def run(state: BodyState, es_client) -> BodyState:
                 location=cand.get("name"),
             )
             path = create_event(evt)
+            logger.debug(f"Planner: Event path created: {path}")
             state["plan"] = {
                 "type": "appointment",
                 "event_path": path,
@@ -88,5 +95,6 @@ def run(state: BodyState, es_client) -> BodyState:
             return state
 
     # Fallback
+    logger.debug("Planner: Falling back to 'none' plan.")
     state["plan"] = {"type": "none"}
     return state
