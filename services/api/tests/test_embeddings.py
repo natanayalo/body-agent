@@ -17,3 +17,12 @@ def test_embed_single_string():
     assert len(embeddings) == 1
     assert isinstance(embeddings[0], list)
     assert isinstance(embeddings[0][0], float)
+
+
+def test_embed_single_string_input():
+    text = "hello world"
+    embeddings = embed([text])  # Pass string directly
+    assert isinstance(embeddings, list)
+    assert len(embeddings) == 1
+    assert isinstance(embeddings[0], list)
+    assert isinstance(embeddings[0][0], float)

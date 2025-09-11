@@ -41,7 +41,7 @@ def set_test_env(monkeypatch):
     monkeypatch.setenv("RISK_MODEL_ID", "__stub__")
 
 
-@pytest.fixture()
+@pytest.fixture(autouse=True)  # Apply automatically to all tests
 def fake_embed(monkeypatch):
     """Deterministic embed stub: returns tiny 3-dim vectors based on keywords.
     - symptom-ish: [1,0,0]
@@ -50,6 +50,8 @@ def fake_embed(monkeypatch):
     - else: [0,0,0]
     """
     from app.tools import embeddings as emb_mod
+
+    # from app.graph.nodes import supervisor # Do not import supervisor here
 
     def _vec(text: str):
         t = text.lower()
@@ -69,6 +71,17 @@ def fake_embed(monkeypatch):
         return [_vec(t) for t in texts]
 
     monkeypatch.setattr(emb_mod, "embed", _embed)
+    # Mock the SentenceTransformer class
+    monkeypatch.setattr(
+        emb_mod, "SentenceTransformer", lambda *args, **kwargs: MagicMock(encode=_embed)
+    )
+
+    # Re-import supervisor after patching embed
+    import importlib
+    import app.graph.nodes.supervisor
+
+    importlib.reload(app.graph.nodes.supervisor)
+
     return _embed
 
 
@@ -149,7 +162,7 @@ def fake_pipe(monkeypatch):
 
     monkeypatch.setattr(risk_ml, "_PIPE", p)
     monkeypatch.setattr(risk_ml, "_get_pipe", lambda: p)
-    p.run = set_scores
+    p.run = set_scores  # type: ignore
     return p
 
 

@@ -44,6 +44,7 @@ Thumbs.db
 # Runtime artifacts
 services/api/app/data/
 *.ics
+seeds/intent_exemplars.json
 
 # Python cache
 *__pycache__/*
@@ -51,4 +52,4 @@ services/api/app/data/
 *.mypy_cache/
 *.pytest_cache/*
 .coverage
-coverage.*
+coverage*

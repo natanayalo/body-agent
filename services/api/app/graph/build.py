@@ -19,7 +19,7 @@ def build_graph(es_client) -> StateGraph:
     """
     Construct a LangGraph StateGraph wiring existing node functions.
 
-    Flow:
+    Flow: # pragma: no cover
       START -> supervisor -> memory -> (health | places | planner) -> planner -> critic -> END
     """
     g = StateGraph(BodyState)

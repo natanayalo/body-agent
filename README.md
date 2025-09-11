@@ -87,7 +87,35 @@ curl -X POST "http://localhost:8000/api/graph/run" -H "Content-Type: application
 '''
 ```
 
+## Optional: Better intent routing with exemplars
+
+By default the supervisor uses an **embedding-based** router with built-in examples. You can improve accuracy and multilingual coverage by generating exemplars from the **MASSIVE** dataset (plus curated fallbacks for health-specific intents).
+
+```bash
+# generate exemplars (internet required once)
+docker compose exec api python scripts/build_intent_exemplars.py \
+  --langs en he --per-intent 40 --out /app/seeds/intent_exemplars.json
+
+# point the API to the file
+echo "INTENT_EXEMPLARS_PATH=/app/seeds/intent_exemplars.json" >> .env
+docker compose restart api
+```
+
+Config knobs (in `.env`):
+
+```
+INTENT_THRESHOLD=0.30   # min cosine for top intent
+INTENT_MARGIN=0.05      # top - second must exceed this
+INTENT_LANGS=en,he      # languages to target when generating exemplars
+```
+
+Notes:
+- We currently map only obvious MASSIVE labels to our buckets (`appointment`, `routine`). Health-specific intents (`symptom`, `meds`) are curated in the script.
+- The supervisor precomputes embeddings for exemplars at import time for speed.
+
+
 ## Development
+
 
 ### Pre-commit Hooks
 

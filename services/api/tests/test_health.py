@@ -183,6 +183,6 @@ def test_health_default_guidance_message(fake_es, sample_docs):
 
 
 def test_health_raises_error_if_no_user_query(fake_es):
-    state: BodyState = {"messages": []}  # Missing user_query
+    state: BodyState = {"messages": []}  # Missing user_query # type: ignore
     with pytest.raises(ValueError, match="user_query is required in state"):
         health.run(state, fake_es)
