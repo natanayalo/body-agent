@@ -48,9 +48,9 @@ class Query(BaseModel):
 @app.post("/api/graph/run")
 async def run_graph(q: Query):
     logger.info(f"Running graph for user {q.user_id}")
-    logger.debug(f"Query: {q.query}")
     try:
         state = await _invoke_graph(q.user_id, q.query)
+        logger.debug(f"Query: {state.get('user_query_redacted', q.query)}")
         logger.info(f"Graph run completed for user {q.user_id}")
         return {"state": state}
     except Exception as e:
