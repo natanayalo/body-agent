@@ -5,7 +5,7 @@ Usage examples:
 
   # Run inside the API container (internet required for first download):
   docker compose exec api python scripts/build_intent_exemplars.py \
-      --langs en he --per-intent 40 --out /app/app/data/intent_exemplars.json
+      --langs en he --per-intent 40 --out /app/data/intent_exemplars.json
 
   # Or locally in your venv:
   python scripts/build_intent_exemplars.py --langs en he --per-intent 40 --out seeds/intent_exemplars.json

@@ -91,15 +91,14 @@ curl -X POST "http://localhost:8000/api/graph/run" -H "Content-Type: application
 
 By default the supervisor uses an **embedding-based** router with built-in examples. You can improve accuracy and multilingual coverage by generating exemplars from the **MASSIVE** dataset (plus curated fallbacks for health-specific intents).
 
-```bash
 # generate exemplars (internet required once)
 docker compose exec api python scripts/build_intent_exemplars.py \
-  --langs en he --per-intent 40 --out /app/app/data/intent_exemplars.json
+  --langs en he --per-intent 40 --out /app/data/intent_exemplars.json
 
 # point the API to the file
-echo "INTENT_EXEMPLARS_PATH=/app/app/data/intent_exemplars.json" >> .env
+echo "INTENT_EXEMPLARS_PATH=/app/data/intent_exemplars.json" >> .env
 docker compose restart api
-```
+
 
 Config knobs (in `.env`):
 
