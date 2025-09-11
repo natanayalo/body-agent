@@ -47,7 +47,7 @@ services/api/app/data/
 seeds/intent_exemplars.json
 
 # Python cache
-*__pycache__/*
+*__pycache__*
 *.pyc
 *.mypy_cache/
 *.pytest_cache/*
