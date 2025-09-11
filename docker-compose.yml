@@ -35,7 +35,8 @@ services:
       - "8000:8000"
     volumes:
       - ./services/api/app:/app/app:rw
-      - ./seeds:/app/seeds:rw
+      - ./seeds:/app/seeds:ro
+      - ./services/api/app/data:/app/app/data:rw
       - ./scripts:/app/scripts:ro
     deploy:
       resources:

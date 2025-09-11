@@ -43,6 +43,7 @@ def test_planner_preferences_ranking(fake_es):
     state = BodyState(
         intent="appointment",
         user_id="demo-user",
+        user_query="test query",  # Added user_query
         candidates=[
             {"name": "Clinic A", "kind": "clinic", "hours": "Sun-Thu 12:00-20:00"},
             {

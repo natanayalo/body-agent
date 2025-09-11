@@ -5,7 +5,7 @@ Usage examples:
 
   # Run inside the API container (internet required for first download):
   docker compose exec api python scripts/build_intent_exemplars.py \
-      --langs en he --per-intent 40 --out /app/seeds/intent_exemplars.json
+      --langs en he --per-intent 40 --out /app/app/data/intent_exemplars.json
 
   # Or locally in your venv:
   python scripts/build_intent_exemplars.py --langs en he --per-intent 40 --out seeds/intent_exemplars.json
@@ -29,7 +29,7 @@ import re
 from collections import defaultdict
 
 try:
-    from datasets import load_dataset
+    from datasets import load_dataset, Dataset  # Added Dataset
 except Exception:
     raise SystemExit("Install `datasets` (pip install datasets) to run this script.")
 
@@ -105,16 +105,23 @@ def map_massive_intent(label: str) -> str | None:
 
 
 def collect_from_massive(langs: list[str], per_intent: int) -> dict[str, list[str]]:
-    ds = load_dataset("AmazonScience/massive", split="train", trust_remote_code=True)
+    ds: Dataset = load_dataset(
+        "AmazonScience/massive", "all_1.1", split="train", trust_remote_code=True
+    )
     buckets = defaultdict(list)
-    for row in ds:
-        if not locale_matches(row.get("locale"), langs):
+    for row in ds:  # row is a dictionary-like object
+        # Ensure locale is a string, providing a default empty string if None
+        locale_val: str = str(row.get("locale", ""))
+        if not locale_matches(locale_val, langs):
             continue
+
         intent_id = row.get("intent")
+        # Access features directly from ds, which is typed as Dataset
         intent_str = ds.features["intent"].int2str(intent_id)
         intent = map_massive_intent(intent_str)
         if not intent:
             continue
+
         utt = (row.get("utt") or "").strip()
         if not utt:
             continue
