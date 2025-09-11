@@ -1,11 +1,11 @@
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from app.tools import geo_tools
 
 
 @patch("app.tools.geo_tools.embed", return_value=[[0.1, 0.2, 0.3]])
-@patch("app.tools.geo_tools.es")
-def test_search_providers_with_geo(mock_es, mock_embed):
+def test_search_providers_with_geo(mock_embed):
     """Test search_providers with geo-location."""
+    mock_es = MagicMock()
     # Mock Elasticsearch result
     mock_es.search.return_value = {
         "hits": {
@@ -16,7 +16,7 @@ def test_search_providers_with_geo(mock_es, mock_embed):
     }
 
     # Call the function
-    result = geo_tools.search_providers("test query", lat=1.0, lon=2.0)
+    result = geo_tools.search_providers(mock_es, "test query", lat=1.0, lon=2.0)
 
     # Assertions
     mock_embed.assert_called_once_with(["test query"])
@@ -27,9 +27,9 @@ def test_search_providers_with_geo(mock_es, mock_embed):
 
 
 @patch("app.tools.geo_tools.embed", return_value=[[0.1, 0.2, 0.3]])
-@patch("app.tools.geo_tools.es")
-def test_search_providers_without_geo(mock_es, mock_embed):
+def test_search_providers_without_geo(mock_embed):
     """Test search_providers without geo-location."""
+    mock_es = MagicMock()
     # Mock Elasticsearch result
     mock_es.search.return_value = {
         "hits": {
@@ -40,7 +40,7 @@ def test_search_providers_without_geo(mock_es, mock_embed):
     }
 
     # Call the function
-    result = geo_tools.search_providers("test query")
+    result = geo_tools.search_providers(mock_es, "test query")
 
     # Assertions
     mock_embed.assert_called_once_with(["test query"])

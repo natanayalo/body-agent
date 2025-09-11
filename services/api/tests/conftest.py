@@ -3,11 +3,19 @@ import json
 import pytest
 from unittest.mock import MagicMock
 import sys
+from fastapi.testclient import TestClient
 
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
+
+
+@pytest.fixture(scope="session")  # Define a session-scoped monkeypatch
+def session_monkeypatch(request):
+    mpatch = pytest.MonkeyPatch()
+    yield mpatch
+    mpatch.undo()
 
 
 @pytest.fixture(autouse=True)
@@ -21,7 +29,9 @@ def mock_fs(monkeypatch):
 def set_test_env(monkeypatch):
     # Safer defaults for tests
     monkeypatch.setenv("APP_ENV", "test")
-    monkeypatch.setenv("ES_HOST", "http://elasticsearch:9200")
+    monkeypatch.setenv(
+        "ES_HOST", "http://elasticsearch:9200"
+    )  # Keep this for settings, but it will be mocked
     monkeypatch.setenv("ES_PRIVATE_INDEX", "private_user_memory")
     monkeypatch.setenv("ES_PUBLIC_INDEX", "public_medical_kb")
     monkeypatch.setenv("ES_PLACES_INDEX", "providers_places")
@@ -31,7 +41,7 @@ def set_test_env(monkeypatch):
     monkeypatch.setenv("RISK_MODEL_ID", "__stub__")
 
 
-@pytest.fixture()
+@pytest.fixture(autouse=True)  # Apply automatically to all tests
 def fake_embed(monkeypatch):
     """Deterministic embed stub: returns tiny 3-dim vectors based on keywords.
     - symptom-ish: [1,0,0]
@@ -40,6 +50,8 @@ def fake_embed(monkeypatch):
     - else: [0,0,0]
     """
     from app.tools import embeddings as emb_mod
+
+    # from app.graph.nodes import supervisor # Do not import supervisor here
 
     def _vec(text: str):
         t = text.lower()
@@ -59,6 +71,17 @@ def fake_embed(monkeypatch):
         return [_vec(t) for t in texts]
 
     monkeypatch.setattr(emb_mod, "embed", _embed)
+    # Mock the SentenceTransformer class
+    monkeypatch.setattr(
+        emb_mod, "SentenceTransformer", lambda *args, **kwargs: MagicMock(encode=_embed)
+    )
+
+    # Re-import supervisor after patching embed
+    import importlib
+    import app.graph.nodes.supervisor
+
+    importlib.reload(app.graph.nodes.supervisor)
+
     return _embed
 
 
@@ -75,6 +98,9 @@ class _FakeES:
         def exists(self, index):
             return True  # Assume index exists for tests
 
+    def info(self):
+        return {"cluster_name": "test_cluster"}
+
     def add_handler(self, predicate, response):
         self.handlers.append((predicate, response))
 
@@ -89,21 +115,23 @@ class _FakeES:
         # default empty
         return {"hits": {"hits": []}}
 
+    def index(self, index: str, id: str, document: dict):
+        self.calls.append(("index", index, id, document))
 
-@pytest.fixture()
-def fake_es(monkeypatch):
+
+@pytest.fixture()  # Changed scope to function, removed autouse=True
+def fake_es(session_monkeypatch):
     fake = _FakeES()
 
-    # Patch the shared es object in all nodes that import it
-    import app.tools.es_client as es_client
-    import app.graph.nodes.health as n_health
-    import app.graph.nodes.memory as n_memory
-    import app.graph.nodes.planner as n_planner
+    # Patch the Elasticsearch class itself
+    session_monkeypatch.setattr(
+        "app.tools.es_client.Elasticsearch", lambda *args, **kwargs: fake
+    )
 
-    monkeypatch.setattr(es_client, "es", fake)
-    monkeypatch.setattr(n_health, "es", fake)
-    monkeypatch.setattr(n_memory, "es", fake)
-    monkeypatch.setattr(n_planner, "es", fake)
+    import app.tools.es_client
+
+    app.tools.es_client._es_client = None
+
     return fake
 
 
@@ -134,7 +162,7 @@ def fake_pipe(monkeypatch):
 
     monkeypatch.setattr(risk_ml, "_PIPE", p)
     monkeypatch.setattr(risk_ml, "_get_pipe", lambda: p)
-    p.run = set_scores
+    p.run = set_scores  # type: ignore
     return p
 
 
@@ -144,7 +172,6 @@ def client(monkeypatch, fake_es, fake_embed):
     import app.tools.es_client as es_client
 
     monkeypatch.setattr(es_client, "ensure_indices", lambda: None)
-    from fastapi.testclient import TestClient
     from app.main import app
 
     with TestClient(app) as c:

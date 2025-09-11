@@ -1,14 +1,17 @@
 from fastapi import FastAPI
+from starlette.routing import Route
 from pydantic import BaseModel, Field
 from typing import List
 import logging
 import re
 
 from app.config import settings
-from app.tools.es_client import ensure_indices
+
+from app.tools.es_client import ensure_indices, get_es_client
 from app.graph.state import BodyState
 from app.graph.build import build_graph
-from app.tools.es_client import es
+from contextlib import asynccontextmanager
+
 from app.tools.embeddings import embed
 
 logger = logging.getLogger(__name__)
@@ -21,7 +24,14 @@ async def run_and_await_completion(graph, state: BodyState):
     return results[0]
 
 
-app = FastAPI(title="Body Agent API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    ensure_indices()
+    app.state.graph = build_graph(get_es_client()).compile()
+    yield
+
+
+app = FastAPI(title="Body Agent API", lifespan=lifespan)
 
 
 async def _invoke_graph(user_id: str, text: str) -> BodyState:
@@ -33,12 +43,6 @@ async def _invoke_graph(user_id: str, text: str) -> BodyState:
 class Query(BaseModel):
     user_id: str = Field(..., min_length=1)
     query: str = Field(..., min_length=1)
-
-
-@app.on_event("startup")
-async def startup():
-    ensure_indices()
-    app.state.graph = build_graph().compile()
 
 
 @app.post("/api/graph/run")
@@ -67,11 +71,6 @@ def healthz():
     return {"ok": True}
 
 
-@app.get("/__routes")
-def routes() -> List[str]:
-    return [r.path for r in app.routes]
-
-
 # Helper endpoints for demo: add a medication to private memory (upsert)
 class MedInput(BaseModel):
     user_id: str = Field(..., min_length=1)
@@ -96,5 +95,10 @@ def add_med(m: MedInput):
         "confidence": 0.95,
         "embedding": embed([m.name])[0],
     }
-    es.index(index=settings.es_private_index, id=doc_id, document=doc)
+    get_es_client().index(index=settings.es_private_index, id=doc_id, document=doc)
     return {"ok": True}
+
+
+@app.get("/__routes")
+def routes() -> List[str]:
+    return [r.path for r in app.routes if isinstance(r, Route)]

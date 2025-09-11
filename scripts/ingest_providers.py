@@ -1,9 +1,12 @@
 import os
+import logging
 import json
 import re
 import hashlib
 from elasticsearch import Elasticsearch
 from sentence_transformers import SentenceTransformer
+
+logging.basicConfig(level=logging.INFO)
 
 ES = os.getenv("ES_HOST", "http://localhost:9200")
 INDEX = os.getenv("ES_PLACES_INDEX", "providers_places")
@@ -23,4 +26,4 @@ for p in data:
     geokey = f"{p.get('geo',{}).get('lat','')},{p.get('geo',{}).get('lon','')}"
     doc_id = hashlib.sha1(f"{slug}|{geokey}".encode("utf-8")).hexdigest()
     es.index(index=INDEX, id=doc_id, document=doc)
-print("Indexed providers.")
+logging.info("Indexed providers.")

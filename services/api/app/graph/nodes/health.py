@@ -1,5 +1,5 @@
 from app.graph.state import BodyState
-from app.tools.es_client import es
+from app.tools.es_client import get_es_client
 from app.tools.embeddings import embed
 from app.config import settings
 import re
@@ -14,7 +14,8 @@ def _norm(s: Optional[str]) -> str:
     return re.sub(r"\W+", " ", (s or "").lower()).strip()
 
 
-def run(state: BodyState) -> BodyState:
+def run(state: BodyState, es_client) -> BodyState:
+
     logger.info("Processing health query")
     if "user_query" not in state:
         raise ValueError("user_query is required in state")
@@ -51,7 +52,7 @@ def run(state: BodyState) -> BodyState:
     logger.debug("k-NN search parameters: k=8, candidates=64")
 
     try:
-        res = es.search(index=settings.es_public_index, body=body_knn)
+        res = get_es_client().search(index=settings.es_public_index, body=body_knn)
         hits = res["hits"]["hits"]
         logger.info(f"k-NN search found {len(hits)} relevant documents")
     except Exception as e:
@@ -67,7 +68,7 @@ def run(state: BodyState) -> BodyState:
             "size": 8,
         }
         try:
-            res = es.search(index=settings.es_public_index, body=body_bm25)
+            res = get_es_client().search(index=settings.es_public_index, body=body_bm25)
             hits = res["hits"]["hits"]
             logger.info(f"BM25 search found {len(hits)} relevant documents")
         except Exception as e:
@@ -104,13 +105,13 @@ def run(state: BodyState) -> BodyState:
             logger.info(f"Found warning section in {title}")
         elif section == "interactions":
             # Only alert if >=2 distinct memory meds appear in the snippet
-            seen = 0
+            found_meds = set()
             logger.debug("Checking for medication interactions")
             for ing in med_mem_ings:
                 if ing and (ing in title or ing in text):
-                    seen += 1
+                    found_meds.add(ing)
                     logger.debug(f"Found interaction with: {ing}")
-                if seen >= 2:
+                if len(found_meds) >= 2:
                     add_alert = True
                     logger.warning(
                         f"Detected potential interaction between medications in {title}"

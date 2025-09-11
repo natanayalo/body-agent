@@ -1,7 +1,7 @@
 from __future__ import annotations
 import os
 import logging
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, cast
 from app.graph.state import BodyState
 
 logger = logging.getLogger(__name__)
@@ -113,8 +113,11 @@ def run(state: BodyState) -> BodyState:
     try:
         logger.info("Running risk classification")
         # Use multi_label=True so each label is independently scored
-        res = pipe(
-            text, candidate_labels=labels, hypothesis_template=hyp, multi_label=True
+        res = cast(
+            dict,
+            pipe(
+                text, candidate_labels=labels, hypothesis_template=hyp, multi_label=True
+            ),
         )
         pairs: List[Tuple[str, float]] = list(
             zip(res.get("labels", []), [float(s) for s in res.get("scores", [])])

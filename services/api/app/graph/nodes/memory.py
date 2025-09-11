@@ -1,5 +1,4 @@
 from app.graph.state import BodyState
-from app.tools.es_client import es
 from app.tools.embeddings import embed
 from app.config import settings
 import re
@@ -13,18 +12,21 @@ def _base_name(name: str) -> str:
     )
 
 
-def run(state: BodyState) -> BodyState:
-    vector = embed([state["user_query"]])[0]
+def run(state: BodyState, es_client) -> BodyState:
+    es = es_client
+    vector = embed([state.get("user_query", "")])[0]
     body = {
         "knn": {
             "field": "embedding",
             "query_vector": vector,
             "k": 8,
             "num_candidates": 50,
-            "filter": {"term": {"user_id": state["user_id"]}},
         },
         "_source": {"excludes": ["embedding"]},
     }
+    if user_id := state.get("user_id"):
+        body["knn"]["filter"] = {"term": {"user_id": user_id}}
+
     res = es.search(index=settings.es_private_index, body=body)
     hits = [h["_source"] for h in res["hits"]["hits"]]
 

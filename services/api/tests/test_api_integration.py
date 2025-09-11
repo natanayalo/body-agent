@@ -58,14 +58,14 @@ def test_routes_endpoint(client):
 
 
 @patch("app.main.embed", return_value=[[0.1, 0.2, 0.3]])
-@patch("app.main.es")
-def test_add_med_endpoint(mock_es, mock_embed, client):
+@patch("app.main.get_es_client")
+def test_add_med_endpoint(mock_get_es_client, mock_embed, client):
     payload = {"user_id": "test", "name": "Ibuprofen 200mg"}
     r = client.post("/api/memory/add_med", json=payload)
     assert r.status_code == 200
     assert r.json()["ok"] is True
-    mock_es.index.assert_called_once()
-    args, kwargs = mock_es.index.call_args
+    mock_get_es_client.return_value.index.assert_called_once()
+    args, kwargs = mock_get_es_client.return_value.index.call_args
     assert kwargs["document"]["name"] == "Ibuprofen 200mg"
 
 
@@ -106,8 +106,9 @@ def test_enforce_non_empty_query(client):
     assert "String should have at least 1 character" in r.json()["detail"][0]["msg"]
 
 
-@patch("app.tools.es_client.es")
-def test_ensure_indices_creates_missing(mock_es):
+@patch("app.tools.es_client.get_es_client")
+def test_ensure_indices_creates_missing(mock_get_es_client):
+    mock_es = mock_get_es_client.return_value
     mock_es.indices.exists.side_effect = [
         False,
         False,
@@ -118,8 +119,9 @@ def test_ensure_indices_creates_missing(mock_es):
     assert mock_es.indices.create.call_count == 3  # Should create all three
 
 
-@patch("app.tools.es_client.es")
-def test_ensure_indices_does_not_create_existing(mock_es):
+@patch("app.tools.es_client.get_es_client")
+def test_ensure_indices_does_not_create_existing(mock_get_es_client):
+    mock_es = mock_get_es_client.return_value
     mock_es.indices.exists.side_effect = [True, True, True]  # All indices exist
     mock_es.indices.create.reset_mock()  # Reset call count
     ensure_indices()
@@ -128,7 +130,7 @@ def test_ensure_indices_does_not_create_existing(mock_es):
 
 def test_embed_single_string():
     text = "hello world"
-    result = embed(text)
+    result = embed([text])
     assert isinstance(result, list)
     assert len(result) == 1
     assert isinstance(result[0], list)
