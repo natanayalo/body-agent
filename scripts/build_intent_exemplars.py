@@ -27,6 +27,7 @@ import json
 import random
 import re
 from collections import defaultdict
+import logging
 
 try:
     from datasets import load_dataset, Dataset  # Added Dataset
@@ -134,6 +135,7 @@ def collect_from_massive(langs: list[str], per_intent: int) -> dict[str, list[st
 
 
 def main():
+    logging.basicConfig(level=logging.INFO)
     ap = argparse.ArgumentParser()
     ap.add_argument(
         "--langs",
@@ -165,7 +167,7 @@ def main():
 
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(buckets, f, ensure_ascii=False, indent=2)
-    print(f"Wrote exemplars → {args.out}")
+    logging.info(f"Wrote exemplars → {args.out}")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 import time
+import logging
 from elasticsearch import Elasticsearch
 from elastic_transport import ConnectionError
 from app.config import settings
@@ -16,10 +17,12 @@ def get_es_client():
             try:
                 _es_client = Elasticsearch(settings.es_host)
                 _es_client.info()  # Test connection
-                print(f"Successfully connected to Elasticsearch after {i+1} retries.")
+                logging.info(
+                    f"Successfully connected to Elasticsearch after {i+1} retries."
+                )
                 break
             except ConnectionError as e:
-                print(
+                logging.warning(
                     f"Attempt {i+1}/{max_retries}: Could not connect to Elasticsearch. Retrying in {retry_delay_seconds} seconds... Error: {e}"
                 )
                 time.sleep(retry_delay_seconds)

@@ -1,9 +1,12 @@
 import os
+import logging
 import glob
 import hashlib
 from elasticsearch import Elasticsearch
 from datetime import datetime
 from sentence_transformers import SentenceTransformer
+
+logging.basicConfig(level=logging.INFO)
 
 ES = os.getenv("ES_HOST", "http://localhost:9200")
 INDEX = os.getenv("ES_PUBLIC_INDEX", "public_medical_kb")
@@ -41,4 +44,4 @@ for path in glob.glob("seeds/public_medical_kb/*.md"):
     doc["embedding"] = vec
     doc_id = hashlib.sha1((source_url + "|" + section).encode("utf-8")).hexdigest()
     es.index(index=INDEX, id=doc_id, document=doc)
-    print("Indexed", path)
+    logging.info(f"Indexed {path}")

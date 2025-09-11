@@ -3,6 +3,7 @@ import json
 import os
 from typing import Dict, List, Literal
 import numpy as np
+import logging
 from app.graph.state import BodyState
 from app.tools.embeddings import embed
 
@@ -79,7 +80,7 @@ def detect_intent(
     scores = {
         k: (vecs @ q).max() if len(vecs) else -1.0 for k, vecs in _EX_VECS.items()
     }
-    print(f"Intent scores for '{text}': {scores}")  # Added print statement
+    logging.debug(f"Intent scores for '{text}': {scores}")  # Added print statement
     ordered = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
     if not ordered:
         return "other"

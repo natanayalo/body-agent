@@ -1,5 +1,8 @@
 import os
+import logging
 from elasticsearch import Elasticsearch
+
+logging.basicConfig(level=logging.INFO)
 
 
 ES = os.getenv("ES_HOST", "http://localhost:9200")
@@ -12,6 +15,8 @@ for idx in [
     os.getenv("ES_PLACES_INDEX", "providers_places"),
 ]:
     if not es.indices.exists(index=idx):
-        print(f"Index missing: {idx}. Start the API once to auto-create mappings.")
+        logging.warning(
+            f"Index missing: {idx}. Start the API once to auto-create mappings."
+        )
     else:
-        print(f"OK {idx}")
+        logging.info(f"OK {idx}")
