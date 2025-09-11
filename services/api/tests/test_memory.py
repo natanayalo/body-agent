@@ -31,7 +31,10 @@ def test_memory_run(mock_embed, fake_es, monkeypatch):
 
     # Initial state
     initial_state = BodyState(
-        user_id="test-user", user_query="what meds am i on", memory_facts=[]
+        user_id="test-user",
+        user_query="what meds am i on",
+        user_query_redacted="what meds am i on",  # Add this line
+        memory_facts=[],
     )
 
     # Run the memory node

@@ -14,7 +14,7 @@ def _base_name(name: str) -> str:
 
 def run(state: BodyState, es_client) -> BodyState:
     es = es_client
-    vector = embed([state.get("user_query", "")])[0]
+    vector = embed([state.get("user_query_redacted", "")])[0]
     body = {
         "knn": {
             "field": "embedding",
