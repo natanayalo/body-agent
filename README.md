@@ -94,10 +94,10 @@ By default the supervisor uses an **embedding-based** router with built-in examp
 ```bash
 # generate exemplars (internet required once)
 docker compose exec api python scripts/build_intent_exemplars.py \
-  --langs en he --per-intent 40 --out /app/seeds/intent_exemplars.json
+  --langs en he --per-intent 40 --out /app/app/data/intent_exemplars.json
 
 # point the API to the file
-echo "INTENT_EXEMPLARS_PATH=/app/seeds/intent_exemplars.json" >> .env
+echo "INTENT_EXEMPLARS_PATH=/app/app/data/intent_exemplars.json" >> .env
 docker compose restart api
 ```
 
