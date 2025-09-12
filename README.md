@@ -51,13 +51,7 @@ The Body Agent is a multi-agent system orchestrated by LangGraph. It uses a loca
 
 5.  **Ingest initial data:**
 
-    The following scripts will populate the Elasticsearch indices with public health information and local provider data.
-
-    ```bash
-    docker compose exec api python scripts/es_bootstrap.py
-    docker compose exec api python scripts/ingest_public_kb.py
-    docker compose exec api python scripts/ingest_providers.py
-    ```
+    The `seed` container now automatically populates the Elasticsearch indices with public health information and local provider data when you run `docker compose up`. You no longer need to run these scripts manually.
 
 ## Usage
 
@@ -85,20 +79,22 @@ curl -X POST "http://localhost:8000/api/graph/run" -H "Content-Type: application
   "query": "Find a lab near me for a blood test."
 }
 '''
-```
+
 
 ## Optional: Better intent routing with exemplars
 
 By default the supervisor uses an **embedding-based** router with built-in examples. You can improve accuracy and multilingual coverage by generating exemplars from the **MASSIVE** dataset (plus curated fallbacks for health-specific intents).
 
 # generate exemplars (internet required once)
+```bash
 docker compose exec api python scripts/build_intent_exemplars.py \
   --langs en he --per-intent 40 --out /app/data/intent_exemplars.json
-
+```
 # point the API to the file
+```bash
 echo "INTENT_EXEMPLARS_PATH=/app/data/intent_exemplars.json" >> .env
 docker compose restart api
-
+```
 
 Config knobs (in `.env`):
 
@@ -201,7 +197,10 @@ body-agent/
 │   ├── build_intent_exemplars.py
 │   ├── es_bootstrap.py
 │   ├── ingest_public_kb.py
-│   └── ingest_providers.py
+│   ├── ingest_providers.py
+│   └── wait_for_es.py
+├── data/
+│   └── calendar_events/
 └── seeds/
     ├── public_medical_kb/
     │   ├── ibuprofen.md

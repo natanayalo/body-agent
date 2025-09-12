@@ -94,7 +94,7 @@ def detect_intent(
     scores = {
         k: (vecs @ q).max() if len(vecs) else -1.0 for k, vecs in _EX_VECS.items()
     }
-    logging.debug(f"Intent scores for '{text}': {scores}")  # Added print statement
+
     ordered = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
     if not ordered:
         return "other"
@@ -109,7 +109,9 @@ def detect_intent(
 
 
 def run(state: BodyState) -> BodyState:
-    detected_intent = detect_intent(state["user_query"])
+    detected_intent = detect_intent(
+        state.get("user_query_redacted", state["user_query"])
+    )
     state["intent"] = detected_intent
     logging.debug(f"Detected intent: {detected_intent}")
     return state
