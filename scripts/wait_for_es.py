@@ -7,7 +7,7 @@ ES_HOST = os.getenv("ES_HOST", "http://elasticsearch:9200")
 
 def wait_for_elasticsearch():
     url = f"{ES_HOST}/_cluster/health"
-    print(f"Waiting for Elasticsearch at {url}...")
+    logging.info(f"Waiting for Elasticsearch at {url}...")
     while True:
         try:
             response = requests.get(url, timeout=1)
@@ -15,11 +15,11 @@ def wait_for_elasticsearch():
                 "green",
                 "yellow",
             ]:
-                print("Elasticsearch is healthy!")
+                logging.info("Elasticsearch is healthy!")
                 break
         except requests.exceptions.ConnectionError:
             pass
-        print("Waiting for Elasticsearch...")
+        logging.info("Waiting for Elasticsearch...")
         time.sleep(5)
 
 
