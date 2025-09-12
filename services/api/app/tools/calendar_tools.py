@@ -31,7 +31,8 @@ def create_event(event: CalendarEvent) -> str:
     safe_title = "".join([c if c.isalnum() else "_" for c in (event.title or "event")])[
         :40
     ]
-    path = data_dir / f"{safe_title}_{stamp}.ics"
+    path = data_dir / "calendar_events" / f"{safe_title}_{stamp}.ics"
+    path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
         f.write(ics)
     return str(path)

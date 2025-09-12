@@ -18,6 +18,7 @@ model = SentenceTransformer(MODEL)
 with open("seeds/providers/tel_aviv_providers.json", "r", encoding="utf-8") as f:
     data = json.load(f)
 
+logging.info(f"Indexing {len(data)} providers into {INDEX} using model {MODEL}.")
 for p in data:
     text = f"{p['name']} {p.get('kind','')} {' '.join(p.get('services', []))} {p.get('hours','')}"
     vec = model.encode([text], normalize_embeddings=True)[0].tolist()
@@ -26,4 +27,4 @@ for p in data:
     geokey = f"{p.get('geo',{}).get('lat','')},{p.get('geo',{}).get('lon','')}"
     doc_id = hashlib.sha1(f"{slug}|{geokey}".encode("utf-8")).hexdigest()
     es.index(index=INDEX, id=doc_id, document=doc)
-logging.info("Indexed providers.")
+logging.info("Done indexing providers.")

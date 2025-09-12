@@ -15,6 +15,9 @@ MODEL = os.getenv("EMBEDDINGS_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
 es = Elasticsearch(ES)
 model = SentenceTransformer(MODEL)
 
+logging.info(
+    f"Indexing public medical knowledge base into {INDEX} using model {MODEL}."
+)
 for path in glob.glob("seeds/public_medical_kb/*.md"):
     with open(path, "r", encoding="utf-8") as f:
         text = f.read()
@@ -45,3 +48,4 @@ for path in glob.glob("seeds/public_medical_kb/*.md"):
     doc_id = hashlib.sha1((source_url + "|" + section).encode("utf-8")).hexdigest()
     es.index(index=INDEX, id=doc_id, document=doc)
     logging.info(f"Indexed {path}")
+logging.info("Done indexing public medical knowledge base.")

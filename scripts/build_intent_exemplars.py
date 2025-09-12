@@ -146,7 +146,9 @@ def main():
     ap.add_argument("--per-intent", type=int, default=40)
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
-
+    logging.info(
+        f"Building intent exemplars for langs={args.langs}, per_intent={args.per_intent}, dataset=AmazonScience/massive"
+    )
     buckets = {k: list(v) for k, v in CURATED.items()}
     from_massive = collect_from_massive(args.langs, args.per_intent)
     for k, arr in from_massive.items():
@@ -168,6 +170,7 @@ def main():
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(buckets, f, ensure_ascii=False, indent=2)
     logging.info(f"Wrote exemplars → {args.out}")
+    logging.info("Done writing intent exemplars.")
 
 
 if __name__ == "__main__":

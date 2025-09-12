@@ -53,3 +53,6 @@ seeds/intent_exemplars.json
 *.pytest_cache/*
 .coverage
 coverage*
+
+# pr template
+pull_request_template.md
