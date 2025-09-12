@@ -10,7 +10,7 @@ TLV = (32.0853, 34.7818)
 
 
 def run(state: BodyState, es_client) -> BodyState:
-    q = state.get("user_query", "")
+    q = state.get("user_query_redacted", state.get("user_query", ""))
     logger.debug(f"Searching providers for query: {q}")
     raw = search_providers(es_client, q, lat=TLV[0], lon=TLV[1], radius_km=10)
     logger.debug(f"Raw provider search results: {raw}")

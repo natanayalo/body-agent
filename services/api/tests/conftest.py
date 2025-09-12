@@ -1,9 +1,7 @@
 import json
 import pytest
 from unittest.mock import MagicMock
-
 from fastapi.testclient import TestClient
-
 from app.config import settings
 
 

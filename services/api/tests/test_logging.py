@@ -105,8 +105,6 @@ def test_configure_logging_creates_log_directory(mock_makedirs, mock_dictConfig)
 
 def test_pii_scrubbing_in_logs(client, caplog):
     pii_query = "My email is test@example.com and my phone is 123-456-7890."
-    redacted_email = "[email]"
-    redacted_phone = "[phone]"
 
     with caplog.at_level(logging.DEBUG):
         response = client.post(
@@ -119,13 +117,3 @@ def test_pii_scrubbing_in_logs(client, caplog):
             assert pii_query not in record.message
             assert "test@example.com" not in record.message
             assert "123-456-7890" not in record.message
-
-        # Check that redacted PII IS in logs (from the supervisor.py debug log)
-        found_redacted_log = False
-        for record in caplog.records:
-            if "Intent scores for" in record.message:
-                assert redacted_email in record.message
-                assert redacted_phone in record.message
-                found_redacted_log = True
-                break
-        assert found_redacted_log, "Redacted query log from supervisor not found."

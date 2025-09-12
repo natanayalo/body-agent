@@ -98,7 +98,7 @@ def run(state: BodyState) -> BodyState:
     logger.debug(f"Using hypothesis template: {hyp}")
 
     # Build text with lightweight context (med names only)
-    text = state.get("user_query", "")
+    text = state.get("user_query_redacted", state["user_query"])
     logger.debug(f"Base query text: {state.get('user_query_redacted', text)}")
 
     meds = []

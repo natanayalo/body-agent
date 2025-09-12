@@ -66,8 +66,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r services/api/requirements.txt
           pip install -r services/api/tests/requirements-test.txt
+      - name: Install API (editable)
+        run: pip install -e services/api
       - name: Run tests with coverage
         env:
-          ES_HOST: http://localhost:9200
-        run: |
-          pytest --cov=services/api/app --cov-fail-under=90 services/api/tests/
+          PYTHONPATH: services/api
+          RISK_MODEL_ID: __stub__ # <— faster CI, no model download
+        run: pytest --cov=services/api/app --cov-fail-under=90 services/api/tests/
