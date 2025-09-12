@@ -99,7 +99,7 @@ def run(state: BodyState) -> BodyState:
 
     # Build text with lightweight context (med names only)
     text = state.get("user_query_redacted", state.get("user_query", ""))
-    logger.debug(f"Base query text: {state.get('user_query_redacted', text)}")
+    logger.debug(f"Base query text: {text}")
 
     meds = []
     for m in state.get("memory_facts") or []:
