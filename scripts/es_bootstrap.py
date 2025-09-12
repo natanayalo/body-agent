@@ -20,4 +20,4 @@ for idx in [
             f"Index missing: {idx}. Start the API once to auto-create mappings."
         )
     else:
-        logging.info(f"Created mappings for {idx}")
+        logging.info(f"OK: Index {idx} exists.")
