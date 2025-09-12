@@ -21,7 +21,7 @@ def test_embed_single_string():
 
 def test_embed_single_string_input():
     text = "hello world"
-    embeddings = embed([text])  # Pass string directly
+    embeddings = embed(text)  # Pass string directly
     assert isinstance(embeddings, list)
     assert len(embeddings) == 1
     assert isinstance(embeddings[0], list)

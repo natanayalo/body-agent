@@ -3,13 +3,21 @@ from app.graph.state import BodyState
 from app.tools.calendar_tools import CalendarEvent, create_event
 import os
 import logging
+from typing import TypedDict, List, Any
 
 logger = logging.getLogger(__name__)
+
+
+class RankedCandidate(TypedDict):
+    score: int
+    reasons: List[str]
+    cand: dict
+
 
 # Minimal planner for two demo flows
 
 
-def run(state: BodyState, es_client) -> BodyState:
+def run(state: BodyState, es_client: Any) -> BodyState:
     intent = state.get("intent")
     now = datetime.now(UTC)
 
@@ -58,16 +66,23 @@ def run(state: BodyState, es_client) -> BodyState:
         ranked_candidates = []
         for cand in state.get("candidates", []):
             score = 0
-            reasons = []
+            reasons: List[str] = []
             if prefs.get("preferred_kind") == cand.get("kind"):
                 score += 1
                 reasons.append("preferred kind")
-            if prefs.get("preferred_hours") and cand.get("hours"):
-                if prefs.get("preferred_hours") in cand.get("hours", "").lower():
+            if (pref_hours := prefs.get("preferred_hours")) and (
+                cand_hours := cand.get("hours")
+            ):
+                if pref_hours in cand_hours.lower():
                     score += 1
                     reasons.append(f"preferred hours: {prefs.get('preferred_hours')}")
 
-            ranked_candidates.append({"score": score, "reasons": reasons, "cand": cand})
+            ranked_candidate: RankedCandidate = {
+                "score": score,
+                "reasons": reasons,
+                "cand": cand,
+            }
+            ranked_candidates.append(ranked_candidate)
 
         ranked_candidates.sort(key=lambda x: x["score"], reverse=True)
 
@@ -76,7 +91,8 @@ def run(state: BodyState, es_client) -> BodyState:
         logger.debug(f"Planner: Best candidate: {best_cand}")
 
         # Pick top candidate and create 1h slot tomorrow at 09:00Z
-        if cand := best_cand:
+        if best_cand is not None:
+            cand = best_cand
             start = datetime(now.year, now.month, now.day) + timedelta(days=1, hours=9)
             evt = CalendarEvent(
                 title=f"Visit: {cand.get('name','Clinic')}",

@@ -1,16 +1,10 @@
-import os
 import json
 import pytest
 from unittest.mock import MagicMock
-import sys
+
 from fastapi.testclient import TestClient
 
 from app.config import settings
-
-
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
 
 
 @pytest.fixture(scope="session")  # Define a session-scoped monkeypatch

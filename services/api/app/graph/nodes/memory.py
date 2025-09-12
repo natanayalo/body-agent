@@ -2,6 +2,7 @@ from app.graph.state import BodyState
 from app.tools.embeddings import embed
 from app.config import settings
 import re
+from typing import Any
 
 
 def _base_name(name: str) -> str:
@@ -12,10 +13,10 @@ def _base_name(name: str) -> str:
     )
 
 
-def run(state: BodyState, es_client) -> BodyState:
+def run(state: BodyState, es_client: Any) -> BodyState:
     es = es_client
     vector = embed([state.get("user_query_redacted", "")])[0]
-    body = {
+    body: dict[str, Any] = {
         "knn": {
             "field": "embedding",
             "query_vector": vector,
