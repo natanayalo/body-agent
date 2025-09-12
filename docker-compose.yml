@@ -36,7 +36,7 @@ services:
     volumes:
       - ./services/api/app:/app/app:rw
       - ./seeds:/app/seeds:ro
-      - ./app/data:/app/data:rw
+      - ./services/api/app/data:/app/data:rw
       - ./scripts:/app/scripts:ro
     deploy:
       resources:

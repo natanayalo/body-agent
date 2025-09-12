@@ -1,6 +1,6 @@
 from datetime import datetime
+from pathlib import Path
 from pydantic import BaseModel
-import os
 from app.config import settings
 
 
@@ -25,12 +25,13 @@ def create_event(event: CalendarEvent) -> str:
         f"DESCRIPTION:{event.notes or ''}\n"
         "END:VEVENT\nEND:VCALENDAR\n"
     )
-    os.makedirs(settings.data_dir, exist_ok=True)
+    data_dir = Path(settings.data_dir)
+    data_dir.mkdir(parents=True, exist_ok=True)
     stamp = event.start.strftime("%Y%m%dT%H%M%S")
     safe_title = "".join([c if c.isalnum() else "_" for c in (event.title or "event")])[
         :40
     ]
-    path = f"{settings.data_dir}/{safe_title}_{stamp}.ics"
-    with open(path, "w", encoding="utf-8") as f:
+    path = data_dir / f"{safe_title}_{stamp}.ics"
+    with path.open("w", encoding="utf-8") as f:
         f.write(ics)
-    return path
+    return str(path)
