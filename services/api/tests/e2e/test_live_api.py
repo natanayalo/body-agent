@@ -65,3 +65,45 @@ def test_add_med_endpoint(api_base_url):
     response = requests.post(f"{api_base_url}/api/memory/add_med", json=payload)
     assert response.status_code == 200
     assert response.json().get("ok") is True
+
+
+def test_e2e_medication_interaction_flow(api_base_url):
+    user_id = "test-user-med-interaction"
+    # 1. Add first medication
+    add_med_payload_1 = {"user_id": user_id, "name": "Ibuprofen 200mg"}
+    response_1 = requests.post(
+        f"{api_base_url}/api/memory/add_med", json=add_med_payload_1
+    )
+    assert response_1.status_code == 200
+    assert response_1.json().get("ok") is True
+
+    # 2. Add second medication
+    add_med_payload_2 = {"user_id": user_id, "name": "Warfarin 5mg"}
+    response_2 = requests.post(
+        f"{api_base_url}/api/memory/add_med", json=add_med_payload_2
+    )
+    assert response_2.status_code == 200
+    assert response_2.json().get("ok") is True
+
+    # 3. Query about a health issue that might trigger an interaction alert
+    query_payload = {
+        "user_id": user_id,
+        "query": "What are the interactions between Ibuprofen and Warfarin?",
+    }
+    response_3 = requests.post(f"{api_base_url}/api/graph/run", json=query_payload)
+    assert response_3.status_code == 200
+    data = response_3.json()
+
+    # 4. Verify that an interaction alert is present
+    alerts = data["state"].get("alerts", [])
+    assert any("Warfarin — interactions" in a for a in alerts) or any(
+        "Ibuprofen — warnings" in a for a in alerts
+    ), f"Expected interaction alert, but got: {alerts}"
+
+    # 5. Verify citations are present and normalized
+    citations = data["state"].get("citations", [])
+    assert len(citations) > 0
+    assert all(c.startswith("http") or c.startswith("file") for c in citations)
+    # Check for deduplication and normalization (e.g., no utm_ params, consistent slashes)
+    # This is a basic check, more robust checks would involve parsing URLs
+    assert len(set(citations)) == len(citations), "Citations should be deduplicated"

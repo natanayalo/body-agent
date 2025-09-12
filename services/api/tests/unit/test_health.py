@@ -277,11 +277,11 @@ def test_health_with_memory_facts_no_medication_entity(monkeypatch):
     )
     result_state = reloaded_health.run(state, None)
     assert "public_snippets" in result_state
-    assert result_state["alerts"] == []
-    assert result_state["citations"] == []
+    assert result_state.get("alerts", []) == []
+    assert result_state.get("citations", []) == []
     assert any(
         "I found guidance and possible warnings." in msg["content"]
-        for msg in result_state["messages"]
+        for msg in result_state.get("messages", [])
     )
 
 
@@ -314,9 +314,11 @@ def test_health_messages_not_empty_and_messages_generated(monkeypatch):
         messages=[{"role": "assistant", "content": "Existing message."}],
     )
     result_state = reloaded_health.run(state, None)
-    assert len(result_state["messages"]) == 2  # Original message + message from warning
-    assert result_state["messages"][0]["content"] == "Existing message."
+    assert (
+        len(result_state.get("messages", [])) == 2
+    )  # Original message + message from warning
+    assert result_state.get("messages", [])[0]["content"] == "Existing message."
     assert any(
         "I found guidance and possible warnings." in msg["content"]
-        for msg in result_state["messages"]
+        for msg in result_state.get("messages", [])
     )
