@@ -27,6 +27,13 @@ def test_load_exemplars_from_file_success(monkeypatch, mock_load_exemplars_deps)
     }
     monkeypatch.setenv("INTENT_EXEMPLARS_PATH", "/tmp/test_exemplars.json")
 
+    # Mock builtins.open to simulate reading from the file
+    from unittest.mock import mock_open
+
+    mock_file_content = json.dumps(mock_json_load.return_value)
+    mock_file = mock_open(read_data=mock_file_content)
+    monkeypatch.setattr("builtins.open", mock_file)
+
     # Reload the module to re-run _load_exemplars
     import importlib
 
