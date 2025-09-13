@@ -76,6 +76,16 @@ jobs:
           mkdir -p data
       - name: Build & start stack (ES)
         run: docker compose up -d --build elasticsearch
+      - name: Create indices (mappings)
+        env:
+          ES_HOST: http://localhost:9200
+          PYTHONPATH: services/api
+        run: |
+          python - <<'PY'
+          from app.tools.es_client import ensure_indices
+          ensure_indices()
+          print("OK: indices ensured")
+          PY
       - name: Seed Elasticsearch
         env:
           ES_HOST: http://localhost:9200
