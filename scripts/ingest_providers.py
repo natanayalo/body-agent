@@ -16,18 +16,17 @@ MODEL = settings.embeddings_model
 VEC_DIMS = 384
 es = Elasticsearch(ES)
 
-if MODEL == "__stub__":
+# Init model only if needed
+_model = None
+if MODEL != "__stub__":
+    _model = SentenceTransformer(MODEL)
 
-    def get_embedding(texts: list[str]) -> list[list[float]]:
-        if isinstance(texts, str):
-            texts = [texts]
-        return [[0.0] * VEC_DIMS for _ in texts]  # deterministic small vector
 
-else:
-    model = SentenceTransformer(MODEL)
-
-    def get_embedding(texts: list[str]) -> list[list[float]]:
-        return model.encode(texts, normalize_embeddings=True)[0].tolist()
+def embed_one(text: str) -> list[float]:
+    """Return a single embedding vector (flat list[float] length VEC_DIMS)."""
+    if MODEL == "__stub__" or _model is None:
+        return [0.0] * VEC_DIMS
+    return _model.encode([text], normalize_embeddings=True)[0].tolist()
 
 
 with open("seeds/providers/tel_aviv_providers.json", "r", encoding="utf-8") as f:
@@ -36,7 +35,12 @@ with open("seeds/providers/tel_aviv_providers.json", "r", encoding="utf-8") as f
 logging.info(f"Indexing {len(data)} providers into {INDEX} using model {MODEL}.")
 for p in data:
     text = f"{p['name']} {p.get('kind','')} {' '.join(p.get('services', []))} {p.get('hours','')}"
-    vec = get_embedding([text])
+    vec = embed_one(text)  # <-- FLAT VECTOR
+    # Optional sanity check:
+    assert isinstance(vec, list) and all(
+        isinstance(x, (int, float)) for x in vec
+    ), f"Bad embedding shape: {type(vec)}"
+    # Write document
     doc = p | {"embedding": vec}
     slug = re.sub(r"[^a-z0-9]+", "-", p["name"].lower()).strip("-")
     geokey = f"{p.get('geo',{}).get('lat','')},{p.get('geo',{}).get('lon','')}"

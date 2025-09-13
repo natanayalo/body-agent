@@ -2,14 +2,12 @@ import os
 import logging
 import glob
 import hashlib
-from elasticsearch import Elasticsearch
 from datetime import datetime
+from typing import Any, List
+
+from elasticsearch import Elasticsearch
 from sentence_transformers import SentenceTransformer
 from app.config import settings
-
-
-from typing import Any
-
 
 logging.basicConfig(level=logging.INFO)
 
@@ -19,26 +17,27 @@ MODEL = settings.embeddings_model
 VEC_DIMS = 384
 es = Elasticsearch(ES)
 
-if MODEL == "__stub__":
+# init model lazily
+_model = None
+if MODEL != "__stub__":
+    _model = SentenceTransformer(MODEL)
 
-    def get_embedding(texts: list[str]) -> list[list[float]]:
-        if isinstance(texts, str):
-            texts = [texts]
-        return [[0.0] * VEC_DIMS for _ in texts]  # deterministic small vector
 
-else:
-    model = SentenceTransformer(MODEL)
-
-    def get_embedding(texts: list[str]) -> list[list[float]]:
-        return model.encode(texts, normalize_embeddings=True)[0].tolist()
+def embed_one(text: str) -> List[float]:
+    """Return a single embedding vector (length VEC_DIMS)."""
+    if MODEL == "__stub__" or _model is None:
+        return [0.0] * VEC_DIMS
+    return _model.encode([text], normalize_embeddings=True)[0].tolist()
 
 
 logging.info(
     f"Indexing public medical knowledge base into {INDEX} using model {MODEL}."
 )
+
 for path in glob.glob("seeds/public_medical_kb/*.md"):
     with open(path, "r", encoding="utf-8") as f:
         text = f.read()
+
     title = os.path.basename(path).replace(".md", "").replace("_", " ")
     section = (
         "general"
@@ -50,6 +49,7 @@ for path in glob.glob("seeds/public_medical_kb/*.md"):
         )
     )
     source_url = f"file://{path}"
+
     doc: dict[str, Any] = {
         "title": title.title(),
         "section": section,
@@ -59,9 +59,18 @@ for path in glob.glob("seeds/public_medical_kb/*.md"):
         "updated_on": datetime.utcnow().isoformat(),
         "text": text,
     }
-    vec = get_embedding([doc["title"] + "\n" + doc["text"]])[0]
+
+    vec = embed_one(doc["title"] + "\n" + doc["text"])  # <-- FLAT LIST
+    # Guardrail to fail fast if shape is wrong
+    assert (
+        isinstance(vec, list)
+        and len(vec) == VEC_DIMS
+        and isinstance(vec[0], (int, float))
+    ), f"Bad embedding shape/type: {type(vec)} len={getattr(vec, '__len__', None)}"
+
     doc["embedding"] = vec
     doc_id = hashlib.sha1((source_url + "|" + section).encode("utf-8")).hexdigest()
     es.index(index=INDEX, id=doc_id, document=doc)
     logging.info(f"Indexed {path}")
+
 logging.info("Done indexing public medical knowledge base.")
