@@ -4,6 +4,7 @@ import os
 import hashlib
 from typing import Callable, List, Sequence, Union
 import numpy as np
+from sentence_transformers import SentenceTransformer
 
 # Public constants
 VEC_DIMS: int = 384
@@ -33,8 +34,6 @@ if MODEL == "__stub__":
     _embed_impl = _embed_stub
 else:
     try:
-        from sentence_transformers import SentenceTransformer
-
         _model = SentenceTransformer(MODEL, device=DEVICE)
 
         def _embed_real(texts: Sequence[str]) -> List[List[float]]:
