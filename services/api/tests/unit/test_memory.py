@@ -1,6 +1,7 @@
 from unittest.mock import patch, MagicMock
 from app.graph.nodes import memory
 from app.graph.state import BodyState
+from app.config import settings
 
 
 def test_base_name():
@@ -41,12 +42,17 @@ def test_memory_run(mock_embed, fake_es, monkeypatch):
     result_state = memory.run(initial_state, fake_es)
 
     # Assertions
-    mock_embed.assert_called_once_with(["what meds am i on"])
-    fake_es.search.assert_called_once()
+    if settings.embeddings_model == "__stub__":
+        mock_embed.assert_not_called()
+        search_body = fake_es.search.call_args.kwargs["body"]
+        assert "knn" not in search_body
+        assert search_body["query"]["term"]["user_id"] == "test-user"
+    else:
+        mock_embed.assert_called_once_with(["what meds am i on"])
+        search_body = fake_es.search.call_args.kwargs["body"]
+        assert search_body["knn"]["filter"]["term"]["user_id"] == "test-user"
 
-    # Check that the user_id is in the query
-    search_body = fake_es.search.call_args.kwargs["body"]
-    assert search_body["knn"]["filter"]["term"]["user_id"] == "test-user"
+    fake_es.search.assert_called_once()
 
     # Check that the results are deduplicated
     assert len(result_state.get("memory_facts", [])) == 2
