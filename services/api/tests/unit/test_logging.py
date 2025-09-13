@@ -2,7 +2,6 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 import pytest
 
@@ -62,21 +61,48 @@ def test_configure_logging_creates_directory(monkeypatch):
 
 
 def test_configure_logging_permission_error_fallback(monkeypatch):
-    # Mock Path.mkdir to raise PermissionError for the first call, then succeed
-    mock_mkdir = MagicMock(side_effect=[PermissionError, None])
-    with patch("pathlib.Path.mkdir", new=mock_mkdir):
-        # Ensure no explicit APP_LOG_DIR is set to trigger fallback
-        if "APP_LOG_DIR" in os.environ:
-            del os.environ["APP_LOG_DIR"]
-        if "APP_DATA_DIR" in os.environ:
-            del os.environ["APP_DATA_DIR"]
+    """
+    Tests that configure_logging falls back to a temporary directory if it
+    encounters a PermissionError when trying to create the primary log directory.
+    """
+    # 1. Define a primary log directory path that we will simulate as non-writable.
+    primary_log_dir_path = "/non_writable_dir/logs"
 
-        returned_path = configure_logging()
-        # Should fall back to /tmp
-        assert returned_path.parent == Path(tempfile.gettempdir()) / "body-agent"
-        assert returned_path.name == "api.log"
-        # Ensure mkdir was called twice (once for original, once for fallback)
-        assert mock_mkdir.call_count == 2
+    # 2. Mock _resolve_log_dir to return this non-writable path.
+    monkeypatch.setattr(
+        "app.config.logging._resolve_log_dir", lambda: Path(primary_log_dir_path)
+    )
+
+    # 3. Mock Path.mkdir to simulate PermissionError for the primary path.
+    #    We need to keep a reference to the original mkdir to call it for the fallback path.
+    original_mkdir = Path.mkdir
+    mkdir_calls = []
+
+    def mkdir_spy(path_instance, parents=False, exist_ok=False):
+        mkdir_calls.append(path_instance)
+        if path_instance == Path(primary_log_dir_path):
+            raise PermissionError("Simulated permission denied")
+        else:
+            # For the fallback path, we call the original mkdir to actually create it,
+            # so that the RotatingFileHandler can be instantiated without error.
+            return original_mkdir(path_instance, parents=parents, exist_ok=exist_ok)
+
+    monkeypatch.setattr(Path, "mkdir", mkdir_spy)
+
+    # 4. Call the function to be tested.
+    returned_path = configure_logging()
+
+    # 5. Assertions
+    fallback_dir = Path(tempfile.gettempdir()) / "body-agent"
+
+    # Check that the returned log file path is in the fallback directory.
+    assert returned_path.parent == fallback_dir
+    assert returned_path.name == "api.log"
+
+    # Check that mkdir was called twice: once for the primary dir, once for the fallback.
+    assert len(mkdir_calls) == 2
+    assert mkdir_calls[0] == Path(primary_log_dir_path)
+    assert mkdir_calls[1] == fallback_dir
 
 
 def test_configure_logging_root_logger_level():
