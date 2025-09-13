@@ -28,6 +28,7 @@ import random
 import re
 from collections import defaultdict
 import logging
+from typing import cast, Any
 
 try:
     from datasets import load_dataset, Dataset  # Added Dataset
@@ -106,24 +107,28 @@ def map_massive_intent(label: str) -> str | None:
 
 
 def collect_from_massive(langs: list[str], per_intent: int) -> dict[str, list[str]]:
-    ds: Dataset = load_dataset(
-        "AmazonScience/massive", "all_1.1", split="train", trust_remote_code=True
+    ds: Dataset = cast(
+        Dataset,
+        load_dataset(
+            "AmazonScience/massive", "all_1.1", split="train", trust_remote_code=True
+        ),
     )
     buckets = defaultdict(list)
     for row in ds:  # row is a dictionary-like object
+        row_dict: dict[str, Any] = cast(dict[str, Any], row)
         # Ensure locale is a string, providing a default empty string if None
-        locale_val: str = str(row.get("locale", ""))
+        locale_val: str = str(row_dict.get("locale", ""))
         if not locale_matches(locale_val, langs):
             continue
 
-        intent_id = row.get("intent")
+        intent_id = row_dict.get("intent")
         # Access features directly from ds, which is typed as Dataset
         intent_str = ds.features["intent"].int2str(intent_id)
         intent = map_massive_intent(intent_str)
         if not intent:
             continue
 
-        utt = (row.get("utt") or "").strip()
+        utt = (row_dict.get("utt") or "").strip()
         if not utt:
             continue
         buckets[intent].append(utt)

@@ -253,8 +253,8 @@ def test_health_warning_section(monkeypatch):
     state = BodyState(user_query="test query")
 
     result_state = reloaded_health.run(state, None)
-    assert "Check: Ibuprofen Warnings — warnings" in result_state["alerts"]
-    assert "http://example.com/warnings" in result_state["citations"]
+    assert "Check: Ibuprofen Warnings — warnings" in result_state.get("alerts", [])
+    assert "http://example.com/warnings" in result_state.get("citations", [])
 
 
 def test_health_with_memory_facts_no_medication_entity(monkeypatch):

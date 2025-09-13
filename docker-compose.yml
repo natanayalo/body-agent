@@ -53,6 +53,7 @@ services:
       - ES_PRIVATE_INDEX=private_user_memory
       - ES_PUBLIC_INDEX=public_medical_kb
       - ES_PLACES_INDEX=providers_places
+      - PYTHONPATH=/app
     command:
       - sh
       - -lc
