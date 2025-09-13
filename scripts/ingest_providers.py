@@ -4,7 +4,6 @@ import json
 import re
 import hashlib
 from elasticsearch import Elasticsearch
-from sentence_transformers import SentenceTransformer
 from app.config import settings
 
 
@@ -18,14 +17,15 @@ es = Elasticsearch(ES)
 
 # Init model only if needed
 _model = None
-if MODEL != "__stub__":
-    _model = SentenceTransformer(MODEL)
 
 
 def embed_one(text: str) -> list[float]:
-    """Return a single embedding vector (flat list[float] length VEC_DIMS)."""
     if MODEL == "__stub__" or _model is None:
-        return [0.0] * VEC_DIMS
+        h = int(hashlib.sha1(text.encode("utf-8")).hexdigest(), 16)
+        idx = h % VEC_DIMS
+        v = [0.0] * VEC_DIMS
+        v[idx] = 1.0
+        return v
     return _model.encode([text], normalize_embeddings=True)[0].tolist()
 
 
