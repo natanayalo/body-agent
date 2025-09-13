@@ -108,8 +108,12 @@ jobs:
           RISK_MODEL_ID: __stub__
           HOST: 0.0.0.0
           PORT: 8000
+          LOG_LEVEL: debug
+          APP_LOG_DIR: /tmp/body-agent
         run: |
-          nohup python -m uvicorn app.main:app --host "$HOST" --port "$PORT" > /tmp/api.log 2>&1 &
+          mkdir -p "$APP_LOG_DIR"
+          nohup python -m uvicorn app.main:app \
+            --host "$HOST" --port "$PORT" --log-level "$LOG_LEVEL" > /tmp/api.log 2>&1 &
       - name: Wait for API
         env:
           API_BASE_URL: http://localhost:8000
