@@ -34,8 +34,8 @@ jobs:
           pip install pre-commit
       - name: Run pre-commit (all files)
         run: pre-commit run --all-files
-  unit_and_integration_tests:
-    name: "🧪 Unit and Integration Tests"
+  all_tests:
+    name: "🧪 All Tests (Unit, Integration, E2E)"
     runs-on: ubuntu-latest
     needs: precommit
     steps:
@@ -62,21 +62,28 @@ jobs:
           RISK_MODEL_ID: __stub__ # <— faster CI, no model download
           EMBEDDINGS_MODEL: __stub__ # <— faster CI, no model download
         run: pytest --cov=services/api/app --cov-fail-under=90 services/api/tests/unit/ services/api/tests/integration/
-  e2e_tests:
-    name: "🌐 E2E Tests"
-    runs-on: ubuntu-latest
-    needs: unit_and_integration_tests
-    steps:
-      - uses: actions/checkout@v4
       - name: Create .env file
         run: cp .env.example .env
-      - name: Set up Docker
-        uses: docker/setup-buildx-action@v3
-      - name: Build & start stack (ES + API + seed)
+      - name: Build & start stack (ES)
+        run: docker compose up -d --build elasticsearch
+      - name: Seed Elasticsearch
+        env:
+          ES_HOST: http://localhost:9200
+          APP_DATA_DIR: ${{ github.workspace }}/data
         run: |
-          docker compose up -d --build elasticsearch
-          docker compose run --rm seed
-          docker compose up -d --build api
+          python scripts/wait_for_es.py
+          python scripts/es_bootstrap.py
+          python scripts/ingest_providers.py
+          python scripts/ingest_public_kb.py
+      - name: Start API
+        env:
+          ES_HOST: http://localhost:9200
+          APP_DATA_DIR: ${{ github.workspace }}/data
+          EMBEDDINGS_MODEL: __stub__
+          RISK_MODEL_ID: __stub__
+        run: |
+          mkdir -p data
+          nohup uvicorn services/api/app/main:app --host 0.0.0.0 --port 8000 >/tmp/api.log 2>&1 &
       - name: Wait for API
         run: |
           for i in $(seq 1 60); do
