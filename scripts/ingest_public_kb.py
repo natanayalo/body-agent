@@ -5,15 +5,26 @@ import hashlib
 from elasticsearch import Elasticsearch
 from datetime import datetime
 from sentence_transformers import SentenceTransformer
+from app.config import settings
 
 logging.basicConfig(level=logging.INFO)
 
 ES = os.getenv("ES_HOST", "http://localhost:9200")
 INDEX = os.getenv("ES_PUBLIC_INDEX", "public_medical_kb")
 MODEL = os.getenv("EMBEDDINGS_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+VEC_DIMS = 384
 
 es = Elasticsearch(ES)
-model = SentenceTransformer(MODEL)
+
+if settings.embeddings_model == "__stub__":
+
+    def embed(texts: list[str]) -> list[list[float]]:
+        if isinstance(texts, str):
+            texts = [texts]
+        return [[0.0] * VEC_DIMS for _ in texts]  # deterministic small vector
+
+else:
+    model = SentenceTransformer(settings.embeddings_model)
 
 logging.info(
     f"Indexing public medical knowledge base into {INDEX} using model {MODEL}."

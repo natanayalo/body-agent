@@ -1,6 +1,9 @@
 import requests
 import time
 import os
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 ES_HOST = os.getenv("ES_HOST", "http://elasticsearch:9200")
 
