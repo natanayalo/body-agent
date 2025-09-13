@@ -35,7 +35,7 @@ jobs:
       - name: Run pre-commit (all files)
         run: pre-commit run --all-files
   all_tests:
-    name: "🧪 All Tests (Unit, Integration, E2E)"
+    name: "🧪 Run Tests (Unit, Integration, E2E)"
     runs-on: ubuntu-latest
     needs: precommit
     steps:
@@ -62,45 +62,50 @@ jobs:
           RISK_MODEL_ID: __stub__ # <— faster CI, no model download
           EMBEDDINGS_MODEL: __stub__ # <— faster CI, no model download
         run: pytest --cov=services/api/app --cov-fail-under=90 services/api/tests/unit/ services/api/tests/integration/
-      - name: Create .env file
-        run: cp .env.example .env
+      - name: Prepare env + data dir
+        run: |
+          cp .env.example .env
+          echo "APP_ENV=ci" >> .env
+          echo "ES_HOST=http://localhost:9200" >> .env
+          echo "API_BASE_URL=http://localhost:8000" >> .env
+          echo "APP_DATA_DIR=${{ github.workspace }}/data" >> .env
+          echo "LLM_PROVIDER=none" >> .env
+          echo "RISK_MODEL_ID=__stub__" >> .env
+          echo "EMBEDDINGS_MODEL=__stub__" >> .env
+          echo "INTENT_EXEMPLARS_PATH=${{ github.workspace }}/data/intent_exemplars.json" >> .env
+          mkdir -p data
       - name: Build & start stack (ES)
         run: docker compose up -d --build elasticsearch
       - name: Seed Elasticsearch
         env:
           ES_HOST: http://localhost:9200
-          APP_DATA_DIR: ${{ github.workspace }}/data
         run: |
           python scripts/wait_for_es.py
           python scripts/es_bootstrap.py
           python scripts/ingest_providers.py
           python scripts/ingest_public_kb.py
       - name: Start API
-        env:
-          ES_HOST: http://localhost:9200
-          APP_DATA_DIR: ${{ github.workspace }}/data
-          EMBEDDINGS_MODEL: __stub__
-          RISK_MODEL_ID: __stub__
         run: |
-          mkdir -p data
-          nohup uvicorn services/api/app/main:app --host 0.0.0.0 --port 8000 >/tmp/api.log 2>&1 &
+          nohup python -m uvicorn app.main:app --host {{ env.HOST }} --port {{ env.PORT }} > /tmp/api.log 2>&1 &
       - name: Wait for API
         run: |
           for i in $(seq 1 60); do
-            if curl -sf http://localhost:8000/healthz | grep -q '"ok":true'; then
-              echo "API is ready"; break; fi
+            if curl -sf {{ env.API_BASE_URL }}/healthz | grep -q '"ok":true'; then
+              echo "API is ready"; exit 0; fi
             echo "Waiting for API... ($i/60)"; sleep 2
           done
-          curl -sf http://localhost:8000/healthz
+          echo "API failed to become ready. --- /tmp/api.log ---"
+          (tail -n +1 /tmp/api.log || true)
+          exit 7
       - name: E2E tests
-        env:
-          API_BASE_URL: http://localhost:8000
-          RISK_MODEL_ID: __stub__
         run: pytest services/api/tests/e2e/
       - name: Dump logs on failure
         if: failure()
         run: |
-          docker compose logs --no-color api elasticsearch | tail -n 500
+          echo "--- /tmp/api.log ---"
+          (tail -n 500 /tmp/api.log || true)
+          echo "--- docker compose logs (elasticsearch) ---"
+          docker compose logs --no-color elasticsearch | tail -n 300 || true
       - name: Tear down
         if: always()
-        run: docker compose down -v
+        run: docker compose down -v || true
