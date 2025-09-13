@@ -34,21 +34,10 @@ jobs:
           pip install pre-commit
       - name: Run pre-commit (all files)
         run: pre-commit run --all-files
-  test:
-    name: "🚀 Test"
+  all_tests:
+    name: "🧪 Run Tests (Unit, Integration, E2E)"
     runs-on: ubuntu-latest
     needs: precommit
-    services:
-      elasticsearch:
-        image: docker.elastic.co/elasticsearch/elasticsearch:8.14.0
-        env:
-          discovery.type: single-node
-          ES_JAVA_OPTS: -Xms1g -Xmx1g
-          xpack.security.enabled: false
-        ports:
-          - 9200:9200
-        options: >-
-          --health-cmd "curl -f http://localhost:9200/_cluster/health?wait_for_status=yellow" --health-interval 10s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -66,8 +55,89 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r services/api/requirements.txt
           pip install -r services/api/tests/requirements-test.txt
-      - name: Run tests with coverage
+          pip install -e services/api
+      - name: Run Unit and Integration tests with coverage
+        env:
+          PYTHONPATH: services/api
+          RISK_MODEL_ID: __stub__ # <— faster CI, no model download
+          EMBEDDINGS_MODEL: __stub__ # <— faster CI, no model download
+        run: pytest --cov=services/api/app --cov-fail-under=95 services/api/tests/unit/ services/api/tests/integration/
+      - name: Prepare env + data dir
+        run: |
+          cp .env.example .env
+          echo "APP_ENV=ci" >> .env
+          echo "ES_HOST=http://localhost:9200" >> .env
+          echo "API_BASE_URL=http://localhost:8000" >> .env
+          echo "APP_DATA_DIR=${{ github.workspace }}/data" >> .env
+          echo "LLM_PROVIDER=none" >> .env
+          echo "RISK_MODEL_ID=__stub__" >> .env
+          echo "EMBEDDINGS_MODEL=__stub__" >> .env
+          echo "INTENT_EXEMPLARS_PATH=${{ github.workspace }}/data/intent_exemplars.json" >> .env
+          mkdir -p data
+      - name: Build & start stack (ES)
+        run: docker compose up -d --build elasticsearch
+      - name: Wait for ES
         env:
           ES_HOST: http://localhost:9200
+        run: python scripts/wait_for_es.py
+      - name: Create indices (mappings)
+        env:
+          ES_HOST: http://localhost:9200
+          PYTHONPATH: services/api
         run: |
-          pytest --cov=services/api/app --cov-fail-under=90 services/api/tests/
+          python - <<'PY'
+          from app.tools.es_client import ensure_indices
+          ensure_indices()
+          print("OK: indices ensured")
+          PY
+      - name: Seed Elasticsearch
+        env:
+          ES_HOST: http://localhost:9200
+          APP_DATA_DIR: ${{ github.workspace }}/data
+          EMBEDDINGS_MODEL: __stub__
+        run: |
+          python scripts/es_bootstrap.py
+          python scripts/ingest_providers.py
+          python scripts/ingest_public_kb.py
+      - name: Start API
+        env:
+          PYTHONPATH: services/api
+          ES_HOST: http://localhost:9200
+          APP_DATA_DIR: ${{ github.workspace }}/data
+          EMBEDDINGS_MODEL: __stub__
+          RISK_MODEL_ID: __stub__
+          HOST: 0.0.0.0
+          PORT: 8000
+          LOG_LEVEL: debug
+          APP_LOG_DIR: /tmp/body-agent
+        run: |
+          mkdir -p "$APP_LOG_DIR"
+          nohup python -m uvicorn app.main:app \
+            --host "$HOST" --port "$PORT" --log-level "$LOG_LEVEL" > /tmp/api.log 2>&1 &
+      - name: Wait for API
+        env:
+          API_BASE_URL: http://localhost:8000
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf "$API_BASE_URL/healthz" | grep -q '"ok":true'; then
+              echo "API is ready"; exit 0; fi
+            echo "Waiting for API... ($i/60)"; sleep 2
+          done
+          echo "API failed to become ready. --- /tmp/api.log ---"
+          (tail -n +1 /tmp/api.log || true)
+          exit 7
+      - name: E2E tests
+        env:
+          API_BASE_URL: http://localhost:8000
+          RISK_MODEL_ID: __stub__
+        run: pytest --no-cov services/api/tests/e2e/
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          echo "--- /tmp/api.log ---"
+          (tail -n 500 /tmp/api.log || true)
+          echo "--- docker compose logs (elasticsearch) ---"
+          docker compose logs --no-color elasticsearch | tail -n 300 || true
+      - name: Tear down
+        if: always()
+        run: docker compose down -v || true

@@ -5,8 +5,40 @@ from app.config import settings
 import re
 import logging
 from typing import Optional
+from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_url(url: str) -> str:
+    """Normalizes a URL by removing fragments, common tracking params, and ensuring consistent trailing slashes."""
+    if not url:
+        return ""
+
+    parsed = urlparse(url)
+
+    # Remove fragment
+    path_without_fragment = parsed.path
+
+    # Remove common tracking query parameters
+    query_params = parse_qs(parsed.query)
+    filtered_query_params = {
+        k: v for k, v in query_params.items() if not k.startswith("utm_")
+    }
+    normalized_query = urlencode(filtered_query_params, doseq=True)
+
+    # Reconstruct URL without fragment and with normalized query
+    normalized_url = urlunparse(parsed._replace(query=normalized_query, fragment=""))
+
+    # Ensure consistent trailing slashes (remove if not root or file)
+    if (
+        normalized_url.endswith("/")
+        and len(path_without_fragment) > 1
+        and "." not in path_without_fragment.split("/")[-1]
+    ):
+        normalized_url = normalized_url.rstrip("/")
+
+    return normalized_url
 
 
 def _norm(s: Optional[str]) -> str:
@@ -62,13 +94,21 @@ def run(state: BodyState, es_client) -> BodyState:
     # Fallback to BM25 if no k-NN hits (tiny corpora safety net)
     if not hits:
         logger.info("No k-NN hits, falling back to BM25 search")
-        body_bm25 = {
-            "query": {"multi_match": {"query": q, "fields": ["title^2", "text"]}},
+        bm25_body = {
+            "query": {
+                "bool": {
+                    "should": [
+                        {"match": {"text": q}},
+                        {"match": {"title": q}},
+                    ],
+                    "minimum_should_match": 1,
+                }
+            },
             "_source": {"excludes": ["embedding"]},
             "size": 8,
         }
         try:
-            res = get_es_client().search(index=settings.es_public_index, body=body_bm25)
+            res = get_es_client().search(index=settings.es_public_index, body=bm25_body)
             hits = res["hits"]["hits"]
             logger.info(f"BM25 search found {len(hits)} relevant documents")
         except Exception as e:
@@ -108,7 +148,8 @@ def run(state: BodyState, es_client) -> BodyState:
             found_meds = set()
             logger.debug("Checking for medication interactions")
             for ing in med_mem_ings:
-                if ing and (ing in title or ing in text):
+                generic_ing = ing.split(" ")[0]
+                if generic_ing and (generic_ing in title or generic_ing in text):
                     found_meds.add(ing)
                     logger.debug(f"Found interaction with: {ing}")
                 if len(found_meds) >= 2:
@@ -123,7 +164,7 @@ def run(state: BodyState, es_client) -> BodyState:
             alerts.append(alert)
             logger.warning(f"Added medical alert: {alert}")
 
-        citation = d.get("source_url", "")
+        citation = _normalize_url(d.get("source_url", ""))
         citations.append(citation)
         logger.debug(f"Added citation: {citation}")
 

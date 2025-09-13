@@ -1,0 +1,11 @@
+[project]
+name = "body-agent-api"
+version = "0.0.1"
+requires-python = ">=3.11"
+
+[tool.setuptools]
+packages = ["app"]
+package-dir = {"" = "."}
+
+[tool.mypy]
+mypy_path = "."

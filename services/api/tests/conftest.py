@@ -2,13 +2,23 @@ import os
 import json
 import pytest
 from unittest.mock import MagicMock
-import sys
 from fastapi.testclient import TestClient
+from app.config import settings
 
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
+def pytest_addoption(parser):
+    parser.addoption(
+        "--e2e-stub",
+        action="store_true",
+        default=False,
+        help="Run e2e tests in stub mode",
+    )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def configure_stub_mode(request):
+    if request.config.getoption("--e2e-stub"):
+        os.environ["EMBEDDINGS_MODEL"] = "__stub__"
 
 
 @pytest.fixture(scope="session")  # Define a session-scoped monkeypatch
@@ -19,14 +29,7 @@ def session_monkeypatch(request):
 
 
 @pytest.fixture(autouse=True)
-def mock_fs(monkeypatch):
-    monkeypatch.setattr(os, "makedirs", lambda *args, **kwargs: None)
-    # mock open to do nothing
-    monkeypatch.setattr("builtins.open", lambda *args, **kwargs: MagicMock())
-
-
-@pytest.fixture(autouse=True)
-def set_test_env(monkeypatch):
+def set_test_env(monkeypatch, tmp_path):
     # Safer defaults for tests
     monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv(
@@ -39,6 +42,11 @@ def set_test_env(monkeypatch):
     monkeypatch.setenv("RISK_LABELS", "urgent_care,see_doctor,self_care,info_only")
     monkeypatch.setenv("RISK_THRESHOLDS", "urgent_care:0.65,see_doctor:0.55")
     monkeypatch.setenv("RISK_MODEL_ID", "__stub__")
+    monkeypatch.setenv("LOG_LEVEL", "INFO")
+
+    # Mock settings directly to ensure they are set before configure_logging is called
+    monkeypatch.setattr(settings, "data_dir", str(tmp_path))
+    monkeypatch.setattr(settings, "log_file", str(tmp_path / "test_api.log"))
 
 
 @pytest.fixture(autouse=True)  # Apply automatically to all tests

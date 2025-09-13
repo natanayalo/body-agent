@@ -2,6 +2,15 @@ from app.graph.nodes import health
 from unittest.mock import patch, MagicMock
 import pytest
 from app.graph.state import BodyState
+from app.config import settings
+
+
+@pytest.fixture(autouse=True)
+def mock_embed_and_settings():
+    # Mock embed for all tests in this module
+    health.embed = MagicMock()
+    health.embed.return_value = [[0.1] * 384]  # Mock embedding output
+    settings.es_public_index = "test_public_index"
 
 
 def test_health_knn_then_bm25_fallback(sample_docs, monkeypatch):
@@ -183,6 +192,133 @@ def test_health_default_guidance_message(fake_es, sample_docs):
 
 
 def test_health_raises_error_if_no_user_query(fake_es):
-    state: BodyState = {"messages": []}  # Missing user_query # type: ignore
+    state: BodyState = BodyState({"messages": []})  # type: ignore[typeddict-item]
     with pytest.raises(ValueError, match="user_query is required in state"):
         health.run(state, fake_es)
+
+
+def test_health_with_memory_facts_and_empty_ing(monkeypatch):
+    mock_es_instance = MagicMock()
+    mock_es_instance.search.return_value = {"hits": {"hits": []}}
+    monkeypatch.setattr("app.tools.es_client.get_es_client", lambda: mock_es_instance)
+
+    import importlib
+    import app.graph.nodes.health
+
+    importlib.reload(app.graph.nodes.health)
+    from app.graph.nodes import health as reloaded_health
+
+    state = BodyState(
+        user_query="test query",
+        memory_facts=[
+            {"name": "", "entity": "medication"},  # Empty name
+            {"name": None, "entity": "medication"},  # None name
+            {"name": "  ", "entity": "medication"},  # Whitespace name
+            {
+                "name": "Valid Ing",
+                "entity": "medication",
+                "normalized": {"ingredient": "valid ing"},
+            },
+        ],
+    )
+
+    result_state = reloaded_health.run(state, None)
+    assert "public_snippets" in result_state
+
+
+def test_health_warning_section(monkeypatch):
+    mock_es_instance = MagicMock()
+    mock_es_instance.search.return_value = {
+        "hits": {
+            "hits": [
+                {
+                    "_source": {
+                        "title": "Ibuprofen Warnings",
+                        "section": "warnings",
+                        "text": "Do not take if you have stomach ulcers.",
+                        "source_url": "http://example.com/warnings",
+                    }
+                }
+            ]
+        }
+    }
+    monkeypatch.setattr("app.tools.es_client.get_es_client", lambda: mock_es_instance)
+
+    import importlib
+    import app.graph.nodes.health
+
+    importlib.reload(app.graph.nodes.health)
+    from app.graph.nodes import health as reloaded_health
+
+    state = BodyState(user_query="test query")
+
+    result_state = reloaded_health.run(state, None)
+    assert "Check: Ibuprofen Warnings — warnings" in result_state.get("alerts", [])
+    assert "http://example.com/warnings" in result_state.get("citations", [])
+
+
+def test_health_with_memory_facts_no_medication_entity(monkeypatch):
+    mock_es_instance = MagicMock()
+    mock_es_instance.search.return_value = {"hits": {"hits": []}}
+    monkeypatch.setattr("app.tools.es_client.get_es_client", lambda: mock_es_instance)
+
+    import importlib
+    import app.graph.nodes.health
+
+    importlib.reload(app.graph.nodes.health)
+    from app.graph.nodes import health as reloaded_health
+
+    state = BodyState(
+        user_query="test query",
+        memory_facts=[
+            {"name": "Doctor Visit", "entity": "appointment"},
+            {"name": "Exercise", "entity": "activity"},
+        ],
+    )
+    result_state = reloaded_health.run(state, None)
+    assert "public_snippets" in result_state
+    assert result_state.get("alerts", []) == []
+    assert result_state.get("citations", []) == []
+    assert any(
+        "I found guidance and possible warnings." in msg["content"]
+        for msg in result_state.get("messages", [])
+    )
+
+
+def test_health_messages_not_empty_and_messages_generated(monkeypatch):
+    mock_es_instance = MagicMock()
+    mock_es_instance.search.return_value = {
+        "hits": {
+            "hits": [
+                {
+                    "_source": {
+                        "title": "Ibuprofen Warnings",
+                        "section": "warnings",
+                        "text": "Do not take if you have stomach ulcers.",
+                        "source_url": "http://example.com/warnings",
+                    }
+                }
+            ]
+        }
+    }
+    monkeypatch.setattr("app.tools.es_client.get_es_client", lambda: mock_es_instance)
+
+    import importlib
+    import app.graph.nodes.health
+
+    importlib.reload(app.graph.nodes.health)
+    from app.graph.nodes import health as reloaded_health
+
+    state = BodyState(
+        user_query="test query",
+        messages=[{"role": "assistant", "content": "Existing message."}],
+    )
+    result_state = reloaded_health.run(state, None)
+    assert (
+        len(result_state.get("messages", [])) == 2
+    )  # Original message + message from warning
+    assert result_state.get("messages", [])[0]["content"] == "Existing message."
+    assert any(
+        "I found guidance and possible warnings." in msg["content"]
+        for msg in result_state.get("messages", [])
+    )

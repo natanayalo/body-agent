@@ -28,6 +28,9 @@ _DEFAULT_EXAMPLES: Dict[str, List[str]] = {
         "אני צריך תרופה",
         "נטלתי תרופה",
         "תזכיר לי לקחת תרופה",
+        "drug interaction",
+        "can I combine these pills",
+        "is it safe to take with",
     ],
     "appointment": [
         "book a lab appointment",
@@ -59,9 +62,23 @@ def _load_exemplars() -> Dict[str, List[str]]:
             for k, vals in data.items():
                 if k in {"symptom", "meds", "appointment", "routine"}:
                     out[k] = [v for v in vals if isinstance(v, str) and v.strip()]
-            return out if out else _DEFAULT_EXAMPLES
-        except Exception:
+            if out:
+                logging.info(f"Loaded intent exemplars from {path}")
+                return out
+            else:
+                logging.warning(
+                    f"Exemplars file {path} is empty or malformed, using default exemplars."
+                )
+                return _DEFAULT_EXAMPLES
+        except Exception as e:
+            logging.error(
+                f"Failed to load intent exemplars from {path}: {e}", exc_info=True
+            )
+            logging.info("Using default intent exemplars.")
             return _DEFAULT_EXAMPLES
+    logging.info(
+        "INTENT_EXEMPLARS_PATH not set or file not found, using default intent exemplars."
+    )
     return _DEFAULT_EXAMPLES
 
 
@@ -80,7 +97,7 @@ def detect_intent(
     scores = {
         k: (vecs @ q).max() if len(vecs) else -1.0 for k, vecs in _EX_VECS.items()
     }
-    logging.debug(f"Intent scores for '{text}': {scores}")  # Added print statement
+
     ordered = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
     if not ordered:
         return "other"
@@ -95,5 +112,9 @@ def detect_intent(
 
 
 def run(state: BodyState) -> BodyState:
-    state["intent"] = detect_intent(state["user_query"])
+    detected_intent = detect_intent(
+        state.get("user_query_redacted", state.get("user_query", ""))
+    )
+    state["intent"] = detected_intent
+    logging.debug(f"Detected intent: {detected_intent}")
     return state
