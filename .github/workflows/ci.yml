@@ -61,7 +61,7 @@ jobs:
           PYTHONPATH: services/api
           RISK_MODEL_ID: __stub__ # <— faster CI, no model download
           EMBEDDINGS_MODEL: __stub__ # <— faster CI, no model download
-        run: pytest --cov=services/api/app --cov-fail-under=90 services/api/tests/unit/ services/api/tests/integration/
+        run: pytest --cov=services/api/app --cov-fail-under=95 services/api/tests/unit/ services/api/tests/integration/
       - name: Prepare env + data dir
         run: |
           cp .env.example .env
@@ -76,6 +76,10 @@ jobs:
           mkdir -p data
       - name: Build & start stack (ES)
         run: docker compose up -d --build elasticsearch
+      - name: Wait for ES
+        env:
+          ES_HOST: http://localhost:9200
+        run: python scripts/wait_for_es.py
       - name: Create indices (mappings)
         env:
           ES_HOST: http://localhost:9200
@@ -92,7 +96,6 @@ jobs:
           APP_DATA_DIR: ${{ github.workspace }}/data
           EMBEDDINGS_MODEL: __stub__
         run: |
-          python scripts/wait_for_es.py
           python scripts/es_bootstrap.py
           python scripts/ingest_providers.py
           python scripts/ingest_public_kb.py
