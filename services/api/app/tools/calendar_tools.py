@@ -26,7 +26,6 @@ def create_event(event: CalendarEvent) -> str:
         "END:VEVENT\nEND:VCALENDAR\n"
     )
     data_dir = Path(settings.data_dir)
-    data_dir.mkdir(parents=True, exist_ok=True)
     stamp = event.start.strftime("%Y%m%dT%H%M%S")
     safe_title = "".join([c if c.isalnum() else "_" for c in (event.title or "event")])[
         :40

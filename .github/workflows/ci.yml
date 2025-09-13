@@ -79,18 +79,30 @@ jobs:
       - name: Seed Elasticsearch
         env:
           ES_HOST: http://localhost:9200
+          APP_DATA_DIR: ${{ github.workspace }}/data
+          EMBEDDINGS_MODEL: __stub__
         run: |
           python scripts/wait_for_es.py
           python scripts/es_bootstrap.py
           python scripts/ingest_providers.py
           python scripts/ingest_public_kb.py
       - name: Start API
+        env:
+          PYTHONPATH: services/api
+          ES_HOST: http://localhost:9200
+          APP_DATA_DIR: ${{ github.workspace }}/data
+          EMBEDDINGS_MODEL: __stub__
+          RISK_MODEL_ID: __stub__
+          HOST: 0.0.0.0
+          PORT: 8000
         run: |
-          nohup python -m uvicorn app.main:app --host {{ env.HOST }} --port {{ env.PORT }} > /tmp/api.log 2>&1 &
+          nohup python -m uvicorn app.main:app --host "$HOST" --port "$PORT" > /tmp/api.log 2>&1 &
       - name: Wait for API
+        env:
+          API_BASE_URL: http://localhost:8000
         run: |
           for i in $(seq 1 60); do
-            if curl -sf {{ env.API_BASE_URL }}/healthz | grep -q '"ok":true'; then
+            if curl -sf "$API_BASE_URL/healthz" | grep -q '"ok":true'; then
               echo "API is ready"; exit 0; fi
             echo "Waiting for API... ($i/60)"; sleep 2
           done
@@ -98,6 +110,9 @@ jobs:
           (tail -n +1 /tmp/api.log || true)
           exit 7
       - name: E2E tests
+        env:
+          API_BASE_URL: http://localhost:8000
+          RISK_MODEL_ID: __stub__
         run: pytest services/api/tests/e2e/
       - name: Dump logs on failure
         if: failure()
