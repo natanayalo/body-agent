@@ -148,7 +148,8 @@ def run(state: BodyState, es_client) -> BodyState:
             found_meds = set()
             logger.debug("Checking for medication interactions")
             for ing in med_mem_ings:
-                if ing and (ing in title or ing in text):
+                generic_ing = ing.split(" ")[0]
+                if generic_ing and (generic_ing in title or generic_ing in text):
                     found_meds.add(ing)
                     logger.debug(f"Found interaction with: {ing}")
                 if len(found_meds) >= 2:
