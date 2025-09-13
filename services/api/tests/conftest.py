@@ -1,8 +1,24 @@
+import os
 import json
 import pytest
 from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 from app.config import settings
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--e2e-stub",
+        action="store_true",
+        default=False,
+        help="Run e2e tests in stub mode",
+    )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def configure_stub_mode(request):
+    if request.config.getoption("--e2e-stub"):
+        os.environ["EMBEDDINGS_MODEL"] = "__stub__"
 
 
 @pytest.fixture(scope="session")  # Define a session-scoped monkeypatch
