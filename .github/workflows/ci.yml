@@ -130,7 +130,7 @@ jobs:
         env:
           API_BASE_URL: http://localhost:8000
           RISK_MODEL_ID: __stub__
-        run: pytest services/api/tests/e2e/
+        run: pytest --no-cov services/api/tests/e2e/
       - name: Dump logs on failure
         if: failure()
         run: |

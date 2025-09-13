@@ -28,6 +28,9 @@ _DEFAULT_EXAMPLES: Dict[str, List[str]] = {
         "אני צריך תרופה",
         "נטלתי תרופה",
         "תזכיר לי לקחת תרופה",
+        "drug interaction",
+        "can I combine these pills",
+        "is it safe to take with",
     ],
     "appointment": [
         "book a lab appointment",

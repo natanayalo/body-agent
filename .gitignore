@@ -50,7 +50,7 @@ seeds/intent_exemplars.json
 *__pycache__*
 *.pyc
 *.mypy_cache/
-*.pytest_cache/*
+.pytest_cache/
 .coverage
 coverage*
 

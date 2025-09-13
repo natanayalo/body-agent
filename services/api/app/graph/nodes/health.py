@@ -94,13 +94,21 @@ def run(state: BodyState, es_client) -> BodyState:
     # Fallback to BM25 if no k-NN hits (tiny corpora safety net)
     if not hits:
         logger.info("No k-NN hits, falling back to BM25 search")
-        body_bm25 = {
-            "query": {"multi_match": {"query": q, "fields": ["title^2", "text"]}},
+        bm25_body = {
+            "query": {
+                "bool": {
+                    "should": [
+                        {"match": {"text": q}},
+                        {"match": {"title": q}},
+                    ],
+                    "minimum_should_match": 1,
+                }
+            },
             "_source": {"excludes": ["embedding"]},
             "size": 8,
         }
         try:
-            res = get_es_client().search(index=settings.es_public_index, body=body_bm25)
+            res = get_es_client().search(index=settings.es_public_index, body=bm25_body)
             hits = res["hits"]["hits"]
             logger.info(f"BM25 search found {len(hits)} relevant documents")
         except Exception as e:
