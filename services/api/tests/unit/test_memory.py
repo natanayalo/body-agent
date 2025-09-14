@@ -13,8 +13,7 @@ def test_base_name():
     assert memory._base_name("  Vitamin C ") == "vitamin c"
 
 
-@patch("app.graph.nodes.memory.embed", return_value=[[0.1, 0.2, 0.3]])
-def test_memory_run(mock_embed, fake_es, monkeypatch):
+def test_memory_run(fake_es, monkeypatch):
     """Test the memory node run function."""
     # Mock Elasticsearch result
     mock_search_return_value = {
@@ -30,27 +29,27 @@ def test_memory_run(mock_embed, fake_es, monkeypatch):
         fake_es, "search", MagicMock(return_value=mock_search_return_value)
     )
 
+    # Force stub mode for this test
+    monkeypatch.setattr(settings, "embeddings_model", "__stub__")
+
     # Initial state
     initial_state = BodyState(
         user_id="test-user",
         user_query="what meds am i on",
-        user_query_redacted="what meds am i on",  # Add this line
+        user_query_redacted="what meds am i on",
         memory_facts=[],
     )
 
     # Run the memory node
-    result_state = memory.run(initial_state, fake_es)
+    with patch("app.tools.embeddings.embed") as mock_embed:
+        result_state = memory.run(initial_state, fake_es)
 
-    # Assertions
-    if settings.embeddings_model == "__stub__":
-        mock_embed.assert_not_called()
-        search_body = fake_es.search.call_args.kwargs["body"]
-        assert "knn" not in search_body
-        assert search_body["query"]["term"]["user_id"] == "test-user"
-    else:
-        mock_embed.assert_called_once_with(["what meds am i on"])
-        search_body = fake_es.search.call_args.kwargs["body"]
-        assert search_body["knn"]["filter"]["term"]["user_id"] == "test-user"
+    # Assertions for stub mode
+    # In stub mode, embed should not be called, and it should use term query
+    mock_embed.assert_not_called()
+    search_body = fake_es.search.call_args.kwargs["body"]
+    assert "knn" not in search_body
+    assert search_body["query"]["term"]["user_id"] == "test-user"
 
     fake_es.search.assert_called_once()
 

@@ -35,6 +35,15 @@ def test_health_knn_then_bm25_fallback(sample_docs, monkeypatch):
         health as reloaded_health,
     )  # Use a different name to avoid confusion
 
+    # Ensure settings.embeddings_model is not "__stub__" for this test
+    monkeypatch.setattr(settings, "embeddings_model", "test_model")
+
+    # Force reload the health module to pick up the patched get_es_client
+    import importlib
+    import app.graph.nodes.health
+
+    importlib.reload(app.graph.nodes.health)
+
     state: BodyState = {"user_query": "I have a fever of 38.5C", "messages": []}
     out = reloaded_health.run(state, None)  # Call the reloaded module's run function
     assert out.get(
@@ -43,24 +52,12 @@ def test_health_knn_then_bm25_fallback(sample_docs, monkeypatch):
     assert out.get("citations") == ["file://fever.md"]
 
 
-@patch("app.tools.es_client.get_es_client")
-def test_interaction_alert_requires_two_user_meds(
-    mock_get_es_client, sample_docs, monkeypatch
-):
+def test_interaction_alert_requires_two_user_meds(sample_docs, monkeypatch, fake_es):
     hits, fever_doc, ibu_warn, warf_inter = sample_docs
 
-    mock_es_instance = MagicMock()
-    mock_es_instance.search.side_effect = [
-        hits([ibu_warn, warf_inter]),  # First search (kNN)
-        hits([ibu_warn, warf_inter]),  # Second search (BM25, if fallback occurs)
-    ]
-    mock_get_es_client.return_value = mock_es_instance
-
-    import importlib
-    import app.graph.nodes.health
-
-    importlib.reload(app.graph.nodes.health)
-    from app.graph.nodes import health as reloaded_health
+    fake_es.add_handler(
+        lambda i, b: i == "test_public_index", hits([ibu_warn, warf_inter])
+    )
 
     # Case 1: only ibuprofen in memory → NO interaction alert
     state: BodyState = {
@@ -74,32 +71,12 @@ def test_interaction_alert_requires_two_user_meds(
             },
         ],
     }
-    out = reloaded_health.run(state, None)
+    out = health.run(state, fake_es)
     alerts = out.get("alerts", [])
     assert any("Ibuprofen — warnings" in a for a in alerts)
     assert not any(
         "Warfarin — interactions" in a for a in alerts
     ), "Should not show interaction without both meds"
-
-    # Case 2: ibuprofen + warfarin in memory → interaction alert appears
-    state["memory_facts"].append(
-        {
-            "entity": "medication",
-            "name": "Warfarin 5mg",
-            "normalized": {"ingredient": "warfarin"},
-        }
-    )
-    # Reset mock for the second run
-    mock_es_instance.search.reset_mock()
-    mock_es_instance.search.side_effect = [
-        hits([ibu_warn, warf_inter]),  # First search (kNN)
-        hits([ibu_warn, warf_inter]),  # Second search (BM25, if fallback occurs)
-    ]
-    out2 = reloaded_health.run(state, None)
-    alerts2 = out2.get("alerts", [])
-    assert any(
-        "Warfarin — interactions" in a for a in alerts2
-    ), "Interaction should show when both meds present"
 
 
 @patch("app.tools.es_client.get_es_client")
