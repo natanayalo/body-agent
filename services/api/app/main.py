@@ -29,7 +29,7 @@ async def run_and_await_completion(graph, state: BodyState):
 async def lifespan(app: FastAPI):
     configure_logging()  # Call configure_logging here
     ensure_indices()
-    app.state.graph = build_graph(get_es_client()).compile()
+    app.state.graph = build_graph().compile()
     yield
 
 

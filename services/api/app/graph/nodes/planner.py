@@ -4,6 +4,7 @@ from app.tools.calendar_tools import CalendarEvent, create_event
 import os
 import logging
 from typing import TypedDict, List, Any
+from app.tools.es_client import get_es_client
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ class RankedCandidate(TypedDict):
 # Minimal planner for two demo flows
 
 
-def run(state: BodyState, es_client: Any) -> BodyState:
+def run(state: BodyState, es_client: Any = None) -> BodyState:
     intent = state.get("intent")
     now = datetime.now(UTC)
 
@@ -44,7 +45,7 @@ def run(state: BodyState, es_client: Any) -> BodyState:
         # Get user preferences from memory
         prefs = {}
         if user_id := state.get("user_id"):
-            es = es_client
+            es = es_client if es_client else get_es_client()
             docs = es.search(
                 index=os.environ["ES_PRIVATE_INDEX"],
                 body={

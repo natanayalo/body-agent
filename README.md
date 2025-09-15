@@ -146,14 +146,15 @@ docker compose exec api ruff check .
 The application uses Python's standard `logging` module. Log levels can be controlled via the `LOG_LEVEL` environment variable (e.g., `INFO`, `DEBUG`, `WARNING`, `ERROR`). Logs are output to both console and a file (`/var/log/body-agent/api.log` by default).
 
 
-### Risk Model Stubbing
+### Risk & Embedding Models Stubbing
 
 For testing and CI environments, the large language model used for risk classification can be replaced with a lightweight stub. This avoids the need to download the full model, speeding up test runs and reducing resource consumption.
 
-To enable the stub, set the `RISK_MODEL_ID` environment variable to `__stub__`:
+To enable the stub, set the `RISK_MODEL_ID` and `EMBEDDINGS_MODEL` environment variable to `__stub__`:
 
 ```bash
 RISK_MODEL_ID=__stub__
+EMBEDDINGS_MODEL=__stub__
 ```
 
 When stubbing is active, the risk classification will return deterministic, default scores, allowing for predictable test outcomes.

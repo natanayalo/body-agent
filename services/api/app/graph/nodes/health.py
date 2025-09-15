@@ -1,82 +1,47 @@
+import re
+import logging
 from app.graph.state import BodyState
 from app.tools.es_client import get_es_client
 from app.tools.embeddings import embed
 from app.config import settings
-import re
-import logging
-from typing import Optional
-from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
+from elasticsearch import TransportError, RequestError
 
 logger = logging.getLogger(__name__)
 
 
-def _normalize_url(url: str) -> str:
-    """Normalizes a URL by removing fragments, common tracking params, and ensuring consistent trailing slashes."""
-    if not url:
-        return ""
-
-    parsed = urlparse(url)
-
-    # Remove fragment
-    path_without_fragment = parsed.path
-
-    # Remove common tracking query parameters
-    query_params = parse_qs(parsed.query)
-    filtered_query_params = {
-        k: v for k, v in query_params.items() if not k.startswith("utm_")
-    }
-    normalized_query = urlencode(filtered_query_params, doseq=True)
-
-    # Reconstruct URL without fragment and with normalized query
-    normalized_url = urlunparse(parsed._replace(query=normalized_query, fragment=""))
-
-    # Ensure consistent trailing slashes (remove if not root or file)
-    if (
-        normalized_url.endswith("/")
-        and len(path_without_fragment) > 1
-        and "." not in path_without_fragment.split("/")[-1]
-    ):
-        normalized_url = normalized_url.rstrip("/")
-
-    return normalized_url
-
-
-def _norm(s: Optional[str]) -> str:
-    """Normalize text by removing non-word characters and converting to lowercase"""
-    return re.sub(r"\W+", " ", (s or "")).strip()
+def _norm_med_terms(mem_facts: list[dict]) -> list[str]:
+    terms = []
+    for m in mem_facts or []:
+        if m.get("entity") == "medication":
+            ingr = (m.get("normalized") or {}).get("ingredient")
+            if ingr:
+                terms.append(ingr.lower())
+            else:
+                name = (m.get("name") or "").lower()
+                # crude token pick: take first word
+                tok = re.split(r"\W+", name.strip())[0]
+                if tok:
+                    terms.append(tok)
+    # de-dupe, keep order
+    seen, out = set(), []
+    for t in terms:
+        if t and t not in seen:
+            seen.add(t)
+            out.append(t)
+    return out
 
 
 def run(state: BodyState, es_client=None) -> BodyState:
-
-    logger.info("Processing health query")
-    if "user_query" not in state:
-        raise ValueError("user_query is required in state")
     q = state["user_query"]
-    logger.debug(f"Redacted query: {state.get('user_query_redacted', q)}")
+    mem = state.get("memory_facts") or []
+    med_terms = _norm_med_terms(mem)
+    es = es_client if es_client else get_es_client()
+    docs = []
 
-    # Build a set of normalized ingredients from memory (e.g., {"ibuprofen", "warfarin"})
-    mem_ings = set()
-    logger.debug("Processing medical context from memory")
-    for m in state.get("memory_facts") or []:
-        ing = (m.get("normalized") or {}).get("ingredient") or _norm(m.get("name", ""))
-        if ing:
-            mem_ings.add(ing)
-            logger.debug(f"Added medical context: {ing}")
-
-    # Add memory terms to the query for retrieval context
-    if mem_ings:
-        q += "\nContext:" + ", ".join(sorted(mem_ings))
-        logger.debug(f"Enhanced query with medical context: {q}")
-
-    # Determine search strategy based on embeddings model
-    if settings.embeddings_model == "__stub__":
-        logger.info("Embeddings model is stubbed, performing BM25 search directly.")
-        hits = []  # Initialize hits to empty to force BM25
-    else:
-        # k-NN first
-        logger.info("Performing k-NN search for relevant medical knowledge")
+    # Try kNN first (no harm in stub env; will often be empty)
+    try:
         vector = embed([q])[0]
-        body_knn = {
+        knn_body = {
             "knn": {
                 "field": "embedding",
                 "query_vector": vector,
@@ -86,114 +51,70 @@ def run(state: BodyState, es_client=None) -> BodyState:
             "_source": {"excludes": ["embedding"]},
             "size": 8,
         }
-        logger.debug("k-NN search parameters: k=8, candidates=64")
+        res = es.search(index=settings.es_public_index, body=knn_body)
+        docs = [h["_source"] for h in res.get("hits", {}).get("hits", [])]
+    except (TransportError, RequestError) as e:
+        logger.warning(f"kNN search failed: {e}. Falling back to BM25.")
+        docs = []
+    except Exception as e:
+        logger.error(
+            f"An unexpected error occurred during kNN search: {e}", exc_info=True
+        )
+        docs = []
 
+    # BM25 fallback — IMPORTANT: include per-med 'title' matches in lowercase
+    if not docs:
         try:
-            es = es_client if es_client else get_es_client()
-            res = es.search(index=settings.es_public_index, body=body_knn)
-            hits = res["hits"]["hits"]
-            logger.info(f"k-NN search found {len(hits)} relevant documents")
-        except Exception as e:
-            logger.error(f"k-NN search failed: {str(e)}", exc_info=True)
-            hits = []
-
-    # Fallback to BM25 if no k-NN hits (tiny corpora safety net)
-    if (
-        not hits
-    ):  # This condition will now always be true if settings.embeddings_model == "__stub__"
-        logger.info("No k-NN hits, falling back to BM25 search")
-        bm25_body = {
-            "query": {
-                "bool": {
-                    "should": [{"match": {"title": ing}} for ing in mem_ings],
-                    "minimum_should_match": 1,
-                }
-            },
-            "_source": {"excludes": ["embedding"]},
-            "size": 8,
-        }
-        if not mem_ings:  # Fallback if no memory ingredients are found
-            bm25_body["query"] = {"match_all": {}}
-
-        try:
-            es = es_client if es_client else get_es_client()
+            should = [
+                {"match": {"text": q}},
+                {"match": {"title": q}},
+            ]
+            for t in med_terms:
+                should.append({"match": {"title": t}})
+                should.append({"match": {"text": t}})
+            bm25_body = {
+                "query": {"bool": {"should": should, "minimum_should_match": 1}},
+                "_source": {"excludes": ["embedding"]},
+                "size": 8,
+            }
             res = es.search(index=settings.es_public_index, body=bm25_body)
-            hits = res["hits"]["hits"]
-            logger.info(f"BM25 search found {len(hits)} relevant documents")
+            docs.extend([h["_source"] for h in res.get("hits", {}).get("hits", [])])
+        except (TransportError, RequestError) as e:
+            logger.warning(f"BM25 search failed: {e}.")
         except Exception as e:
-            logger.error(f"BM25 search failed: {str(e)}", exc_info=True)
-            hits = []
+            logger.error(
+                f"An unexpected error occurred during BM25 search: {e}", exc_info=True
+            )
 
-    docs = [h["_source"] for h in hits]
+    # Build alerts & citations
+    alerts = state.get("alerts", [])
+    citations = state.get("citations", [])
+    messages = state.get("messages", [])
 
-    citations: list[str] = []
-    alerts: list[str] = []
-    messages: list[dict] = []
+    alerts_before = len(alerts)
+    citations_before = len(citations)
 
-    # Build a memory ingredient set for generic interaction gating
-    logger.info("Checking for medication interactions and warnings")
-    med_mem_ings = set()
-    for m in state.get("memory_facts") or []:
-        if m.get("entity") == "medication":
-            ing = (m.get("normalized") or {}).get("ingredient") or (
-                m.get("name") or ""
-            ).lower()
-            if ing:
-                med_mem_ings.add(ing)
-                logger.debug(f"Found active medication: {ing}")
-    logger.debug(f"Processing top {min(3, len(docs))} documents for alerts")
     for d in docs[:3]:
-        section = (d.get("section", "") or "").lower()
-        title = _norm(d.get("title"))
-        text = _norm(d.get("text"))
-        logger.debug(f"Analyzing document: {title} (section: {section})")
+        sec = str(d.get("section", "")).lower()
+        alert_msg = f"Check: {d.get('title')} — {d.get('section')}"
+        if sec in {"warnings", "interactions"} and alert_msg not in alerts:
+            alerts.append(alert_msg)
 
-        add_alert = False
-        if section == "warnings":
-            add_alert = True
-            logger.info(f"Found warning section in {title}")
-        elif section == "interactions":
-            # Only alert if >=2 distinct memory meds appear in the snippet
-            found_meds = set()
-            logger.debug("Checking for medication interactions")
-            for ing in med_mem_ings:
-                generic_ing = ing.split(" ")[0]
-                if generic_ing and (generic_ing in title or generic_ing in text):
-                    found_meds.add(ing)
-                    logger.debug(f"Found interaction with: {ing}")
-                if len(found_meds) >= 2:
-                    add_alert = True
-                    logger.warning(
-                        f"Detected potential interaction between medications in {title}"
-                    )
-                    break
+        if (src := d.get("source_url")) and src not in citations:
+            citations.append(src)
 
-        if add_alert:
-            alert = f"Check: {d.get('title')} — {d.get('section')}"
-            alerts.append(alert)
-            logger.warning(f"Added medical alert: {alert}")
-
-        citation = _normalize_url(d.get("source_url", ""))
-        citations.append(citation)
-        logger.debug(f"Added citation: {citation}")
-
-    if not messages:
-        logger.info("No specific messages generated, adding default guidance message")
-        default_message = {
-            "role": "assistant",
-            "content": "I found guidance and possible warnings. Review the summary and citations.",
-        }
-        messages.append(default_message)
-        logger.debug(f"Added default message: {default_message}")
-
-    logger.info(
-        f"Health node processing complete. Generated {len(alerts)} alerts and {len(citations)} citations"
-    )
+    new_info_found = len(alerts) > alerts_before or len(citations) > citations_before
+    if new_info_found or not state.get("messages"):  # if new info or no messages yet
+        if not any("I found guidance" in m["content"] for m in messages):
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": "I found guidance and possible warnings. Review the summary and citations.",
+                }
+            )
 
     state["public_snippets"] = docs
-    state["alerts"] = list(dict.fromkeys(alerts))
-    # dedupe citations
-    state["citations"] = list(dict.fromkeys(c for c in citations if c))
-    state.setdefault("messages", []).extend(messages)
-
+    state["alerts"] = alerts
+    state["citations"] = citations
+    state["messages"] = messages
     return state

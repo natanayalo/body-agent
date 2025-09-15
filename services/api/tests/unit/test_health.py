@@ -45,7 +45,7 @@ def test_health_knn_then_bm25_fallback(sample_docs, monkeypatch):
     importlib.reload(app.graph.nodes.health)
 
     state: BodyState = {"user_query": "I have a fever of 38.5C", "messages": []}
-    out = reloaded_health.run(state, None)  # Call the reloaded module's run function
+    out = reloaded_health.run(state)
     assert out.get(
         "public_snippets"
     ), "BM25 fallback should supply docs when kNN is empty"
@@ -55,9 +55,20 @@ def test_health_knn_then_bm25_fallback(sample_docs, monkeypatch):
 def test_interaction_alert_requires_two_user_meds(sample_docs, monkeypatch, fake_es):
     hits, fever_doc, ibu_warn, warf_inter = sample_docs
 
-    fake_es.add_handler(
-        lambda i, b: i == "test_public_index", hits([ibu_warn, warf_inter])
-    )
+    def handler(index, body):
+        if index == "test_public_index":
+            should = body.get("query", {}).get("bool", {}).get("should", [])
+            search_terms = []
+            for s in should:
+                if "match" in s:
+                    search_terms.extend(s["match"].values())
+
+            if "ibuprofen" in search_terms and "warfarin" not in search_terms:
+                return True
+        return False
+
+    fake_es.add_handler(handler, hits([ibu_warn]))
+    monkeypatch.setattr("app.graph.nodes.health.get_es_client", lambda: fake_es)
 
     # Case 1: only ibuprofen in memory → NO interaction alert
     state: BodyState = {
@@ -71,7 +82,7 @@ def test_interaction_alert_requires_two_user_meds(sample_docs, monkeypatch, fake
             },
         ],
     }
-    out = health.run(state, fake_es)
+    out = health.run(state)
     alerts = out.get("alerts", [])
     assert any("Ibuprofen — warnings" in a for a in alerts)
     assert not any(
@@ -111,7 +122,7 @@ def test_health_dedupes_citations_and_alerts(
     from app.graph.nodes import health as reloaded_health
 
     state: BodyState = {"user_query": "Ibuprofen", "messages": []}
-    out = reloaded_health.run(state, None)
+    out = reloaded_health.run(state)
 
     assert out.get("citations", []) == ["file://ibuprofen.md"]
     assert out.get("alerts", []) == ["Check: Ibuprofen — warnings"]
@@ -130,7 +141,7 @@ def test_health_knn_search_exception(mock_get_es_client, monkeypatch):
     from app.graph.nodes import health as reloaded_health
 
     state: BodyState = {"user_query": "test", "messages": []}
-    out = reloaded_health.run(state, None)
+    out = reloaded_health.run(state)
     assert not out.get("public_snippets")  # No snippets should be added
 
 
@@ -150,7 +161,7 @@ def test_health_bm25_search_exception(mock_get_es_client, monkeypatch):
     from app.graph.nodes import health as reloaded_health
 
     state: BodyState = {"user_query": "test", "messages": []}
-    out = reloaded_health.run(state, None)
+    out = reloaded_health.run(state)
     assert not out.get("public_snippets")  # No snippets should be added
 
 
@@ -159,7 +170,7 @@ def test_health_default_guidance_message(fake_es, sample_docs):
     # Mock ES to return no relevant documents, so no specific alerts/messages are generated
     fake_es.add_handler(lambda i, b: i.endswith("public_medical_kb"), hits([]))
     state: BodyState = {"user_query": "test", "messages": []}
-    out = health.run(state, fake_es)
+    out = health.run(state)
     assert "messages" in out
     assert len(out["messages"]) == 1
     assert (
@@ -170,8 +181,8 @@ def test_health_default_guidance_message(fake_es, sample_docs):
 
 def test_health_raises_error_if_no_user_query(fake_es):
     state: BodyState = BodyState({"messages": []})  # type: ignore[typeddict-item]
-    with pytest.raises(ValueError, match="user_query is required in state"):
-        health.run(state, fake_es)
+    with pytest.raises(KeyError):
+        health.run(state)
 
 
 def test_health_with_memory_facts_and_empty_ing(monkeypatch):
@@ -199,7 +210,7 @@ def test_health_with_memory_facts_and_empty_ing(monkeypatch):
         ],
     )
 
-    result_state = reloaded_health.run(state, None)
+    result_state = reloaded_health.run(state)
     assert "public_snippets" in result_state
 
 
@@ -229,7 +240,7 @@ def test_health_warning_section(monkeypatch):
 
     state = BodyState(user_query="test query")
 
-    result_state = reloaded_health.run(state, None)
+    result_state = reloaded_health.run(state)
     assert "Check: Ibuprofen Warnings — warnings" in result_state.get("alerts", [])
     assert "http://example.com/warnings" in result_state.get("citations", [])
 
@@ -252,7 +263,7 @@ def test_health_with_memory_facts_no_medication_entity(monkeypatch):
             {"name": "Exercise", "entity": "activity"},
         ],
     )
-    result_state = reloaded_health.run(state, None)
+    result_state = reloaded_health.run(state)
     assert "public_snippets" in result_state
     assert result_state.get("alerts", []) == []
     assert result_state.get("citations", []) == []
@@ -290,7 +301,7 @@ def test_health_messages_not_empty_and_messages_generated(monkeypatch):
         user_query="test query",
         messages=[{"role": "assistant", "content": "Existing message."}],
     )
-    result_state = reloaded_health.run(state, None)
+    result_state = reloaded_health.run(state)
     assert (
         len(result_state.get("messages", [])) == 2
     )  # Original message + message from warning

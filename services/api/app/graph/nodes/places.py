@@ -2,6 +2,7 @@ from typing import Dict, Tuple
 from app.graph.state import BodyState
 from app.tools.geo_tools import search_providers
 import logging
+from app.tools.es_client import get_es_client
 
 logger = logging.getLogger(__name__)
 
@@ -9,10 +10,11 @@ logger = logging.getLogger(__name__)
 TLV = (32.0853, 34.7818)
 
 
-def run(state: BodyState, es_client) -> BodyState:
+def run(state: BodyState, es_client=None) -> BodyState:
+    es = es_client if es_client else get_es_client()
     q = state.get("user_query_redacted", state.get("user_query", ""))
     logger.debug(f"Searching providers for query: {q}")
-    raw = search_providers(es_client, q, lat=TLV[0], lon=TLV[1], radius_km=10)
+    raw = search_providers(es, q, lat=TLV[0], lon=TLV[1], radius_km=10)
     logger.debug(f"Raw provider search results: {raw}")
     # dedupe by (name, phone) keeping highest score
     best: Dict[Tuple[str, str], Dict] = {}

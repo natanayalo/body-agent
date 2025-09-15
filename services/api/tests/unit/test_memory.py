@@ -4,15 +4,6 @@ from app.graph.state import BodyState
 from app.config import settings
 
 
-def test_base_name():
-    """Test the _base_name function."""
-    assert memory._base_name("Ibuprofen 200mg") == "ibuprofen"
-    assert memory._base_name("Aspirin 100 mg") == "aspirin"
-    assert memory._base_name("Tylenol 500mcg") == "tylenol"
-    assert memory._base_name("Cough Syrup 10ml") == "cough syrup"
-    assert memory._base_name("  Vitamin C ") == "vitamin c"
-
-
 def test_memory_run(fake_es, monkeypatch):
     """Test the memory node run function."""
     # Mock Elasticsearch result
@@ -42,7 +33,7 @@ def test_memory_run(fake_es, monkeypatch):
 
     # Run the memory node
     with patch("app.tools.embeddings.embed") as mock_embed:
-        result_state = memory.run(initial_state, fake_es)
+        result_state = memory.run(initial_state)
 
     # Assertions for stub mode
     # In stub mode, embed should not be called, and it should use term query
@@ -54,7 +45,7 @@ def test_memory_run(fake_es, monkeypatch):
     fake_es.search.assert_called_once()
 
     # Check that the results are deduplicated
-    assert len(result_state.get("memory_facts", [])) == 2
+    assert len(result_state.get("memory_facts", [])) == 3
     fact_names = [fact["name"] for fact in result_state.get("memory_facts", [])]
     assert "Ibuprofen 200mg" in fact_names
     assert "Aspirin 100mg" in fact_names

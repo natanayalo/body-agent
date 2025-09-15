@@ -104,7 +104,11 @@ def test_enforce_non_empty_query(client):
     assert "String should have at least 1 character" in r.json()["detail"][0]["msg"]
 
 
-def test_e2e_medication_interaction_flow(client, fake_es, sample_docs):
+@patch("app.main.embed", return_value=[[0.1, 0.2, 0.3]])
+@patch("app.graph.nodes.health.embed", return_value=[[0.1, 0.2, 0.3]])
+def test_e2e_medication_interaction_flow(
+    mock_health_embed, mock_main_embed, client, fake_es, sample_docs
+):
     hits, fever_doc, ibu_warn, warf_inter = sample_docs
 
     # Configure fake_es to return memory facts and interaction documents
@@ -141,26 +145,32 @@ def test_e2e_medication_interaction_flow(client, fake_es, sample_docs):
             should_clauses = query_bool.get("should", [])
 
             # Check if any of the should clauses match "title": "ibuprofen" or "title": "warfarin"
+            has_ibuprofen = False
+            has_warfarin = False
             for clause in should_clauses:
                 match_title = clause.get("match", {}).get("title")
-                if match_title and (
-                    match_title == "ibuprofen" or match_title == "warfarin"
-                ):
-                    return True
-            return False
+                if match_title:
+                    if "ibuprofen" in match_title:
+                        has_ibuprofen = True
+                    if "warfarin" in match_title:
+                        has_warfarin = True
+
+            if has_ibuprofen and has_warfarin:
+                return True
+        return False
 
     fake_es.add_handler(interaction_search_predicate, hits([ibu_warn, warf_inter]))
 
     user_id = "test-user-med-interaction"
     # 1. Add first medication
     add_med_payload_1 = {"user_id": user_id, "name": "Ibuprofen 200mg"}
-    response_1 = client.post("/api/memory/add_med", json=add_med_payload_1, timeout=15)
+    response_1 = client.post("/api/memory/add_med", json=add_med_payload_1)
     assert response_1.status_code == 200
     assert response_1.json().get("ok") is True
 
     # 2. Add second medication
     add_med_payload_2 = {"user_id": user_id, "name": "Warfarin 5mg"}
-    response_2 = client.post("/api/memory/add_med", json=add_med_payload_2, timeout=15)
+    response_2 = client.post("/api/memory/add_med", json=add_med_payload_2)
     assert response_2.status_code == 200
     assert response_2.json().get("ok") is True
 
@@ -169,14 +179,14 @@ def test_e2e_medication_interaction_flow(client, fake_es, sample_docs):
         "user_id": user_id,
         "query": "What are the interactions between Ibuprofen and Warfarin?",
     }
-    response_3 = client.post("/api/graph/run", json=query_payload, timeout=15)
+    response_3 = client.post("/api/graph/run", json=query_payload)
     assert response_3.status_code == 200
     data = response_3.json()
 
     # 4. Verify that an interaction alert is present
     alerts = data["state"].get("alerts", [])
     assert any("Warfarin — interactions" in a for a in alerts) or any(
-        "Ibuprofen — warnings" in a for a in alerts
+        "Ibuprofen Warnings — warnings" in a for a in alerts
     ), f"Expected interaction alert, but got: {alerts}"
 
     # 5. Verify citations are present and normalized
