@@ -21,18 +21,20 @@ def run(state: BodyState, es_client=None) -> BodyState:
 
     # Optional: if nothing found, fallback to semantic (dev convenience)
     if not hits:
-        vector = embed([state["user_query"]])[0]
+    if not hits and user_id:
+        q = state.get("user_query_redacted", state["user_query"])
+        vector = embed([q])[0]
         body = {
             "knn": {
                 "field": "embedding",
                 "query_vector": vector,
                 "k": 8,
                 "num_candidates": 50,
+                "filter": {"term": {"user_id": user_id}},
             },
             "_source": {"excludes": ["embedding"]},
         }
         res = es.search(index=settings.es_private_index, body=body)
         hits = res.get("hits", {}).get("hits", [])
-
     state["memory_facts"] = [h["_source"] for h in hits]
     return state
