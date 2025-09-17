@@ -32,7 +32,7 @@ def _norm_med_terms(mem_facts: list[dict]) -> list[str]:
 
 
 def run(state: BodyState, es_client=None) -> BodyState:
-    q = state["user_query"]
+    q = state.get("user_query_redacted", state["user_query"])
     mem = state.get("memory_facts") or []
     med_terms = _norm_med_terms(mem)
     es = es_client if es_client else get_es_client()
