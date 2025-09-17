@@ -8,6 +8,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Create log directory
 RUN mkdir -p /var/log/body-agent
 
+
 WORKDIR /app
 COPY requirements.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip \

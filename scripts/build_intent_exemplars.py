@@ -5,7 +5,7 @@ Usage examples:
 
   # Run inside the API container (internet required for first download):
   docker compose exec api python scripts/build_intent_exemplars.py \
-      --langs en he --per-intent 40 --out /app/app/data/intent_exemplars.json
+      --langs en he --per-intent 40 --out /app/data/intent_exemplars.json
 
   # Or locally in your venv:
   python scripts/build_intent_exemplars.py --langs en he --per-intent 40 --out seeds/intent_exemplars.json
@@ -28,6 +28,7 @@ import random
 import re
 from collections import defaultdict
 import logging
+from typing import cast, Any
 
 try:
     from datasets import load_dataset, Dataset  # Added Dataset
@@ -106,24 +107,28 @@ def map_massive_intent(label: str) -> str | None:
 
 
 def collect_from_massive(langs: list[str], per_intent: int) -> dict[str, list[str]]:
-    ds: Dataset = load_dataset(
-        "AmazonScience/massive", "all_1.1", split="train", trust_remote_code=True
+    ds: Dataset = cast(
+        Dataset,
+        load_dataset(
+            "AmazonScience/massive", "all_1.1", split="train", trust_remote_code=True
+        ),
     )
     buckets = defaultdict(list)
     for row in ds:  # row is a dictionary-like object
+        row_dict: dict[str, Any] = cast(dict[str, Any], row)
         # Ensure locale is a string, providing a default empty string if None
-        locale_val: str = str(row.get("locale", ""))
+        locale_val: str = str(row_dict.get("locale", ""))
         if not locale_matches(locale_val, langs):
             continue
 
-        intent_id = row.get("intent")
+        intent_id = row_dict.get("intent")
         # Access features directly from ds, which is typed as Dataset
         intent_str = ds.features["intent"].int2str(intent_id)
         intent = map_massive_intent(intent_str)
         if not intent:
             continue
 
-        utt = (row.get("utt") or "").strip()
+        utt = (row_dict.get("utt") or "").strip()
         if not utt:
             continue
         buckets[intent].append(utt)
@@ -146,7 +151,9 @@ def main():
     ap.add_argument("--per-intent", type=int, default=40)
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
-
+    logging.info(
+        f"Building intent exemplars for langs={args.langs}, per_intent={args.per_intent}, dataset=AmazonScience/massive"
+    )
     buckets = {k: list(v) for k, v in CURATED.items()}
     from_massive = collect_from_massive(args.langs, args.per_intent)
     for k, arr in from_massive.items():
@@ -168,6 +175,7 @@ def main():
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(buckets, f, ensure_ascii=False, indent=2)
     logging.info(f"Wrote exemplars → {args.out}")
+    logging.info("Done writing intent exemplars.")
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 .env
 
 # Python
-__pycache__/
+
 *.py[cod]
 *$py.class
 *.so
@@ -45,11 +45,15 @@ Thumbs.db
 services/api/app/data/
 *.ics
 seeds/intent_exemplars.json
+data/
 
 # Python cache
-*__pycache__/*
+*__pycache__*
 *.pyc
 *.mypy_cache/
-*.pytest_cache/*
+.pytest_cache/
 .coverage
 coverage*
+
+# pr template
+pull_request_template.md

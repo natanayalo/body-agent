@@ -1,45 +1,39 @@
 from app.graph.state import BodyState
+from app.tools.es_client import get_es_client
 from app.tools.embeddings import embed
 from app.config import settings
-import re
 
 
-def _base_name(name: str) -> str:
-    return (
-        re.sub(r"\b(\d+\s?(mg|mcg|ml))\b", "", name, flags=re.IGNORECASE)
-        .strip()
-        .lower()
-    )
+def run(state: BodyState, es_client=None) -> BodyState:
+    user_id = state.get("user_id")
+    hits = []
+    es = es_client if es_client else get_es_client()
 
+    # Prefer exact user_id term search.
+    if user_id:
+        body = {
+            "query": {"term": {"user_id": user_id}},
+            "_source": {"excludes": ["embedding"]},
+            "size": 16,
+        }
+        res = es.search(index=settings.es_private_index, body=body)
+        hits = res.get("hits", {}).get("hits", [])
 
-def run(state: BodyState, es_client) -> BodyState:
-    es = es_client
-    vector = embed([state.get("user_query", "")])[0]
-    body = {
-        "knn": {
-            "field": "embedding",
-            "query_vector": vector,
-            "k": 8,
-            "num_candidates": 50,
-        },
-        "_source": {"excludes": ["embedding"]},
-    }
-    if user_id := state.get("user_id"):
-        body["knn"]["filter"] = {"term": {"user_id": user_id}}
-
-    res = es.search(index=settings.es_private_index, body=body)
-    hits = [h["_source"] for h in res["hits"]["hits"]]
-
-    seen = set()
-    uniq = []
-    for m in hits:
-        ent = m.get("entity")
-        base = (m.get("normalized") or {}).get("ingredient") or _base_name(
-            m.get("name", "")
-        )
-        key = (ent, base)
-        if key not in seen:
-            seen.add(key)
-            uniq.append(m)
-    state["memory_facts"] = uniq
+    # Optional: if nothing found, fallback to semantic (dev convenience)
+    if not hits and user_id:
+        q = state.get("user_query_redacted", state["user_query"])
+        vector = embed([q])[0]
+        body = {
+            "knn": {
+                "field": "embedding",
+                "query_vector": vector,
+                "k": 8,
+                "num_candidates": 50,
+                "filter": {"term": {"user_id": user_id}},
+            },
+            "_source": {"excludes": ["embedding"]},
+        }
+        res = es.search(index=settings.es_private_index, body=body)
+        hits = res.get("hits", {}).get("hits", [])
+    state["memory_facts"] = [h["_source"] for h in hits]
     return state

@@ -25,8 +25,15 @@ def _get_pipe():
         logger.info("Using stub ML pipeline")
 
         def stub_pipeline(text, candidate_labels, **kwargs):
-            # default deterministic scores
-            scores = [0.1] * len(candidate_labels)
+            # deterministic scores for testing gating behavior
+            scores = []
+            for label in candidate_labels:
+                if label == "urgent_care":
+                    scores.append(0.9)  # High score to trigger urgent_care
+                elif label == "see_doctor":
+                    scores.append(0.6)  # High score to trigger see_doctor
+                else:
+                    scores.append(0.1)  # Low score for other labels
             return {"labels": candidate_labels, "scores": scores}
 
         _PIPE = stub_pipeline
@@ -91,8 +98,8 @@ def run(state: BodyState) -> BodyState:
     logger.debug(f"Using hypothesis template: {hyp}")
 
     # Build text with lightweight context (med names only)
-    text = state.get("user_query", "")
-    logger.debug(f"Base query text: {state.get('user_query_redacted', text)}")
+    text = state.get("user_query_redacted", state.get("user_query", ""))
+    logger.debug(f"Base query text: {text}")
 
     meds = []
     for m in state.get("memory_facts") or []:

@@ -9,6 +9,7 @@ ES = os.getenv("ES_HOST", "http://localhost:9200")
 es = Elasticsearch(ES)
 
 
+logging.info("Checking Elasticsearch indices and mappings...")
 for idx in [
     os.getenv("ES_PRIVATE_INDEX", "private_user_memory"),
     os.getenv("ES_PUBLIC_INDEX", "public_medical_kb"),
@@ -19,4 +20,4 @@ for idx in [
             f"Index missing: {idx}. Start the API once to auto-create mappings."
         )
     else:
-        logging.info(f"OK {idx}")
+        logging.info(f"OK: Index {idx} exists.")

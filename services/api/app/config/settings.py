@@ -21,6 +21,8 @@ class Settings(BaseModel):
 
     llm_provider: str = os.getenv("LLM_PROVIDER", "none")
 
+    data_dir: str = os.getenv("APP_DATA_DIR", "/app/data")
+
     # Logging settings
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
     log_file: str = os.getenv("LOG_FILE", "/var/log/body-agent/api.log")

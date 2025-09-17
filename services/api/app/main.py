@@ -6,6 +6,7 @@ import logging
 import re
 
 from app.config import settings
+from app.config.logging import configure_logging
 
 from app.tools.es_client import ensure_indices, get_es_client
 from app.graph.state import BodyState
@@ -26,8 +27,9 @@ async def run_and_await_completion(graph, state: BodyState):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    configure_logging()  # Call configure_logging here
     ensure_indices()
-    app.state.graph = build_graph(get_es_client()).compile()
+    app.state.graph = build_graph().compile()
     yield
 
 
@@ -48,9 +50,9 @@ class Query(BaseModel):
 @app.post("/api/graph/run")
 async def run_graph(q: Query):
     logger.info(f"Running graph for user {q.user_id}")
-    logger.debug(f"Query: {q.query}")
     try:
         state = await _invoke_graph(q.user_id, q.query)
+        logger.debug(f"Query: {state.get('user_query_redacted', q.query)}")
         logger.info(f"Graph run completed for user {q.user_id}")
         return {"state": state}
     except Exception as e:

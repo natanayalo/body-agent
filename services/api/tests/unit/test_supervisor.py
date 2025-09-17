@@ -27,6 +27,13 @@ def test_load_exemplars_from_file_success(monkeypatch, mock_load_exemplars_deps)
     }
     monkeypatch.setenv("INTENT_EXEMPLARS_PATH", "/tmp/test_exemplars.json")
 
+    # Mock builtins.open to simulate reading from the file
+    from unittest.mock import mock_open
+
+    mock_file_content = json.dumps(mock_json_load.return_value)
+    mock_file = mock_open(read_data=mock_file_content)
+    monkeypatch.setattr("builtins.open", mock_file)
+
     # Reload the module to re-run _load_exemplars
     import importlib
 
@@ -92,3 +99,53 @@ def test_detect_intent_returns_other_if_no_match(fake_embed):
     supervisor._THRESHOLD = original_threshold
     supervisor._MARGIN = original_margin
     importlib.reload(supervisor)  # Reload to restore original values
+
+
+def test_load_exemplars_from_file_empty_or_invalid_content(
+    monkeypatch, mock_load_exemplars_deps
+):
+    mock_exists, mock_json_load = mock_load_exemplars_deps
+    mock_exists.return_value = True
+    mock_json_load.return_value = {"unknown_key": ["some_value"]}  # Invalid content
+    monkeypatch.setenv("INTENT_EXEMPLARS_PATH", "/tmp/empty_exemplars.json")
+
+    from unittest.mock import mock_open
+
+    mock_file_content = json.dumps(mock_json_load.return_value)
+    mock_file = mock_open(read_data=mock_file_content)
+    monkeypatch.setattr("builtins.open", mock_file)
+
+    import importlib
+
+    importlib.reload(supervisor)
+
+    assert supervisor._EXEMPLARS == supervisor._DEFAULT_EXAMPLES
+
+
+def test_detect_intent_with_no_exemplars(monkeypatch):
+    monkeypatch.setattr(supervisor, "_EX_VECS", {})
+    intent = supervisor.detect_intent("any query")
+    assert intent == "other"
+
+
+def test_detect_intent_with_unknown_intent_in_exemplars(monkeypatch, fake_embed):
+    # This is a tricky case to test since _load_exemplars filters unknown intents.
+    # We bypass it by directly mocking _EX_VECS.
+    import numpy as np
+
+    # Mock _EX_VECS to include an unknown intent with a high-scoring vector
+    mock_vecs = {
+        "symptom": np.array([[0.1, 0.1, 0.1]]),
+        "unknown_intent": np.array([[0.9, 0.9, 0.9]]),
+    }
+    monkeypatch.setattr(supervisor, "_EX_VECS", mock_vecs)
+
+    # Make the fake_embed return a vector that is very close to the unknown_intent vector
+    fake_embed.return_value = [0.9, 0.9, 0.9]
+
+    # Ensure thresholds are met
+    monkeypatch.setattr(supervisor, "_THRESHOLD", 0.5)
+    monkeypatch.setattr(supervisor, "_MARGIN", 0.1)
+
+    intent = supervisor.detect_intent("query for unknown")
+    assert intent == "other"

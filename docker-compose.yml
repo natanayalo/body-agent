@@ -19,14 +19,6 @@ services:
     build: ./services/api
     container_name: body-agent-api
     env_file: .env
-    environment:
-      - ES_PRIVATE_INDEX=private_user_memory
-      - ES_PUBLIC_INDEX=public_medical_kb
-      - ES_PLACES_INDEX=providers_places
-      - INTENT_EXEMPLARS_PATH=/app/seeds/intent_exemplars.json
-      - INTENT_THRESHOLD=0.30
-      - INTENT_MARGIN=0.05
-      - INTENT_LANGS=en,he
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       elasticsearch:
@@ -36,13 +28,37 @@ services:
     volumes:
       - ./services/api/app:/app/app:rw
       - ./seeds:/app/seeds:ro
-      - ./services/api/app/data:/app/app/data:rw
+      - ./data:/app/data:rw
       - ./scripts:/app/scripts:ro
+      - hf-cache:/root/.cache/huggingface/hub
     deploy:
       resources:
         limits:
           memory: 4G
         reservations:
           memory: 2G
+  seed:
+    build: ./services/api
+    container_name: body-agent-seed
+    env_file: .env
+    command:
+      - sh
+      - -lc
+      - |
+        set -e
+        python scripts/wait_for_es.py &&
+        python scripts/es_bootstrap.py &&
+        python scripts/ingest_providers.py &&
+        python scripts/ingest_public_kb.py
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - ./services/api/app:/app/app:rw
+      - ./seeds:/app/seeds:ro
+      - ./data:/app/data:rw
+      - ./scripts:/app/scripts:ro
+      - hf-cache:/root/.cache/huggingface/hub
 volumes:
   es-data:
+  hf-cache:

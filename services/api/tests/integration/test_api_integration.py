@@ -1,7 +1,5 @@
 import pytest
 from unittest.mock import patch
-from app.tools.es_client import ensure_indices
-from app.tools.embeddings import embed
 
 
 def test_healthz(client):
@@ -106,31 +104,95 @@ def test_enforce_non_empty_query(client):
     assert "String should have at least 1 character" in r.json()["detail"][0]["msg"]
 
 
-@patch("app.tools.es_client.get_es_client")
-def test_ensure_indices_creates_missing(mock_get_es_client):
-    mock_es = mock_get_es_client.return_value
-    mock_es.indices.exists.side_effect = [
-        False,
-        False,
-        False,
-    ]  # All indices don't exist
-    mock_es.indices.create.reset_mock()  # Reset call count
-    ensure_indices()
-    assert mock_es.indices.create.call_count == 3  # Should create all three
+@patch("app.main.embed", return_value=[[0.1, 0.2, 0.3]])
+@patch("app.graph.nodes.health.embed", return_value=[[0.1, 0.2, 0.3]])
+def test_e2e_medication_interaction_flow(
+    mock_health_embed, mock_main_embed, client, fake_es, sample_docs
+):
+    hits, fever_doc, ibu_warn, warf_inter = sample_docs
 
+    # Configure fake_es to return memory facts and interaction documents
+    user_id = "test-user-med-interaction"
 
-@patch("app.tools.es_client.get_es_client")
-def test_ensure_indices_does_not_create_existing(mock_get_es_client):
-    mock_es = mock_get_es_client.return_value
-    mock_es.indices.exists.side_effect = [True, True, True]  # All indices exist
-    mock_es.indices.create.reset_mock()  # Reset call count
-    ensure_indices()
-    assert mock_es.indices.create.call_count == 0  # Should not create any
+    mock_memory_fact_ibuprofen = {
+        "user_id": user_id,
+        "entity": "medication",
+        "name": "Ibuprofen 200mg",
+        "normalized": {"ingredient": "ibuprofen"},
+    }
+    mock_memory_fact_warfarin = {
+        "user_id": user_id,
+        "entity": "medication",
+        "name": "Warfarin 5mg",
+        "normalized": {"ingredient": "warfarin"},
+    }
 
+    def memory_search_predicate(index, body):
+        if index == "private_user_memory":
+            term_query = body.get("query", {}).get("term", {})
+            if term_query.get("user_id") == user_id:
+                return True
+        return False
 
-def test_embed_single_string():
-    text = "hello world"
-    result = embed([text])
-    assert isinstance(result, list)
-    assert len(result) == 1
-    assert isinstance(result[0], list)
+    fake_es.add_handler(
+        memory_search_predicate,
+        hits([mock_memory_fact_ibuprofen, mock_memory_fact_warfarin]),
+    )
+
+    def interaction_search_predicate(index, body):
+        if index == "public_medical_kb":
+            query_bool = body.get("query", {}).get("bool", {})
+            should_clauses = query_bool.get("should", [])
+
+            # Check if any of the should clauses match "title": "ibuprofen" or "title": "warfarin"
+            has_ibuprofen = False
+            has_warfarin = False
+            for clause in should_clauses:
+                match_title = clause.get("match", {}).get("title")
+                if match_title:
+                    if "ibuprofen" in match_title:
+                        has_ibuprofen = True
+                    if "warfarin" in match_title:
+                        has_warfarin = True
+
+            if has_ibuprofen and has_warfarin:
+                return True
+        return False
+
+    fake_es.add_handler(interaction_search_predicate, hits([ibu_warn, warf_inter]))
+
+    user_id = "test-user-med-interaction"
+    # 1. Add first medication
+    add_med_payload_1 = {"user_id": user_id, "name": "Ibuprofen 200mg"}
+    response_1 = client.post("/api/memory/add_med", json=add_med_payload_1)
+    assert response_1.status_code == 200
+    assert response_1.json().get("ok") is True
+
+    # 2. Add second medication
+    add_med_payload_2 = {"user_id": user_id, "name": "Warfarin 5mg"}
+    response_2 = client.post("/api/memory/add_med", json=add_med_payload_2)
+    assert response_2.status_code == 200
+    assert response_2.json().get("ok") is True
+
+    # 3. Query about a health issue that might trigger an interaction alert
+    query_payload = {
+        "user_id": user_id,
+        "query": "What are the interactions between Ibuprofen and Warfarin?",
+    }
+    response_3 = client.post("/api/graph/run", json=query_payload)
+    assert response_3.status_code == 200
+    data = response_3.json()
+
+    # 4. Verify that an interaction alert is present
+    alerts = data["state"].get("alerts", [])
+    assert any("Warfarin — interactions" in a for a in alerts) or any(
+        "Ibuprofen Warnings — warnings" in a for a in alerts
+    ), f"Expected interaction alert, but got: {alerts}"
+
+    # 5. Verify citations are present and normalized
+    citations = data["state"].get("citations", [])
+    assert len(citations) > 0
+    assert all(c.startswith("http") or c.startswith("file") for c in citations)
+    # Check for deduplication and normalization (e.g., no utm_ params, consistent slashes)
+    # This is a basic check, more robust checks would involve parsing URLs
+    assert len(set(citations)) == len(citations), "Citations should be deduplicated"

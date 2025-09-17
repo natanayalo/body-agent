@@ -15,7 +15,7 @@ def _route_after_memory(state: BodyState) -> str:
     return "planner"
 
 
-def build_graph(es_client) -> StateGraph:
+def build_graph() -> StateGraph:
     """
     Construct a LangGraph StateGraph wiring existing node functions.
 
@@ -27,10 +27,10 @@ def build_graph(es_client) -> StateGraph:
     # Register nodes
     g.add_node("scrub", scrub.run)
     g.add_node("supervisor", supervisor.run)
-    g.add_node("memory", lambda state: memory.run(state, es_client))
-    g.add_node("health", lambda state: health.run(state, es_client))
-    g.add_node("places", lambda state: places.run(state, es_client))
-    g.add_node("planner", lambda state: planner.run(state, es_client))
+    g.add_node("memory", memory.run)
+    g.add_node("health", health.run)
+    g.add_node("places", places.run)
+    g.add_node("planner", planner.run)
     g.add_node("critic", critic.run)
     g.add_node("risk_ml", risk_ml.run)
 
