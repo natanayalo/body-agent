@@ -1,61 +1,45 @@
 from langgraph.graph import StateGraph, END
 from app.graph.state import BodyState
-from app.graph.nodes import supervisor, memory, health, places, planner, critic
-from app.graph.nodes import risk_ml
-from app.graph.nodes import scrub
+from app.graph.nodes import (
+    supervisor,
+    scrub,
+    memory,
+    health,
+    risk_ml,
+    places,
+    planner,
+    critic,
+)
 
 
-def _route_after_memory(state: BodyState) -> str:
-    """Decide which expert to call after memory lookup based on intent."""
-    intent = state.get("intent")
-    if intent in ("meds", "symptom"):
-        return "health"
-    if intent == "appointment":
-        return "places"
-    return "planner"
-
-
-def build_graph() -> StateGraph:
-    """
-    Construct a LangGraph StateGraph wiring existing node functions.
-
-    Flow: # pragma: no cover
-      START -> supervisor -> memory -> (health | places | planner) -> planner -> critic -> END
-    """
+def build_graph():
     g = StateGraph(BodyState)
-
-    # Register nodes
-    g.add_node("scrub", scrub.run)
     g.add_node("supervisor", supervisor.run)
+    g.add_node("scrub", scrub.run)
     g.add_node("memory", memory.run)
     g.add_node("health", health.run)
+    g.add_node("risk_ml", risk_ml.run)
     g.add_node("places", places.run)
     g.add_node("planner", planner.run)
     g.add_node("critic", critic.run)
-    g.add_node("risk_ml", risk_ml.run)
 
-    # Entry & base edges
     g.set_entry_point("scrub")
     g.add_edge("scrub", "supervisor")
     g.add_edge("supervisor", "memory")
-
-    # Conditional routing after memory
+    # branches
     g.add_conditional_edges(
         "memory",
-        _route_after_memory,
+        lambda s: s["intent"],
         {
-            "health": "health",
-            "places": "places",
-            "planner": "planner",
+            "meds": "health",
+            "symptom": "health",
+            "appointment": "places",
+            "other": "planner",
         },
     )
-
-    # Converge to planner, then critic, then END
-    # After health retrieval, run ML risk classifier, then plan
     g.add_edge("health", "risk_ml")
-    g.add_edge("risk_ml", "planner")
-    g.add_edge("places", "planner")
-    g.add_edge("planner", "critic")
+    # converge
+    for n in ("risk_ml", "places", "planner"):
+        g.add_edge(n, "critic")
     g.add_edge("critic", END)
-
-    return g
+    return g.compile()

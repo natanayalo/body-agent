@@ -67,7 +67,7 @@ def test_add_med_endpoint(mock_get_es_client, mock_embed, client):
     assert kwargs["document"]["name"] == "Ibuprofen 200mg"
 
 
-@patch("app.main._invoke_graph", side_effect=Exception("Graph error"))
+@patch("app.main.app.state.graph.ainvoke", side_effect=Exception("Graph error"))
 def test_run_graph_exception(mock_invoke, client):
     with pytest.raises(Exception) as e:
         client.post("/api/graph/run", json={"user_id": "test", "query": "hello"})
