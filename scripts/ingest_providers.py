@@ -4,6 +4,7 @@ import json
 import re
 import hashlib
 from elasticsearch import Elasticsearch
+from sentence_transformers import SentenceTransformer
 from app.config import settings
 
 
@@ -17,6 +18,8 @@ es = Elasticsearch(ES)
 
 # Init model only if needed
 _model = None
+if MODEL != "__stub__":
+    _model = SentenceTransformer(MODEL)
 
 
 def embed_one(text: str) -> list[float]:

@@ -97,8 +97,14 @@ def run(state: BodyState, es_client=None) -> BodyState:
     for d in docs[:3]:
         sec = str(d.get("section", "")).lower()
         alert_msg = f"Check: {d.get('title')} — {d.get('section')}"
-        if sec in {"warnings", "interactions"} and alert_msg not in alerts:
+        if sec == "warnings" and alert_msg not in alerts:
             alerts.append(alert_msg)
+        elif sec == "interactions" and alert_msg not in alerts:
+            # Check if at least two of the user's known medications are mentioned
+            doc_content = (d.get("title", "") + " " + d.get("text", "")).lower()
+            mentioned_meds = sum(1 for med in med_terms if med in doc_content)
+            if mentioned_meds >= 2:
+                alerts.append(alert_msg)
 
         if (src := d.get("source_url")) and src not in citations:
             citations.append(src)
