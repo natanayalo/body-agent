@@ -38,7 +38,7 @@ def run(state: BodyState, es_client=None) -> BodyState:
     es = es_client if es_client else get_es_client()
     docs = []
 
-    # Try kNN first (no harm in stub env; will often be empty)
+    # Try kNN firs
     try:
         vector = embed([q])[0]
         knn_body = {

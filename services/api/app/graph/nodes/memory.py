@@ -9,7 +9,7 @@ def run(state: BodyState, es_client=None) -> BodyState:
     hits = []
     es = es_client if es_client else get_es_client()
 
-    # Prefer exact user_id term search so tests' FakeES handler matches.
+    # Prefer exact user_id term search.
     if user_id:
         body = {
             "query": {"term": {"user_id": user_id}},

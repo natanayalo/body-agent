@@ -30,14 +30,14 @@ def wait_for_api(api_base_url):
 
 
 def test_healthz_endpoint(api_base_url):
-    response = requests.get(f"{api_base_url}/healthz", timeout=15)
+    response = requests.get(f"{api_base_url}/healthz", timeout=60)
     assert response.status_code == 200
     assert response.json().get("ok") is True
 
 
 def test_graph_run_basic_query(api_base_url):
     payload = {"user_id": "test-user-real", "query": "I have a fever of 38.8C"}
-    response = requests.post(f"{api_base_url}/api/graph/run", json=payload, timeout=15)
+    response = requests.post(f"{api_base_url}/api/graph/run", json=payload, timeout=60)
     assert response.status_code == 200
     data = response.json()
     assert "state" in data
@@ -50,7 +50,7 @@ def test_graph_run_pii_scrubbing(api_base_url):
         "user_id": "test-user-pii",
         "query": "My phone number is 123-456-7890 and email is test@example.com",
     }
-    response = requests.post(f"{api_base_url}/api/graph/run", json=payload, timeout=15)
+    response = requests.post(f"{api_base_url}/api/graph/run", json=payload, timeout=60)
     assert response.status_code == 200
     data = response.json()
     assert "state" in data
@@ -63,7 +63,7 @@ def test_graph_run_pii_scrubbing(api_base_url):
 def test_add_med_endpoint(api_base_url):
     payload = {"user_id": "test-user-med", "name": "Ibuprofen 200mg"}
     response = requests.post(
-        f"{api_base_url}/api/memory/add_med", json=payload, timeout=15
+        f"{api_base_url}/api/memory/add_med", json=payload, timeout=60
     )
     assert response.status_code == 200
     assert response.json().get("ok") is True

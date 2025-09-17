@@ -45,6 +45,7 @@ Thumbs.db
 services/api/app/data/
 *.ics
 seeds/intent_exemplars.json
+data/
 
 # Python cache
 *__pycache__*
