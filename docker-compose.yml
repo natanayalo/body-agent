@@ -46,7 +46,6 @@ services:
       - -lc
       - |
         set -e
-        python scripts/download_model.py &&
         python scripts/wait_for_es.py &&
         python scripts/es_bootstrap.py &&
         python scripts/ingest_providers.py &&
