@@ -20,7 +20,6 @@ def run(state: BodyState, es_client=None) -> BodyState:
         hits = res.get("hits", {}).get("hits", [])
 
     # Optional: if nothing found, fallback to semantic (dev convenience)
-    if not hits:
     if not hits and user_id:
         q = state.get("user_query_redacted", state["user_query"])
         vector = embed([q])[0]
