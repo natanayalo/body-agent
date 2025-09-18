@@ -71,3 +71,33 @@ def test_graph_stream_supervisor_routing(client: TestClient):
             break
     assert supervisor_output is not None
     assert supervisor_output["intent"] == "appointment"
+
+
+def test_graph_stream_final_state_matches_run(client: TestClient):
+    # Choose a query that routes to planner directly (no ES dependency)
+    payload = {"user_id": "test-user", "query": "weekly check-in"}
+
+    # Non-streaming final state
+    r1 = client.post("/api/graph/run", json=payload)
+    assert r1.status_code == 200
+    run_state = r1.json()["state"]
+
+    # Streaming: collect events and extract final state
+    r2 = client.post("/api/graph/stream", json=payload)
+    assert r2.status_code == 200
+    streamed = r2.text
+    events = [
+        json.loads(line.replace("data: ", ""))
+        for line in streamed.strip().split("\n\n")
+        if line
+    ]
+    final_state = None
+    for ev in reversed(events):
+        if "final" in ev:
+            final_state = ev["final"]["state"]
+            break
+    assert final_state is not None
+
+    # Compare core fields for equality
+    for key in ["user_id", "user_query", "user_query_redacted", "intent", "plan"]:
+        assert run_state.get(key) == final_state.get(key)

@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from starlette.routing import Route
 from pydantic import BaseModel, Field
-from typing import List, AsyncGenerator
+from typing import List, AsyncGenerator, Any, Dict, cast
 import logging
 import os
 import re
@@ -62,11 +62,27 @@ async def stream_graph(q: Query) -> StreamingResponse:
 
     async def _stream_chunks() -> AsyncGenerator[str, None]:
         try:
+            # Keep an accumulated view of the state while streaming deltas
+            current_state: Dict[str, Any] = dict(state)
+
             async for chunk in app.state.graph.astream(state):
                 node, delta = next(iter(chunk.items()))
                 if delta:
+                    # Update our accumulated state
+                    try:
+                        if isinstance(delta, dict):
+                            current_state.update(delta)
+                    except Exception:
+                        pass
                     yield f"data: {json.dumps({'node': node, 'delta': delta})}\n\n"
-            yield f"data: {json.dumps({'final': {'state': chunk}})}\n\n"
+
+            # Emit the exact final state. Prefer a fresh ainvoke; fallback to accumulated
+            try:
+                final_state: BodyState = await app.state.graph.ainvoke(state)
+            except Exception:
+                final_state = cast(BodyState, current_state)
+
+            yield f"data: {json.dumps({'final': {'state': final_state}})}\n\n"
             logger.info(f"Graph stream completed for user {q.user_id}")
         except Exception as e:
             logger.error(
