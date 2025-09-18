@@ -1,9 +1,12 @@
 from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
 from starlette.routing import Route
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, AsyncGenerator, Any, Dict, cast
 import logging
+import os
 import re
+import json
 
 from app.config import settings
 from app.config.logging import configure_logging
@@ -18,28 +21,19 @@ from app.tools.embeddings import embed
 logger = logging.getLogger(__name__)
 
 
-async def run_and_await_completion(graph, state: BodyState):
-    """Execute the graph and wait for completion"""
-    # Run the compiled graph
-    results = await graph.abatch([state])
-    return results[0]
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    configure_logging()  # Call configure_logging here
-    ensure_indices()
-    app.state.graph = build_graph().compile()
+    configure_logging()
+    # Avoid bootstrapping indices when running under pytest or explicit test env
+    if os.getenv("PYTEST_CURRENT_TEST") or os.getenv("APP_ENV") == "test":
+        logger.info("Skipping index bootstrap in test mode")
+    else:
+        ensure_indices()
+    app.state.graph = build_graph()
     yield
 
 
 app = FastAPI(title="Body Agent API", lifespan=lifespan)
-
-
-async def _invoke_graph(user_id: str, text: str) -> BodyState:
-    state: BodyState = {"user_id": user_id, "user_query": text, "messages": []}
-    result = await run_and_await_completion(app.state.graph, state)
-    return result
 
 
 class Query(BaseModel):
@@ -51,13 +45,53 @@ class Query(BaseModel):
 async def run_graph(q: Query):
     logger.info(f"Running graph for user {q.user_id}")
     try:
-        state = await _invoke_graph(q.user_id, q.query)
-        logger.debug(f"Query: {state.get('user_query_redacted', q.query)}")
+        state: BodyState = {"user_id": q.user_id, "user_query": q.query, "messages": []}
+        final_state = await app.state.graph.ainvoke(state)
+        logger.debug(f"Query: {final_state.get('user_query_redacted', q.query)}")
         logger.info(f"Graph run completed for user {q.user_id}")
-        return {"state": state}
+        return {"state": final_state}
     except Exception as e:
         logger.error(f"Graph run failed for user {q.user_id}: {str(e)}", exc_info=True)
         raise
+
+
+@app.post("/api/graph/stream")
+async def stream_graph(q: Query) -> StreamingResponse:
+    logger.info(f"Streaming graph for user {q.user_id}")
+    state: BodyState = {"user_id": q.user_id, "user_query": q.query, "messages": []}
+
+    async def _stream_chunks() -> AsyncGenerator[str, None]:
+        try:
+            # Keep an accumulated view of the state while streaming deltas
+            current_state: Dict[str, Any] = dict(state)
+
+            async for chunk in app.state.graph.astream(state):
+                node, delta = next(iter(chunk.items()))
+                if delta:
+                    # Update our accumulated state
+                    try:
+                        if isinstance(delta, dict):
+                            current_state.update(delta)
+                    except Exception:
+                        pass
+                    yield f"data: {json.dumps({'node': node, 'delta': delta})}\n\n"
+
+            # Emit the exact final state. Prefer a fresh ainvoke; fallback to accumulated
+            try:
+                final_state: BodyState = await app.state.graph.ainvoke(state)
+            except Exception:
+                final_state = cast(BodyState, current_state)
+
+            yield f"data: {json.dumps({'final': {'state': final_state}})}\n\n"
+            logger.info(f"Graph stream completed for user {q.user_id}")
+        except Exception as e:
+            logger.error(
+                f"Graph stream failed for user {q.user_id}: {str(e)}", exc_info=True
+            )
+            # Yield a final error message to the client if possible
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(_stream_chunks(), media_type="text/event-stream")
 
 
 @app.post("/api/run")

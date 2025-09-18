@@ -19,6 +19,7 @@ The Body Agent is a multi-agent system orchestrated by LangGraph. It uses a loca
 - **Health Tracking**: Helps you remember your medications and symptoms.
 - **Provider Search**: Finds healthcare providers near you.
 - **Extensible**: Built with a modular LangGraph-based architecture.
+- **Streaming API**: Real-time, node-by-node event streaming for a responsive UX.
 
 ## Getting Started
 
@@ -55,14 +56,25 @@ The Body Agent is a multi-agent system orchestrated by LangGraph. It uses a loca
 
 ## Usage
 
-The API is now available at `http://localhost:8000`. You can interact with it through the `/api/graph/run` endpoint.
+The API is now available at `http://localhost:8000`. You can interact with it through the `/api/graph/run` and `/api/graph/stream` endpoints.
 
 ### Examples
 
-**Symptom check:**
+**Symptom check (batch):**
 
 ```bash
 curl -X POST "http://localhost:8000/api/graph/run" -H "Content-Type: application/json" -d '''
+{
+  "user_id": "demo-user",
+  "query": "I have a headache, what can I take?"
+}
+'''
+```
+
+**Symptom check (streaming):**
+
+```bash
+curl -X POST "http://localhost:8000/api/graph/stream" -H "Content-Type: application/json" -d '''
 {
   "user_id": "demo-user",
   "query": "I have a headache, what can I take?"

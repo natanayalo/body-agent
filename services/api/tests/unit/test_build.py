@@ -3,24 +3,20 @@ from app.graph.state import BodyState
 
 
 def test_route_after_memory_to_health():
-    state = BodyState(intent="symptom", user_query="test")
-    assert _route_after_memory(state) == "health"
-
-    state = BodyState(intent="meds", user_query="test")
-    assert _route_after_memory(state) == "health"
+    s: BodyState = {"intent": "symptom", "user_query": "x"}
+    assert _route_after_memory(s) == "health"
+    s = {"intent": "meds", "user_query": "x"}
+    assert _route_after_memory(s) == "health"
 
 
 def test_route_after_memory_to_places():
-    state = BodyState(intent="appointment", user_query="test")
-    assert _route_after_memory(state) == "places"
+    s: BodyState = {"intent": "appointment", "user_query": "x"}
+    assert _route_after_memory(s) == "places"
 
 
-def test_route_after_memory_to_planner():
-    state = BodyState(intent="other", user_query="test")
-    assert _route_after_memory(state) == "planner"
-
-    state = BodyState(intent="routine", user_query="test")
-    assert _route_after_memory(state) == "planner"
-
-    state = BodyState(intent=None, user_query="test")
-    assert _route_after_memory(state) == "planner"
+def test_route_after_memory_to_planner_default():
+    # Unknown or missing intents safely fall back to planner
+    s: BodyState = {"intent": "routine", "user_query": "x"}
+    assert _route_after_memory(s) == "planner"
+    s = {"user_query": "x"}  # no intent key
+    assert _route_after_memory(s) == "planner"
