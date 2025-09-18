@@ -12,6 +12,17 @@ from app.graph.nodes import (
 )
 
 
+def _route_after_memory(state: BodyState) -> str:
+    """Route to the appropriate node after memory lookup."""
+
+    intent = state.get("intent")
+    if intent in {"meds", "symptom"}:
+        return "health"
+    if intent == "appointment":
+        return "places"
+    return "planner"
+
+
 def build_graph():
     g = StateGraph(BodyState)
     g.add_node("supervisor", supervisor.run)
@@ -29,12 +40,11 @@ def build_graph():
     # branches
     g.add_conditional_edges(
         "memory",
-        lambda s: s["intent"],
+        _route_after_memory,
         {
-            "meds": "health",
-            "symptom": "health",
-            "appointment": "places",
-            "other": "planner",
+            "health": "health",
+            "places": "places",
+            "planner": "planner",
         },
     )
     g.add_edge("health", "risk_ml")

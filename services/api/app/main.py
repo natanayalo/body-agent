@@ -4,6 +4,7 @@ from starlette.routing import Route
 from pydantic import BaseModel, Field
 from typing import List, AsyncGenerator
 import logging
+import os
 import re
 import json
 
@@ -23,7 +24,11 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging()
-    ensure_indices()
+    # Avoid bootstrapping indices when running under pytest or explicit test env
+    if os.getenv("PYTEST_CURRENT_TEST") or os.getenv("APP_ENV") == "test":
+        logger.info("Skipping index bootstrap in test mode")
+    else:
+        ensure_indices()
     app.state.graph = build_graph()
     yield
 
