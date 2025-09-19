@@ -3,10 +3,13 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import Optional
+import logging
 
 from cryptography.fernet import Fernet  # type: ignore[import-not-found]
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 def _keys_dir() -> Path:
@@ -29,8 +32,8 @@ def ensure_user_key(user_id: str) -> bytes:
             f.write(key)
         try:
             os.chmod(kp, 0o600)
-        except Exception:
-            pass
+        except OSError as e:
+            logger.warning(f"Failed to set permissions on key file {kp}: {e}")
         return key
     return kp.read_bytes()
 

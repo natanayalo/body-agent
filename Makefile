@@ -74,7 +74,7 @@ e2e-local-down:
 
 e2e-local-clean:
 	@echo "[e2e-local] Deleting indices on $(ES_HOST) ..."
-	-@curl -s -XDELETE $(ES_HOST)/private_user_memory > /dev/null || true
-	-@curl -s -XDELETE $(ES_HOST)/public_medical_kb > /dev/null || true
-	-@curl -s -XDELETE $(ES_HOST)/providers_places > /dev/null || true
+	-@curl -s -o /dev/null -XDELETE $(ES_HOST)/private_user_memory
+	-@curl -s -o /dev/null -XDELETE $(ES_HOST)/public_medical_kb
+	-@curl -s -o /dev/null -XDELETE $(ES_HOST)/providers_places
 	@echo "[e2e-local] Clean done. Re-run 'make e2e-local-up' to recreate."
