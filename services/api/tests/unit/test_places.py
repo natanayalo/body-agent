@@ -45,3 +45,19 @@ def test_places_ranking_respects_preferred_kind(monkeypatch):
     ranked_state = places.run(state, es_client=dummy_es)
     candidates = ranked_state["candidates"]
     assert candidates[0]["name"] == "Clinic A"
+
+
+def test_hours_windows_variants():
+    assert places._hours_windows("") == set()
+    assert places._hours_windows("Open all morning and evening") == {
+        "morning",
+        "evening",
+    }
+    assert places._hours_windows("Fri 21:00-23:00") == {"evening"}
+    assert places._hours_windows("Sat 22:00-02:00") == set()
+
+
+def test_normalize_handles_zero_vector():
+    assert places._normalize([]) == []
+    assert places._normalize([0.0, 0.0]) == [0.0, 0.0]
+    assert places._normalize([0.2, 0.4]) == [0.5, 1.0]

@@ -67,6 +67,18 @@ def test_extract_preferences_builds_object():
     assert prefs["insurance_plan"] == "maccabi"
 
 
+def test_extract_preferences_ignores_empty_values():
+    facts = [
+        {"entity": "preference", "name": "preferred_kind", "value": ""},
+        {"entity": "preference", "name": "max_distance_km", "value": "not_a_number"},
+        {"entity": "note", "name": "foo", "value": "bar"},
+        {"entity": "preference", "name": None, "value": "lab"},
+    ]
+
+    prefs = memory.extract_preferences(facts)
+    assert prefs == {}
+
+
 def test_memory_run_sets_preferences(fake_es, monkeypatch):
     response = {
         "hits": {
