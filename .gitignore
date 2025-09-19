@@ -47,6 +47,9 @@ services/api/app/data/
 seeds/intent_exemplars.json
 data/
 
+# pre-commit cache (local only)
+.pre-commit-cache/
+
 # Python cache
 *__pycache__*
 *.pyc

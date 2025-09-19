@@ -79,7 +79,7 @@ def test_add_med_encrypted_value(mock_embed, client, fake_es):
     # Find the index call and inspect the document stored
     index_calls = [c for c in fake_es.calls if c and c[0] == "index"]
     assert index_calls, "Expected at least one index call"
-    _, idx, _id, doc = index_calls[-1]
+    _, _, _, doc = index_calls[-1]
     assert doc.get("user_id") == user_id
     assert doc.get("name") == "Ibuprofen 200mg"
     assert doc.get("value_encrypted") is True

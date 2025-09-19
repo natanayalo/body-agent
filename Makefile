@@ -78,4 +78,3 @@ e2e-local-clean:
 	-@curl -s -XDELETE $(ES_HOST)/public_medical_kb > /dev/null || true
 	-@curl -s -XDELETE $(ES_HOST)/providers_places > /dev/null || true
 	@echo "[e2e-local] Clean done. Re-run 'make e2e-local-up' to recreate."
-
