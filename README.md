@@ -19,6 +19,7 @@ The Body Agent is a multi-agent system orchestrated by LangGraph. It uses a loca
 - **Health Tracking**: Helps you remember your medications and symptoms.
 - **Provider Search**: Finds healthcare providers near you.
 - **Personalized Ranking**: Provider results respect saved preferences (distance, kind, hours).
+- **Safety-First Answers**: Optional LLM node summarises findings with citations and disclaimers.
 - **Extensible**: Built with a modular LangGraph-based architecture.
 - **Streaming API**: Real-time, node-by-node event streaming for a responsive UX.
 - **Encryption at Rest**: Per-user key encryption for private memory values.
@@ -221,6 +222,13 @@ make eval
 ```
 
 The golden tests call `/api/graph/run` with English and Hebrew scenarios, assert intent/risk behavior, and verify citations stay deduplicated.
+
+### LLM Configuration
+
+Set `LLM_PROVIDER=ollama` (default `none`) to enable the answer generation node. When enabled, the graph invokes the provider after planning to craft a cited response.
+- `OLLAMA_MODEL` (default `llama3`) selects the local model served by Ollama.
+- `OPENAI_API_KEY`/`OPENAI_MODEL` are used if you set `LLM_PROVIDER=openai`.
+If no provider is configured, the node is skipped and the pipeline behaves as before.
 
 
 ### File Structure
