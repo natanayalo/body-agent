@@ -74,63 +74,18 @@ jobs:
           echo "EMBEDDINGS_MODEL=__stub__" >> .env
           echo "INTENT_EXEMPLARS_PATH=${{ github.workspace }}/data/intent_exemplars.json" >> .env
           mkdir -p data
-      - name: Build & start stack (ES)
-        run: docker compose up -d --build elasticsearch
-      - name: Wait for ES
-        env:
-          ES_HOST: http://localhost:9200
-        run: python scripts/wait_for_es.py
-      - name: Create indices (mappings)
-        env:
-          ES_HOST: http://localhost:9200
-          PYTHONPATH: services/api
-        run: |
-          python - <<'PY'
-          from app.tools.es_client import ensure_indices
-          ensure_indices()
-          print("OK: indices ensured")
-          PY
-      - name: Seed Elasticsearch
-        env:
-          ES_HOST: http://localhost:9200
-          APP_DATA_DIR: ${{ github.workspace }}/data
-          EMBEDDINGS_MODEL: __stub__
-        run: |
-          python scripts/es_bootstrap.py
-          python scripts/ingest_providers.py
-          python scripts/ingest_public_kb.py
-      - name: Start API
-        env:
-          PYTHONPATH: services/api
-          ES_HOST: http://localhost:9200
-          APP_DATA_DIR: ${{ github.workspace }}/data
-          EMBEDDINGS_MODEL: __stub__
-          RISK_MODEL_ID: __stub__
-          HOST: 0.0.0.0
-          PORT: 8000
-          LOG_LEVEL: debug
-          APP_LOG_DIR: /tmp/body-agent
-        run: |
-          mkdir -p "$APP_LOG_DIR"
-          nohup python -m uvicorn app.main:app \
-            --host "$HOST" --port "$PORT" --log-level "$LOG_LEVEL" > /tmp/api.log 2>&1 &
-      - name: Wait for API
+      - name: E2E: Start ES + seed (Makefile)
+        run: make e2e-local-up
+      - name: E2E: Start API (Makefile)
+        run: make e2e-local-api
+      - name: E2E: Wait for API (Makefile)
         env:
           API_BASE_URL: http://localhost:8000
-        run: |
-          for i in $(seq 1 60); do
-            if curl -sf "$API_BASE_URL/healthz" | grep -q '"ok":true'; then
-              echo "API is ready"; exit 0; fi
-            echo "Waiting for API... ($i/60)"; sleep 2
-          done
-          echo "API failed to become ready. --- /tmp/api.log ---"
-          (tail -n +1 /tmp/api.log || true)
-          exit 7
-      - name: E2E tests
+        run: make e2e-local-wait
+      - name: E2E: Run tests (Makefile)
         env:
           API_BASE_URL: http://localhost:8000
-          RISK_MODEL_ID: __stub__
-        run: pytest --no-cov services/api/tests/e2e/
+        run: make e2e-local-test
       - name: Dump logs on failure
         if: failure()
         run: |
