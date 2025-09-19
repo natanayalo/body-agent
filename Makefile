@@ -12,7 +12,7 @@ LOG_LEVEL ?= debug
 PY := $(shell if [ -x venv/bin/python ]; then echo venv/bin/python; else echo python; fi)
 PYTEST := $(shell if [ -x venv/bin/pytest ]; then echo venv/bin/pytest; else echo pytest; fi)
 
-.PHONY: e2e-local e2e-local-up e2e-local-api e2e-local-wait e2e-local-test e2e-local-down e2e-local-logs e2e-local-clean
+.PHONY: e2e-local e2e-local-up e2e-local-api e2e-local-wait e2e-local-test e2e-local-down e2e-local-logs e2e-local-clean eval
 
 e2e-local: e2e-local-up e2e-local-api e2e-local-wait e2e-local-test
 
@@ -78,3 +78,7 @@ e2e-local-clean:
 	-@curl -s -o /dev/null -XDELETE $(ES_HOST)/public_medical_kb
 	-@curl -s -o /dev/null -XDELETE $(ES_HOST)/providers_places
 	@echo "[e2e-local] Clean done. Re-run 'make e2e-local-up' to recreate."
+
+eval:
+	@echo "[eval] Running golden evaluation tests..."
+	PYTHONPATH=services/api $(PYTEST) --no-cov services/api/tests/golden

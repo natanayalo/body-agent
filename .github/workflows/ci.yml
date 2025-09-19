@@ -60,6 +60,10 @@ jobs:
         env:
           PYTHONPATH: services/api
         run: pytest --cov=services/api/app --cov-fail-under=95 services/api/tests/unit/ services/api/tests/integration/
+      - name: Run Golden evaluation suite
+        env:
+          PYTHONPATH: services/api
+        run: pytest --no-cov services/api/tests/golden/
       - name: Prepare env + data dir
         run: |
           cp .env.example .env
