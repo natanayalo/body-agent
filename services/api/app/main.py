@@ -17,6 +17,7 @@ from app.graph.build import build_graph
 from contextlib import asynccontextmanager
 
 from app.tools.embeddings import embed
+from app.tools.crypto import encrypt_for_user
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +128,9 @@ def add_med(m: MedInput):
         "entity": "medication",
         "name": m.name.strip(),
         "normalized": {"ingredient": base},
-        "value": m.value,
+        # Store sensitive value encrypted at rest
+        "value": encrypt_for_user(m.user_id, m.value),
+        "value_encrypted": True,
         "confidence": 0.95,
         "embedding": embed([m.name])[0],
     }
