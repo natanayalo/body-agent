@@ -1,7 +1,43 @@
+from typing import Any, Dict
+
 from app.graph.state import BodyState
 from app.tools.es_client import get_es_client
 from app.tools.embeddings import embed
 from app.config import settings
+
+
+def extract_preferences(facts: list[Dict[str, Any]]) -> Dict[str, Any]:
+    prefs: Dict[str, Any] = {}
+    if not facts:
+        return prefs
+
+    preferred_kinds: list[str] = []
+    for doc in facts:
+        if doc.get("entity") != "preference":
+            continue
+        name = (doc.get("name") or "").strip().lower()
+        value = (doc.get("value") or "").strip()
+        if not name or value is None:
+            continue
+
+        if name in {"preferred_kind", "preferred_kinds"}:
+            values = [v.strip().lower() for v in value.split(",") if v.strip()]
+            for v in values:
+                if v and v not in preferred_kinds:
+                    preferred_kinds.append(v)
+        elif name in {"preferred_hours", "hours_window"}:
+            prefs["hours_window"] = value.lower()
+        elif name == "max_distance_km":
+            try:
+                prefs["max_distance_km"] = float(value)
+            except (TypeError, ValueError):
+                continue
+        elif name == "insurance_plan":
+            prefs["insurance_plan"] = value
+
+    if preferred_kinds:
+        prefs["preferred_kinds"] = preferred_kinds
+    return prefs
 
 
 def run(state: BodyState, es_client=None) -> BodyState:
@@ -35,5 +71,9 @@ def run(state: BodyState, es_client=None) -> BodyState:
         }
         res = es.search(index=settings.es_private_index, body=body)
         hits = res.get("hits", {}).get("hits", [])
-    state["memory_facts"] = [h["_source"] for h in hits]
+    facts = [h["_source"] for h in hits]
+    state["memory_facts"] = facts
+    prefs = extract_preferences(facts)
+    if prefs:
+        state["preferences"] = prefs
     return state

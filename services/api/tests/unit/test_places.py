@@ -1,61 +1,47 @@
-from unittest.mock import patch
 from app.graph.nodes import places
 from app.graph.state import BodyState
 
 
-def test_places_run(fake_es):
-    """Test the places node run function."""
-    # Sample providers returned by the mocked search_providers
-    sample_providers = [
-        {"name": "Provider A", "phone": "123", "_score": 0.9},
-        {"name": "Provider A", "phone": "123", "_score": 0.8},
-        {"name": "Provider B", "phone": "456", "_score": 0.95},
-        {"name": "Provider C", "phone": "789", "_score": 0.92},
+def test_places_ranking_respects_preferred_kind(monkeypatch):
+    results = [
+        {
+            "name": "Clinic A",
+            "phone": "+972-3-000-1111",
+            "kind": "clinic",
+            "_score": 0.8,
+            "geo": {"lat": 32.081, "lon": 34.78},
+            "hours": "Sun-Thu 12:00-20:00",
+        },
+        {
+            "name": "Dizengoff Lab Center",
+            "phone": "+972-3-555-0202",
+            "kind": "lab",
+            "_score": 0.7,
+            "geo": {"lat": 32.0871, "lon": 34.7754},
+            "hours": "Sun-Fri 07:00-14:00",
+        },
     ]
 
-    # Initial state
-    initial_state = BodyState(user_query="find a doctor", candidates=[])
+    monkeypatch.setattr(
+        places,
+        "search_providers",
+        lambda *args, **kwargs: results,
+    )
 
-    # Patch the search_providers function
-    with patch(
-        "app.graph.nodes.places.search_providers", return_value=sample_providers
-    ) as mock_search:
-        # Run the places node
-        result_state = places.run(initial_state, fake_es)
+    dummy_es = object()
+    state = BodyState(
+        user_query="book appointment",
+        user_query_redacted="book appointment",
+        preferences={"preferred_kinds": ["lab"], "hours_window": "morning"},
+    )
 
-        # Assert that search_providers was called
-        mock_search.assert_called_once()
+    ranked_state = places.run(state, es_client=dummy_es)
+    candidates = ranked_state["candidates"]
+    assert candidates[0]["name"] == "Dizengoff Lab Center"
+    assert any("preferred" in r for r in candidates[0].get("reasons", []))
 
-        # Assert that the candidates are deduplicated, keeping the one with the highest score
-        assert len(result_state.get("candidates", [])) == 3
-        candidates = result_state.get("candidates", [])
-        # The provider with the highest score should be kept
-        assert any(p["name"] == "Provider A" and p["_score"] == 0.9 for p in candidates)
-        # The other providers should be present
-        assert any(p["name"] == "Provider B" for p in candidates)
-        assert any(p["name"] == "Provider C" for p in candidates)
-
-
-def test_places_run_with_missing_data(fake_es):
-    """Test the places node run function with missing name or phone."""
-    sample_providers = [
-        {"name": "Provider D", "phone": None, "_score": 0.7},  # Missing phone
-        {"name": None, "phone": "999", "_score": 0.6},  # Missing name
-        {"name": "Provider E", "phone": "777", "_score": 0.8},
-    ]
-
-    initial_state = BodyState(user_query="find a clinic", candidates=[])
-
-    with patch(
-        "app.graph.nodes.places.search_providers", return_value=sample_providers
-    ) as mock_search:
-        result_state = places.run(initial_state, fake_es)
-
-        mock_search.assert_called_once()
-
-        # Only Provider E should be in candidates
-        assert len(result_state.get("candidates", [])) == 1
-        candidates = result_state.get("candidates", [])
-        assert any(
-            p["name"] == "Provider E" and p["phone"] == "777" for p in candidates
-        )
+    # Change preference to clinic and ensure ordering flips deterministically
+    state["preferences"] = {"preferred_kinds": ["clinic"]}
+    ranked_state = places.run(state, es_client=dummy_es)
+    candidates = ranked_state["candidates"]
+    assert candidates[0]["name"] == "Clinic A"

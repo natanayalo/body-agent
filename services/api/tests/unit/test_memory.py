@@ -1,4 +1,5 @@
 from unittest.mock import patch, MagicMock
+
 from app.graph.nodes import memory
 from app.graph.state import BodyState
 from app.config import settings
@@ -49,3 +50,58 @@ def test_memory_run(fake_es, monkeypatch):
     fact_names = [fact["name"] for fact in result_state.get("memory_facts", [])]
     assert "Ibuprofen 200mg" in fact_names
     assert "Aspirin 100mg" in fact_names
+
+
+def test_extract_preferences_builds_object():
+    facts = [
+        {"entity": "preference", "name": "preferred_kinds", "value": "lab,clinic"},
+        {"entity": "preference", "name": "preferred_hours", "value": "Morning"},
+        {"entity": "preference", "name": "max_distance_km", "value": "7.5"},
+        {"entity": "preference", "name": "insurance_plan", "value": "maccabi"},
+    ]
+
+    prefs = memory.extract_preferences(facts)
+    assert prefs["preferred_kinds"] == ["lab", "clinic"]
+    assert prefs["hours_window"] == "morning"
+    assert prefs["max_distance_km"] == 7.5
+    assert prefs["insurance_plan"] == "maccabi"
+
+
+def test_memory_run_sets_preferences(fake_es, monkeypatch):
+    response = {
+        "hits": {
+            "hits": [
+                {
+                    "_source": {
+                        "user_id": "demo",
+                        "entity": "preference",
+                        "name": "preferred_kinds",
+                        "value": "lab",
+                    }
+                },
+                {
+                    "_source": {
+                        "user_id": "demo",
+                        "entity": "preference",
+                        "name": "max_distance_km",
+                        "value": "5",
+                    }
+                },
+            ]
+        }
+    }
+    monkeypatch.setattr(fake_es, "search", MagicMock(return_value=response))
+    monkeypatch.setattr(settings, "embeddings_model", "__stub__")
+
+    state = BodyState(
+        user_id="demo",
+        user_query="find lab",
+        user_query_redacted="find lab",
+    )
+
+    with patch("app.tools.embeddings.embed") as mock_embed:
+        result = memory.run(state, es_client=fake_es)
+
+    mock_embed.assert_not_called()
+    assert result.get("preferences", {}).get("preferred_kinds") == ["lab"]
+    assert result["preferences"].get("max_distance_km") == 5.0

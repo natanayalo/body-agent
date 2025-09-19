@@ -1,21 +1,14 @@
 from datetime import datetime, timedelta, UTC
+import logging
+import os
+from typing import Any, Dict, List
+
+from app.graph.nodes.memory import extract_preferences
 from app.graph.state import BodyState
 from app.tools.calendar_tools import CalendarEvent, create_event
-import os
-import logging
-from typing import TypedDict, List, Any
 from app.tools.es_client import get_es_client
 
 logger = logging.getLogger(__name__)
-
-
-class RankedCandidate(TypedDict):
-    score: int
-    reasons: List[str]
-    cand: dict
-
-
-# Minimal planner for two demo flows
 
 
 def run(state: BodyState, es_client: Any = None) -> BodyState:
@@ -42,9 +35,8 @@ def run(state: BodyState, es_client: Any = None) -> BodyState:
 
     if intent == "appointment":
         logger.debug("Planner: Handling 'appointment' intent.")
-        # Get user preferences from memory
-        prefs = {}
-        if user_id := state.get("user_id"):
+        prefs = state.get("preferences") or {}
+        if not prefs and (user_id := state.get("user_id")):
             es = es_client if es_client else get_es_client()
             docs = es.search(
                 index=os.environ["ES_PRIVATE_INDEX"],
@@ -59,55 +51,38 @@ def run(state: BodyState, es_client: Any = None) -> BodyState:
                     }
                 },
             )
-            for d in docs["hits"]["hits"]:
-                prefs[d["_source"]["name"]] = d["_source"]["value"]
+            facts = [hit["_source"] for hit in docs["hits"]["hits"]]
+            prefs = extract_preferences(facts)
+            if prefs:
+                state["preferences"] = prefs
         logger.debug(f"Planner: User preferences: {prefs}")
 
-        # Rank candidates
-        ranked_candidates = []
-        for cand in state.get("candidates", []):
-            score = 0
-            reasons: List[str] = []
-            if prefs.get("preferred_kind") == cand.get("kind"):
-                score += 1
-                reasons.append("preferred kind")
-            if (pref_hours := prefs.get("preferred_hours")) and (
-                cand_hours := cand.get("hours")
-            ):
-                if pref_hours in cand_hours.lower():
-                    score += 1
-                    reasons.append(f"preferred hours: {prefs.get('preferred_hours')}")
+        candidates: List[Dict[str, Any]] = state.get("candidates", [])
+        if not candidates:
+            logger.debug("Planner: No candidates available, returning 'none'.")
+        else:
+            best = max(candidates, key=lambda c: c.get("score", 0.0))
+            reasons = best.get("reasons", []) or []
+            logger.debug(f"Planner: Best candidate: {best}")
 
-            ranked_candidate: RankedCandidate = {
-                "score": score,
-                "reasons": reasons,
-                "cand": cand,
-            }
-            ranked_candidates.append(ranked_candidate)
-
-        ranked_candidates.sort(key=lambda x: x["score"], reverse=True)
-
-        best_cand = ranked_candidates[0]["cand"] if ranked_candidates else None
-        reasons = ranked_candidates[0]["reasons"] if ranked_candidates else []
-        logger.debug(f"Planner: Best candidate: {best_cand}")
-
-        # Pick top candidate and create 1h slot tomorrow at 09:00Z
-        if best_cand is not None:
-            cand = best_cand
+            # Pick top candidate and create 1h slot tomorrow at 09:00Z
             start = datetime(now.year, now.month, now.day) + timedelta(days=1, hours=9)
             evt = CalendarEvent(
-                title=f"Visit: {cand.get('name','Clinic')}",
+                title=f"Visit: {best.get('name','Clinic')}",
                 start=start,
                 end=start + timedelta(hours=1),
-                location=cand.get("name"),
+                location=best.get("name"),
             )
             path = create_event(evt)
             logger.debug(f"Planner: Event path created: {path}")
+            explanations = list(reasons)
+            reasons_str = ", ".join(explanations)
             state["plan"] = {
                 "type": "appointment",
                 "event_path": path,
-                "provider": cand,
-                "reasons": ", ".join(reasons),
+                "provider": best,
+                "reasons": reasons_str,
+                "explanations": explanations,
             }
             return state
 
