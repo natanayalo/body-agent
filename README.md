@@ -18,6 +18,7 @@ The Body Agent is a multi-agent system orchestrated by LangGraph. It uses a loca
 - **Privacy First**: Runs locally, with optional LLM provider integration.
 - **Health Tracking**: Helps you remember your medications and symptoms.
 - **Provider Search**: Finds healthcare providers near you.
+- **Personalized Ranking**: Provider results respect saved preferences (distance, kind, hours).
 - **Extensible**: Built with a modular LangGraph-based architecture.
 - **Streaming API**: Real-time, node-by-node event streaming for a responsive UX.
 - **Encryption at Rest**: Per-user key encryption for private memory values.

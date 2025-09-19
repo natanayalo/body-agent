@@ -109,6 +109,7 @@ def test_graph_stream_error_event(client: TestClient, monkeypatch):
 
     async def _boom(*args, **kwargs):
         raise RuntimeError("stream failure")
+        yield  # pragma: no cover
 
     monkeypatch.setattr(main_mod.app.state.graph, "astream", _boom)
 

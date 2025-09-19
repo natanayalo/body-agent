@@ -10,6 +10,7 @@ class BodyState(TypedDict, total=False):
     public_snippets: list[dict]
     candidates: list[dict]
     plan: dict
+    preferences: dict
     messages: list[dict]
     alerts: list[str]
     citations: list[str]
