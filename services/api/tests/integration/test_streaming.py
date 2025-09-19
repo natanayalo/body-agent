@@ -101,3 +101,28 @@ def test_graph_stream_final_state_matches_run(client: TestClient):
     # Compare core fields for equality
     for key in ["user_id", "user_query", "user_query_redacted", "intent", "plan"]:
         assert run_state.get(key) == final_state.get(key)
+
+
+def test_graph_stream_error_event(client: TestClient, monkeypatch):
+    # Force astream to raise to exercise error path
+    import app.main as main_mod
+
+    async def _boom(*args, **kwargs):
+        raise RuntimeError("stream failure")
+
+    monkeypatch.setattr(main_mod.app.state.graph, "astream", _boom)
+
+    r = client.post(
+        "/api/graph/stream",
+        json={"user_id": "u", "query": "hello"},
+    )
+    assert r.status_code == 200
+    assert "text/event-stream" in r.headers.get("content-type", "")
+    assert "\n\n" in r.text
+    # Expect an error event in the stream
+    events = [
+        json.loads(line.replace("data: ", ""))
+        for line in r.text.strip().split("\n\n")
+        if line
+    ]
+    assert any("error" in ev for ev in events)
