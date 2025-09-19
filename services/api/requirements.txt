@@ -14,6 +14,9 @@ langchain==0.2.6
 langgraph==0.2.76
 transformers==4.43.3
 
+# encryption
+cryptography==42.0.8
+
 # for exemplar builder (developer convenience; optional at runtime)
 datasets==2.19.1
 mypy==1.8.0

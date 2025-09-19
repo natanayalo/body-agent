@@ -17,6 +17,7 @@ from app.graph.build import build_graph
 from contextlib import asynccontextmanager
 
 from app.tools.embeddings import embed
+from app.tools.crypto import encrypt_for_user
 
 logger = logging.getLogger(__name__)
 
@@ -68,12 +69,20 @@ async def stream_graph(q: Query) -> StreamingResponse:
             async for chunk in app.state.graph.astream(state):
                 node, delta = next(iter(chunk.items()))
                 if delta:
-                    # Update our accumulated state
+                    # Update our accumulated state (extend lists, assign scalars)
                     try:
                         if isinstance(delta, dict):
-                            current_state.update(delta)
-                    except Exception:
-                        pass
+                            for k, v in delta.items():
+                                if isinstance(v, list) and isinstance(
+                                    current_state.get(k), list
+                                ):
+                                    current_state[k].extend(v)  # type: ignore[index]
+                                else:
+                                    current_state[k] = v
+                    except Exception as e:
+                        logger.warning(
+                            f"Error updating stream state with delta {delta}: {e}"
+                        )
                     yield f"data: {json.dumps({'node': node, 'delta': delta})}\n\n"
 
             # Emit the exact final state. Prefer a fresh ainvoke; fallback to accumulated
@@ -127,7 +136,9 @@ def add_med(m: MedInput):
         "entity": "medication",
         "name": m.name.strip(),
         "normalized": {"ingredient": base},
-        "value": m.value,
+        # Store sensitive value encrypted at rest
+        "value": encrypt_for_user(m.user_id, m.value),
+        "value_encrypted": True,
         "confidence": 0.95,
         "embedding": embed([m.name])[0],
     }

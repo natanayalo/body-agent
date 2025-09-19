@@ -67,6 +67,26 @@ def test_add_med_endpoint(mock_get_es_client, mock_embed, client):
     assert kwargs["document"]["name"] == "Ibuprofen 200mg"
 
 
+@patch("app.main.embed", return_value=[[0.1, 0.2, 0.3]])
+def test_add_med_encrypted_value(mock_embed, client, fake_es):
+    user_id = "test-user-enc"
+    payload = {"user_id": user_id, "name": "Ibuprofen 200mg", "value": "Taking 1 tab"}
+
+    r = client.post("/api/memory/add_med", json=payload)
+    assert r.status_code == 200
+    assert r.json().get("ok") is True
+
+    # Find the index call and inspect the document stored
+    index_calls = [c for c in fake_es.calls if c and c[0] == "index"]
+    assert index_calls, "Expected at least one index call"
+    _, _, _, doc = index_calls[-1]
+    assert doc.get("user_id") == user_id
+    assert doc.get("name") == "Ibuprofen 200mg"
+    assert doc.get("value_encrypted") is True
+    # Encrypted value should not equal plaintext
+    assert doc.get("value") and doc["value"] != payload["value"]
+
+
 @patch("app.main.app.state.graph.ainvoke", side_effect=Exception("Graph error"))
 def test_run_graph_exception(mock_invoke, client):
     with pytest.raises(Exception) as e:

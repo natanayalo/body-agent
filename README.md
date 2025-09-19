@@ -20,6 +20,7 @@ The Body Agent is a multi-agent system orchestrated by LangGraph. It uses a loca
 - **Provider Search**: Finds healthcare providers near you.
 - **Extensible**: Built with a modular LangGraph-based architecture.
 - **Streaming API**: Real-time, node-by-node event streaming for a responsive UX.
+- **Encryption at Rest**: Per-user key encryption for private memory values.
 
 ## Getting Started
 
@@ -80,6 +81,18 @@ curl -X POST "http://localhost:8000/api/graph/stream" -H "Content-Type: applicat
   "query": "I have a headache, what can I take?"
 }
 '''
+```
+
+Server-Sent Events (SSE) format:
+
+```
+data: {"node":"memory","delta":{"memory_facts":[...]}}
+
+data: {"node":"health","delta":{"public_snippets":[...]}}
+
+data: {"node":"risk_ml","delta":{"debug":{"scores":{...},"triggered":[...]}}}
+
+data: {"final":{"state":{...}}}
 ```
 
 **Find a provider:**
@@ -172,6 +185,33 @@ EMBEDDINGS_MODEL=__stub__
 When stubbing is active, the risk classification will return deterministic, default scores, allowing for predictable test outcomes.
 
 
+### Security & Tenancy (PR 8)
+
+- Private memory values (e.g., the `value` field in `/api/memory/add_med`) are encrypted at rest using a per-user Fernet key.
+- Keys are stored under `${APP_DATA_DIR}/keys/<user_id>.key` and created on first use.
+- Indexed docs include `value_encrypted: true` and the ciphertext in `value`.
+- For debugging, decrypt via `app.tools.crypto.decrypt_for_user(user_id, token)` from a Python shell (local only).
+
+
+### Local E2E Runner (CI Parity)
+
+Run the full E2E flow locally with the same steps as CI (fresh ES, stub models, seeded data, API startup):
+
+```
+make e2e-local
+```
+
+Useful sub-steps:
+
+- `make e2e-local-up` — start ES, ensure indices, seed (stub embeddings)
+- `make e2e-local-api` — start API (stub mode) in background
+- `make e2e-local-wait` — wait until `/healthz` is ready
+- `make e2e-local-test` — run the E2E tests
+- `make e2e-local-logs` — tail `/tmp/api.log`
+- `make e2e-local-down` — stop containers (volumes removed)
+- `make e2e-local-clean` — delete ES indices to reseed cleanly
+
+
 ### File Structure
 
 ```
@@ -205,7 +245,9 @@ body-agent/
 │               ├── es_client.py
 │               ├── embeddings.py
 │               ├── calendar_tools.py
-│               └── geo_tools.py
+│               ├── geo_tools.py
+│               └── crypto.py
+├── Makefile
 ├── scripts/
 │   ├── build_intent_exemplars.py
 │   ├── es_bootstrap.py

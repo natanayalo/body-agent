@@ -48,8 +48,9 @@ def build_graph():
         },
     )
     g.add_edge("health", "risk_ml")
-    # converge
-    for n in ("risk_ml", "places", "planner"):
-        g.add_edge(n, "critic")
+    # Converge via planner, then critic
+    g.add_edge("risk_ml", "planner")
+    g.add_edge("places", "planner")
+    g.add_edge("planner", "critic")
     g.add_edge("critic", END)
     return g.compile()
