@@ -212,6 +212,16 @@ Useful sub-steps:
 - `make e2e-local-down` — stop containers (volumes removed)
 - `make e2e-local-clean` — delete ES indices to reseed cleanly
 
+### Evaluation Harness (Golden Tests)
+
+Run a deterministic regression suite against curated prompts:
+
+```
+make eval
+```
+
+The golden tests call `/api/graph/run` with English and Hebrew scenarios, assert intent/risk behavior, and verify citations stay deduplicated.
+
 
 ### File Structure
 
