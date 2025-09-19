@@ -8,6 +8,7 @@ from app.graph.nodes import (
     risk_ml,
     places,
     planner,
+    answer_gen,
     critic,
 )
 
@@ -32,6 +33,7 @@ def build_graph():
     g.add_node("risk_ml", risk_ml.run)
     g.add_node("places", places.run)
     g.add_node("planner", planner.run)
+    g.add_node("answer_gen", answer_gen.run)
     g.add_node("critic", critic.run)
 
     g.set_entry_point("scrub")
@@ -51,6 +53,7 @@ def build_graph():
     # Converge via planner, then critic
     g.add_edge("risk_ml", "planner")
     g.add_edge("places", "planner")
-    g.add_edge("planner", "critic")
+    g.add_edge("planner", "answer_gen")
+    g.add_edge("answer_gen", "critic")
     g.add_edge("critic", END)
     return g.compile()
