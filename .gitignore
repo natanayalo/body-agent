@@ -59,4 +59,4 @@ data/
 coverage*
 
 # pr template
-pull_request_template.md
+plan/
