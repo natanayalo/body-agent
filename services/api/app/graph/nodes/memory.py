@@ -16,24 +16,46 @@ def extract_preferences(facts: list[Dict[str, Any]]) -> Dict[str, Any]:
         if doc.get("entity") != "preference":
             continue
         name = (doc.get("name") or "").strip().lower()
-        value = (doc.get("value") or "").strip()
-        if not name or not value:
+        value_raw = doc.get("value")
+        if not name or value_raw is None:
             continue
 
+        if isinstance(value_raw, str):
+            value = value_raw.strip()
+            if not value:
+                continue
+        else:
+            value = value_raw
+
         if name in {"preferred_kind", "preferred_kinds"}:
-            values = [v.strip().lower() for v in value.split(",") if v.strip()]
+            if isinstance(value, str):
+                values = [v.strip().lower() for v in value.split(",") if v.strip()]
+            elif isinstance(value, (list, tuple, set)):
+                values = [str(v).strip().lower() for v in value if str(v).strip()]
+            else:
+                values = [str(value).strip().lower()]
             for v in values:
                 if v and v not in preferred_kinds:
                     preferred_kinds.append(v)
         elif name in {"preferred_hours", "hours_window"}:
-            prefs["hours_window"] = value.lower()
+            if isinstance(value, str):
+                prefs["hours_window"] = value.lower()
+            elif isinstance(value, (list, tuple, set)) and len(value) > 0:
+                prefs["hours_window"] = str(next(iter(value))).strip().lower()
+            else:
+                prefs["hours_window"] = str(value).strip().lower()
         elif name == "max_distance_km":
             try:
-                prefs["max_distance_km"] = float(value)
+                numeric = (
+                    float(value)
+                    if isinstance(value, (int, float))
+                    else float(str(value).strip())
+                )
             except (TypeError, ValueError):
                 continue
+            prefs["max_distance_km"] = numeric
         elif name == "insurance_plan":
-            prefs["insurance_plan"] = value
+            prefs["insurance_plan"] = str(value).strip()
 
     if preferred_kinds:
         prefs["preferred_kinds"] = preferred_kinds

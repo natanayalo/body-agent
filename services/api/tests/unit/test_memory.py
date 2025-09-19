@@ -79,6 +79,19 @@ def test_extract_preferences_ignores_empty_values():
     assert prefs == {}
 
 
+def test_extract_preferences_handles_non_string_values():
+    facts = [
+        {"entity": "preference", "name": "preferred_kinds", "value": ["Lab", "Clinic"]},
+        {"entity": "preference", "name": "preferred_hours", "value": ["Evening"]},
+        {"entity": "preference", "name": "max_distance_km", "value": 5},
+    ]
+
+    prefs = memory.extract_preferences(facts)
+    assert prefs["preferred_kinds"] == ["lab", "clinic"]
+    assert prefs["hours_window"] == "evening"
+    assert prefs["max_distance_km"] == 5.0
+
+
 def test_memory_run_sets_preferences(fake_es, monkeypatch):
     response = {
         "hits": {
