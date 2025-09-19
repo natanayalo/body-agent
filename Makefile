@@ -8,6 +8,10 @@ HOST ?= 0.0.0.0
 PORT ?= 8000
 LOG_LEVEL ?= debug
 
+# Prefer local venv tools when present
+PY := $(shell if [ -x venv/bin/python ]; then echo venv/bin/python; else echo python; fi)
+PYTEST := $(shell if [ -x venv/bin/pytest ]; then echo venv/bin/pytest; else echo pytest; fi)
+
 .PHONY: e2e-local e2e-local-up e2e-local-api e2e-local-wait e2e-local-test e2e-local-down e2e-local-logs e2e-local-clean
 
 e2e-local: e2e-local-up e2e-local-api e2e-local-wait e2e-local-test
@@ -17,22 +21,18 @@ e2e-local-up:
 	docker compose up -d --build elasticsearch
 	@echo "[e2e-local] Waiting for Elasticsearch... ($(ES_HOST))"
 	ES_HOST=$(ES_HOST) PYTHONPATH=services/api \
-		python scripts/wait_for_es.py
+		$(PY) scripts/wait_for_es.py
 	@echo "[e2e-local] Ensuring indices..."
 	PYTHONPATH=services/api ES_HOST=$(ES_HOST) \
-		python - <<'PY'
-from app.tools.es_client import ensure_indices
-ensure_indices()
-print("OK: indices ensured")
-PY
+		$(PY) -c "from app.tools.es_client import ensure_indices; ensure_indices(); print('OK: indices ensured')"
 	@echo "[e2e-local] Seeding ES with stub embeddings..."
 	mkdir -p $(APP_DATA_DIR)
 	ES_HOST=$(ES_HOST) APP_DATA_DIR=$(APP_DATA_DIR) EMBEDDINGS_MODEL=__stub__ \
-		python scripts/es_bootstrap.py
+		$(PY) scripts/es_bootstrap.py
 	ES_HOST=$(ES_HOST) APP_DATA_DIR=$(APP_DATA_DIR) EMBEDDINGS_MODEL=__stub__ \
-		python scripts/ingest_providers.py
+		$(PY) scripts/ingest_providers.py
 	ES_HOST=$(ES_HOST) APP_DATA_DIR=$(APP_DATA_DIR) EMBEDDINGS_MODEL=__stub__ \
-		python scripts/ingest_public_kb.py
+		$(PY) scripts/ingest_public_kb.py
 
 e2e-local-api:
 	@echo "[e2e-local] Starting API (stub mode) on $(API_BASE_URL)..."
@@ -42,7 +42,7 @@ e2e-local-api:
 		APP_DATA_DIR=$(APP_DATA_DIR) \
 		EMBEDDINGS_MODEL=__stub__ \
 		RISK_MODEL_ID=__stub__ \
-		nohup python -m uvicorn app.main:app \
+		nohup $(PY) -m uvicorn app.main:app \
 		  --host $(HOST) --port $(PORT) --log-level $(LOG_LEVEL) \
 		  > /tmp/api.log 2>&1 &
 	@echo "[e2e-local] API logs: /tmp/api.log"
@@ -62,7 +62,7 @@ e2e-local-wait:
 e2e-local-test:
 	@echo "[e2e-local] Running E2E tests..."
 	API_BASE_URL=$(API_BASE_URL) RISK_MODEL_ID=__stub__ \
-		pytest --no-cov services/api/tests/e2e/
+		$(PYTEST) --no-cov services/api/tests/e2e/
 
 e2e-local-logs:
 	@echo "--- /tmp/api.log ---"
