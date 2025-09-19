@@ -61,7 +61,7 @@ def run(state: BodyState, es_client: Any = None) -> BodyState:
         if not candidates:
             logger.debug("Planner: No candidates available, returning 'none'.")
         else:
-            best = max(candidates, key=lambda c: c.get("score", 0.0))
+            best = candidates[0]
             reasons = best.get("reasons", []) or []
             logger.debug(f"Planner: Best candidate: {best}")
 

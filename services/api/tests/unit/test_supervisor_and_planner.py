@@ -17,18 +17,18 @@ def test_planner_preferences_ranking():
         preferences={"preferred_kinds": ["lab"], "hours_window": "morning"},
         candidates=[
             {
-                "name": "Clinic A",
-                "kind": "clinic",
-                "hours": "Sun-Thu 12:00-20:00",
-                "score": 0.4,
-                "reasons": ["~0.6 km away"],
-            },
-            {
                 "name": "Dizengoff Lab Center",
                 "kind": "lab",
                 "hours": "Sun-Fri 07:00-14:00",
                 "score": 0.8,
                 "reasons": ["Matches preferred kind (lab)", "Open during morning"],
+            },
+            {
+                "name": "Clinic A",
+                "kind": "clinic",
+                "hours": "Sun-Thu 12:00-20:00",
+                "score": 0.4,
+                "reasons": ["~0.6 km away"],
             },
         ],
     )

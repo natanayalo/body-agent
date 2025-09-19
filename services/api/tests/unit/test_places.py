@@ -54,7 +54,7 @@ def test_hours_windows_variants():
         "evening",
     }
     assert places._hours_windows("Fri 21:00-23:00") == {"evening"}
-    assert places._hours_windows("Sat 22:00-02:00") == set()
+    assert places._hours_windows("Sat 22:00-02:00") == {"evening"}
 
 
 def test_normalize_handles_zero_vector():

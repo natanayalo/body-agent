@@ -17,7 +17,7 @@ TLV = (32.0853, 34.7818)
 WINDOW_RANGES = {
     "morning": range(5, 12),
     "afternoon": range(12, 17),
-    "evening": range(17, 22),
+    "evening": range(17, 24),
 }
 
 
@@ -48,7 +48,7 @@ def _hours_windows(hours: str) -> set[str]:
     if end_hour > start_hour:
         span = list(range(start_hour, end_hour))
     else:
-        span = list(range(start_hour, end_hour + 24)) or [start_hour]
+        span = list(range(start_hour, end_hour + 24))
 
     buckets: set[str] = set()
     for window, hour_range in WINDOW_RANGES.items():

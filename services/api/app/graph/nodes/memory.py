@@ -17,7 +17,7 @@ def extract_preferences(facts: list[Dict[str, Any]]) -> Dict[str, Any]:
             continue
         name = (doc.get("name") or "").strip().lower()
         value = (doc.get("value") or "").strip()
-        if not name or value is None:
+        if not name or not value:
             continue
 
         if name in {"preferred_kind", "preferred_kinds"}:
