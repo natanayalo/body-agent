@@ -1,8 +1,9 @@
 from fastapi import FastAPI
-from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from starlette.routing import Route
 from pydantic import BaseModel, Field
 from typing import List, AsyncGenerator, Any, Dict, cast
+from string import Template
 import logging
 import os
 import re
@@ -34,7 +35,95 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Body Agent API", lifespan=lifespan)
+app = FastAPI(title="Body Agent API", lifespan=lifespan, docs_url=None, redoc_url=None)
+
+
+_REDOC_HTML = Template(
+    """
+<!DOCTYPE html>
+<html lang=\"en\">
+  <head>
+    <meta charset=\"UTF-8\" />
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />
+    <title>Body Agent API Docs</title>
+    <link rel=\"icon\" href=\"https://fastapi.tiangolo.com/img/favicon.png\" />
+    <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\" />
+    <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin />
+    <link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap\" rel=\"stylesheet\" />
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Inter', sans-serif;
+        background: #0f172a;
+        color: #e2e8f0;
+      }
+      #redoc-container {
+        height: 100vh;
+      }
+      .redoc-wrap {
+        background: #0f172a !important;
+      }
+      :root {
+        --color-primary: #60a5fa;
+        --color-text: #e2e8f0;
+        --color-sidebar: #111827;
+        --color-panel: #0b1120;
+      }
+    </style>
+  </head>
+  <body>
+    <div id=\"redoc-container\"></div>
+    <script src=\"https://cdn.jsdelivr.net/npm/redoc@2.1.3/bundles/redoc.standalone.js\"></script>
+    <script>
+      Redoc.init('$openapi_url', {
+        theme: {
+          colors: {
+            primary: { main: '#60a5fa' },
+            text: {
+              primary: '#e2e8f0',
+              secondary: '#94a3b8'
+            },
+            http: {
+              get: '#34d399',
+              post: '#60a5fa',
+              put: '#fbbf24',
+              delete: '#f87171'
+            }
+          },
+          sidebar: {
+            backgroundColor: '#111827',
+            textColor: '#cbd5f5'
+          },
+          rightPanel: {
+            backgroundColor: '#0b1120'
+          },
+          typography: {
+            fontFamily: 'Inter, sans-serif',
+            headings: {
+              fontFamily: 'Inter, sans-serif',
+              fontWeight: '600'
+            }
+          },
+          logo: {
+            maxHeight: '48px'
+          }
+        }
+      }, document.getElementById('redoc-container'));
+    </script>
+  </body>
+</html>
+"""
+)
+
+
+@app.get("/docs", include_in_schema=False)
+def redoc_docs() -> HTMLResponse:
+    html = _REDOC_HTML.substitute(openapi_url=app.openapi_url)
+    return HTMLResponse(html)
 
 
 class Query(BaseModel):
