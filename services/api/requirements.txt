@@ -13,6 +13,7 @@ scikit-learn==1.5.1
 langchain==0.2.6
 langgraph==0.2.76
 transformers==4.43.3
+scalar-fastapi==1.4.2
 
 # encryption
 cryptography==42.0.8

@@ -223,6 +223,10 @@ make eval
 
 The golden tests call `/api/graph/run` with English and Hebrew scenarios, assert intent/risk behavior, and verify citations stay deduplicated.
 
+### API Explorer
+
+Visit `http://localhost:8000/docs` for an interactive Scalar UI in dark mode. Every operation has “Try It” enabled, so you can exercise the graph directly from the browser without managing a custom Swagger theme.
+
 ### LLM Configuration
 
 Set `LLM_PROVIDER=ollama` (default `none`) to enable the answer generation node. When enabled, the graph invokes the provider after planning to craft a cited response.
