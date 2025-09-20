@@ -127,9 +127,10 @@ def _fallback_message(state: BodyState) -> str:
         for idx, snip in enumerate(snippets, start=1):
             title = snip.get("title") or snip.get("section") or "Guidance"
             text = snip.get("text") or ""
-            highlights.append(
-                f"[{idx}] {title}: {text[:FALLBACK_HIGHLIGHT_LENGTH].strip()}"
-            )
+            snippet = text.strip()
+            truncated = snippet[:FALLBACK_HIGHLIGHT_LENGTH].strip()
+            ellipsis = "..." if len(snippet) > FALLBACK_HIGHLIGHT_LENGTH else ""
+            highlights.append(f"[{idx}] {title}: {truncated}{ellipsis}")
         parts.append("Key points:\n" + "\n".join(highlights))
 
     triggers = _risk_triggers(state)

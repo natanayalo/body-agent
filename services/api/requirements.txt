@@ -14,6 +14,8 @@ langchain==0.2.6
 langgraph==0.2.76
 transformers==4.43.3
 scalar-fastapi==1.4.2
+ollama==0.5.4
+openai==1.108.1
 
 # encryption
 cryptography==42.0.8

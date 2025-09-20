@@ -234,6 +234,16 @@ Set `LLM_PROVIDER=ollama` (default `none`) to enable the answer generation node.
 - `OPENAI_API_KEY`/`OPENAI_MODEL` are used if you set `LLM_PROVIDER=openai`.
 If no provider is configured, the node is skipped and the pipeline behaves as before.
 
+Install the matching SDK so the node can import it. The API requirements include both
+`ollama` and `openai`; rebuild the container or reinstall the dependencies after pulling
+this branch:
+
+```
+docker compose build api
+# or, locally
+pip install -r services/api/requirements.txt
+```
+
 
 ### File Structure
 

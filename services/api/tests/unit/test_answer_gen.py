@@ -136,3 +136,40 @@ def test_call_openai_success(monkeypatch):
     finally:
         sys.modules.pop("openai", None)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+
+def test_call_openai_handles_empty_choices(monkeypatch):
+    import sys
+    import types
+
+    class FakeCompletions:
+        def create(self, model, messages):  # type: ignore[override]
+            assert model == "gpt-4o-mini"
+            return types.SimpleNamespace(choices=[])
+
+    class FakeClient:
+        def __init__(self, api_key):
+            assert api_key == "secret"
+            self.chat = types.SimpleNamespace(completions=FakeCompletions())
+
+    module = types.SimpleNamespace(OpenAI=FakeClient)
+    monkeypatch.setitem(sys.modules, "openai", module)
+    monkeypatch.setenv("OPENAI_API_KEY", "secret")
+
+    try:
+        content = answer_gen._call_openai("Summarise")
+        assert content is None
+    finally:
+        sys.modules.pop("openai", None)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+
+def test_fallback_highlights_include_ellipsis_when_truncated():
+    long_text = "A" * (answer_gen.FALLBACK_HIGHLIGHT_LENGTH + 20)
+    state = BodyState(
+        public_snippets=[{"title": "Long Guidance", "text": long_text}],
+    )
+
+    fallback = answer_gen._fallback_message(state)
+    assert "Long Guidance" in fallback
+    assert "..." in fallback
