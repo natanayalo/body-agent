@@ -13,10 +13,16 @@ DISCLAIMER = (
     "**Disclaimer:** This assistant does not replace professional medical advice."
 )
 URGENT_LINE = "If you develop concerning or worsening symptoms, seek urgent evaluation."
+FALLBACK_HIGHLIGHT_LENGTH = 160
+URGENT_TRIGGERS = {"urgent_care", "see_doctor"}
+
+
+def _resolve_provider() -> str:
+    return os.getenv("LLM_PROVIDER", settings.llm_provider).strip().lower()
 
 
 def _should_skip(state: BodyState) -> bool:
-    provider = os.getenv("LLM_PROVIDER", settings.llm_provider).strip().lower()
+    provider = _resolve_provider()
     return provider in {"", "none", "disabled"}
 
 
@@ -100,6 +106,9 @@ def _call_openai(prompt: str) -> str | None:
                 {"role": "user", "content": prompt},
             ],
         )
+        if not chat.choices:
+            logger.warning("OpenAI generation returned no choices")
+            return None
         return chat.choices[0].message.content  # type: ignore[index]
     except Exception as exc:  # pragma: no cover - depends on external runtime
         logger.warning("OpenAI generation failed: %s", exc)
@@ -118,7 +127,9 @@ def _fallback_message(state: BodyState) -> str:
         for idx, snip in enumerate(snippets, start=1):
             title = snip.get("title") or snip.get("section") or "Guidance"
             text = snip.get("text") or ""
-            highlights.append(f"[{idx}] {title}: {text[:160].strip()}")
+            highlights.append(
+                f"[{idx}] {title}: {text[:FALLBACK_HIGHLIGHT_LENGTH].strip()}"
+            )
         parts.append("Key points:\n" + "\n".join(highlights))
 
     triggers = _risk_triggers(state)
@@ -135,7 +146,7 @@ def _fallback_message(state: BodyState) -> str:
 def _build_reply(content: str, state: BodyState) -> str:
     triggers = _risk_triggers(state)
     sections = [content.strip(), DISCLAIMER]
-    if any(t in {"urgent_care", "see_doctor"} for t in triggers):
+    if any(t in URGENT_TRIGGERS for t in triggers):
         sections.append(URGENT_LINE)
     return "\n\n".join(section for section in sections if section)
 
@@ -153,7 +164,7 @@ def run(state: BodyState) -> BodyState:
     if _should_skip(state):
         return state
 
-    provider = os.getenv("LLM_PROVIDER", settings.llm_provider).strip().lower()
+    provider = _resolve_provider()
     prompt = _build_prompt(state)
     content = _generate_with_provider(provider, prompt)
     if not content:
