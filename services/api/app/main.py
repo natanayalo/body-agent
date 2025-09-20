@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from starlette.routing import Route
 from pydantic import BaseModel, Field
 from typing import List, AsyncGenerator, Any, Dict, cast
@@ -18,6 +18,7 @@ from contextlib import asynccontextmanager
 
 from app.tools.embeddings import embed
 from app.tools.crypto import encrypt_for_user
+from scalar_fastapi import Layout, Theme, get_scalar_api_reference
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,20 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Body Agent API", lifespan=lifespan)
+app = FastAPI(title="Body Agent API", lifespan=lifespan, docs_url=None, redoc_url=None)
+
+
+@app.get("/docs", include_in_schema=False)
+def scalar_docs() -> HTMLResponse:
+    return get_scalar_api_reference(
+        openapi_url=app.openapi_url,
+        title="Body Agent API Docs",
+        layout=Layout.MODERN,
+        theme=Theme.DEEP_SPACE,
+        hide_models=True,
+        hide_client_button=True,
+        hide_download_button=True,
+    )
 
 
 class Query(BaseModel):
