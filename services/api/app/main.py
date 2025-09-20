@@ -18,7 +18,7 @@ from contextlib import asynccontextmanager
 
 from app.tools.embeddings import embed
 from app.tools.crypto import encrypt_for_user
-from scalar_fastapi import get_scalar_api_reference
+from scalar_fastapi import Layout, Theme, get_scalar_api_reference
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +43,11 @@ def scalar_docs() -> HTMLResponse:
     return get_scalar_api_reference(
         openapi_url=app.openapi_url,
         title="Body Agent API Docs",
-        layout="modern",
-        theme="dark",
+        layout=Layout.MODERN,
+        theme=Theme.DARK,
         hide_models=True,
-        hide_download_button=True,
         hide_client_button=True,
+        hide_download_button=True,
     )
 
 
