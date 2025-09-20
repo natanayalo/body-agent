@@ -44,7 +44,7 @@ def scalar_docs() -> HTMLResponse:
         openapi_url=app.openapi_url,
         title="Body Agent API Docs",
         layout=Layout.MODERN,
-        theme=Theme.DARK,
+        theme=Theme.DEEP_SPACE,
         hide_models=True,
         hide_client_button=True,
         hide_download_button=True,
