@@ -8,12 +8,17 @@ This folder keeps the long-running planning artifacts for the Body Agent project
 | `high-level-design.md` | Current architecture blueprint: service layout, data flow, and node responsibilities. Update when major structural decisions change. |
 | `update.md` | Running commentary on what we adopted (or rejected) from external reviews and why. Treat as design rationale. |
 | `pull_request_template.md` | Active PR stack. Describes the next slice of work, acceptance criteria, and code pointers. Keep this aligned with what’s actually in flight. |
-| `ideas.md` | Backlog of forward-looking ideas (symptom flexibility, connectors, etc.). Move items into the PR stack when they’re ready to ship. |
+| `ideas.md` | Idea catalogue grouped by **status** (shipped / scheduled / backlog). Promote items into the PR stack when they move from backlog → scheduled. |
 
 ## How to Use
 
+### Working With These Docs
+
 1. **Review `pull_request_template.md` first** – it reflects the current sequence of actionable PRs.
-2. **Consult `ideas.md` for scoped concepts** that are not yet scheduled. Promote them when capacity opens up.
+2. **Consult `ideas.md`**:
+   - ✅ entries are already shipped (handy for reference or documentation).
+   - 🔄 entries are scheduled/in the current PR stack.
+   - 🧭 entries are backlog items to consider next.
 3. **Update `high-level-design.md`** when architectural changes land so newcomers have an accurate mental model.
 4. **Capture trade-offs in `update.md`** whenever we accept or reject major suggestions (internal or external reviews).
 
