@@ -204,7 +204,7 @@ def test_watches_exemplars_for_changes(monkeypatch, tmp_path):
     importlib.reload(sup)
 
     # With no appointment exemplars, a booking query should abstain to other
-    assert sup.detect_intent("book a lab appointment") in {"other", "appointment"}
+    assert sup.detect_intent("book a lab appointment") == "other"
 
     # Now add appointment exemplars and bump mtime by rewriting the file
     mapping["appointment"] = ["book a lab", "schedule a doctor visit"]
@@ -215,4 +215,4 @@ def test_watches_exemplars_for_changes(monkeypatch, tmp_path):
 
     # After change, watch should reload and improve routing
     out = sup.detect_intent("book a lab appointment")
-    assert out in {"appointment", "other"}
+    assert out == "appointment"

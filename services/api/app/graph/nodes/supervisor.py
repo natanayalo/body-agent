@@ -82,7 +82,7 @@ def _parse_jsonl_exemplars(lines: List[str]) -> Dict[str, List[str]]:
             continue
         try:
             rec = json.loads(line)
-        except Exception:
+        except json.JSONDecodeError:
             continue
         intent = rec.get("intent") or rec.get("label")
         text = rec.get("text") or rec.get("example")
@@ -107,7 +107,7 @@ def _load_exemplars() -> Dict[str, List[str]]:
             if data:
                 try:
                     _EX_MTIME = os.path.getmtime(path)
-                except Exception:
+                except OSError:
                     _EX_MTIME = None
                 logging.info(f"Loaded intent exemplars from {path}")
                 return data
@@ -115,7 +115,7 @@ def _load_exemplars() -> Dict[str, List[str]]:
                 f"Exemplars file {path} is empty or malformed, using default exemplars."
             )
             return _DEFAULT_EXAMPLES
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             logging.error(
                 f"Failed to load intent exemplars from {path}: {e}", exc_info=True
             )
@@ -150,7 +150,7 @@ def _maybe_reload() -> None:
         return
     try:
         mtime = os.path.getmtime(path)
-    except Exception:
+    except OSError:
         return
     global _EX_MTIME, _EXEMPLARS
     if _EX_MTIME is None or mtime > _EX_MTIME:
