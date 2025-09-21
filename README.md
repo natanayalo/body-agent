@@ -234,6 +234,17 @@ Set `LLM_PROVIDER=ollama` (default `none`) to enable the answer generation node.
 - `OPENAI_API_KEY`/`OPENAI_MODEL` are used if you set `LLM_PROVIDER=openai`.
 If no provider is configured, the node is skipped and the pipeline behaves as before.
 
+The API auto-detects the user query language (English or Hebrew). You can override detection by adding `lang=en`/`lang=he` to requests. The answer generator uses localized prompts/disclaimers and will prefer snippets that match the selected language, falling back to the remaining sources when needed.
+
+### Debugging Aids
+
+Two helper endpoints expose the most recent run metadata:
+
+- `/api/debug/trace` – returns the ordered list of graph nodes with per-node execution time (milliseconds) and the ISO timestamp for the latest run.
+- `/api/debug/risk` – surfaces the last ML risk classification payload along with the configured labels and thresholds.
+
+These are handy when tuning routing or adjusting risk thresholds in development.
+
 Install the matching SDK so the node can import it. The API requirements include both
 `ollama` and `openai`; rebuild the container or reinstall the dependencies after pulling
 this branch:
