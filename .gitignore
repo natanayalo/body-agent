@@ -57,6 +57,3 @@ data/
 .pytest_cache/
 .coverage
 coverage*
-
-# pr template
-plan/

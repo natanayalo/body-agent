@@ -14,6 +14,7 @@ Use the status column to see whether an idea is already shipped, queued up in th
 | --- | --- | --- | --- |
 | ✅ | PII scrubber node | Incoming queries are scrubbed for PII before any external connector runs. | Implemented via `scrub.run`; keep extending regexes as new connectors appear. |
 | ✅ | Debug trace & risk endpoints | `/api/debug/trace` records node order/timings; `/api/debug/risk` shows last classification + thresholds. | Added in PR 12 for observability. |
+| ✅ | ICS generator | Generate calendar `.ics` files with unique filenames for scheduling flows. | Baseline calendar UX without external sync. |
 
 ## Scheduled (see `pull_request_template.md`)
 
@@ -41,6 +42,7 @@ Use the status column to see whether an idea is already shipped, queued up in th
 | 🧭 | CalDAV connector | Sync with self-hosted CalDAV servers behind feature flag; expose `calendar_mode`. | Ensure scrubber runs before outbound calls; consider ICS fallback. |
 | 🧭 | Google Calendar OAuth | Optional Google sync gated behind explicit env flag. | Requires secure token storage + consent flow. |
 | 🧭 | MCP adapters for health sites | Domain-restricted web search (gov/edu/WHO) behind toggle. | Must pass scrubber + rate limiting. |
+| 🧭 | Domain allow-list enforcement | Enforce and document a strict domain allow-list for any outbound web connector. | Configurable via env; fail closed. |
 
 ### Observability & Evaluation
 
@@ -48,6 +50,14 @@ Use the status column to see whether an idea is already shipped, queued up in th
 | --- | --- | --- | --- |
 | 🧭 | Risk eval harness | Extend the golden tests with EN/HE prompts geared toward tuning risk thresholds. | Helps sanity-check NLI thresholds before release. |
 | 🧭 | Request-id propagation | Attach per-run UUID through logs/debug endpoints so multi-user debugging stays sane. | Works well with new trace endpoint; consider log format change. |
+| 🧭 | Structured, PII-safe logs | Emit structured application logs (no raw user text) to improve debugging without privacy risk. | Align with scrubber; document redaction guarantees. |
+| 🧭 | Risk highest-severity gating | Show only the single highest-severity ML risk banner (urgent_care > see_doctor) to avoid stacking. | Keep full scores in debug payload. |
+
+### Security & Privacy
+
+| Status | Idea | Summary | Notes |
+| --- | --- | --- | --- |
+| 🧭 | Client-side encryption plan | Encrypt `private_user_memory` values client-side (field-level) when remote storage is used. | Keys per user; ties into tenancy story.
 
 ### Miscellaneous
 
