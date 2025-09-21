@@ -159,7 +159,9 @@ def healthz():
 
 @app.get("/api/debug/risk")
 def debug_risk():
-    thresholds = risk_ml._parse_thresholds(os.getenv("RISK_THRESHOLDS", ""))
+    thresholds = risk_ml._parse_thresholds(
+        os.getenv("RISK_THRESHOLDS", "urgent_care:0.55,see_doctor:0.50")
+    )
     labels = [
         s.strip()
         for s in os.getenv(

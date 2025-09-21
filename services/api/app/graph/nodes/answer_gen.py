@@ -6,7 +6,7 @@ from typing import List, Tuple
 
 from app.config import settings
 from app.graph.state import BodyState
-from app.tools.language import DEFAULT_LANGUAGE, normalize_language_code
+from app.tools.language import DEFAULT_LANGUAGE
 
 logger = logging.getLogger(__name__)
 
@@ -56,11 +56,11 @@ def _resolve_provider() -> str:
 
 
 def _language_config(state: BodyState) -> Tuple[str, dict]:
-    lang: str = DEFAULT_LANGUAGE
+    lang_choice: str = DEFAULT_LANGUAGE
     lang_value = state.get("language")
     if isinstance(lang_value, str) and lang_value in LANG_CONFIG:
-        lang = lang_value
-    return lang, LANG_CONFIG[lang]
+        lang_choice = lang_value
+    return lang_choice, LANG_CONFIG[lang_choice]
 
 
 def _should_skip(state: BodyState) -> bool:
@@ -78,7 +78,7 @@ def _build_prompt(state: BodyState) -> str:
     user_query = state.get("user_query_redacted", state.get("user_query", ""))
     snippets = state.get("public_snippets", []) or []
     memory_facts = state.get("memory_facts", []) or []
-    preferred_lang, config = _language_config(state)
+    _, config = _language_config(state)
     parts: List[str] = [
         *config["prompt_intro"],
         f"{config['user_question_label']} {user_query}",
@@ -166,25 +166,18 @@ def _fallback_message(state: BodyState) -> str:
 
     snippets = state.get("public_snippets", []) or []
     if snippets:
-        preferred_highlights: List[str] = []
-        fallback_highlights: List[str] = []
+        highlights: List[str] = []
         for idx, snip in enumerate(snippets, start=1):
             title = snip.get("title") or snip.get("section") or "Guidance"
             text = snip.get("text") or ""
             snippet = text.strip()
             truncated = snippet[:FALLBACK_HIGHLIGHT_LENGTH].strip()
             ellipsis = "..." if len(snippet) > FALLBACK_HIGHLIGHT_LENGTH else ""
-            highlight = f"[{idx}] {title}: {truncated}{ellipsis}"
-            fallback_highlights.append(highlight)
+            highlights.append(f"[{idx}] {title}: {truncated}{ellipsis}")
 
-            snippet_lang = normalize_language_code(snip.get("language"))
-            if snippet_lang == preferred_lang:
-                preferred_highlights.append(highlight)
-
-        selected = preferred_highlights or fallback_highlights
-        if selected:
+        if highlights:
             parts.append(
-                f"{config['fallback_key_points_label']}\n" + "\n".join(selected)
+                f"{config['fallback_key_points_label']}\n" + "\n".join(highlights)
             )
 
     triggers = _risk_triggers(state)
