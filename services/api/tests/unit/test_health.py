@@ -310,3 +310,18 @@ def test_health_messages_not_empty_and_messages_generated(monkeypatch):
         "I found guidance and possible warnings." in msg["content"]
         for msg in result_state.get("messages", [])
     )
+
+
+def test_prioritize_language_moves_preferred_docs_first():
+    docs = [
+        {"title": "English Guidance", "language": "en"},
+        {"title": "הנחיות בעברית", "language": "he"},
+        {"title": "Second English", "language": "en"},
+    ]
+
+    ordered = health._prioritize_language(docs, "he")
+    assert ordered[0]["title"] == "הנחיות בעברית"
+    assert {doc["title"] for doc in ordered[1:]} == {
+        "English Guidance",
+        "Second English",
+    }

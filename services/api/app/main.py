@@ -1,19 +1,22 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Query as QueryParam
 from fastapi.responses import HTMLResponse, StreamingResponse
 from starlette.routing import Route
 from pydantic import BaseModel, Field
-from typing import List, AsyncGenerator, Any, Dict, cast
+from typing import List, AsyncGenerator, Any, Dict, cast, Literal
 import logging
 import os
 import re
 import json
+from datetime import datetime, timezone
 
 from app.config import settings
 from app.config.logging import configure_logging
 
 from app.tools.es_client import ensure_indices, get_es_client
 from app.graph.state import BodyState
+from app.tools.language import normalize_language_code
 from app.graph.build import build_graph
+from app.graph.nodes import risk_ml
 from contextlib import asynccontextmanager
 
 from app.tools.embeddings import embed
@@ -32,6 +35,9 @@ async def lifespan(app: FastAPI):
     else:
         ensure_indices()
     app.state.graph = build_graph()
+    app.state.last_trace = []
+    app.state.last_risk = {}
+    app.state.last_run_completed_at = None
     yield
 
 
@@ -54,16 +60,34 @@ def scalar_docs() -> HTMLResponse:
 class Query(BaseModel):
     user_id: str = Field(..., min_length=1)
     query: str = Field(..., min_length=1)
+    lang: str | None = Field(default=None, min_length=2, max_length=5)
+
+
+def _initial_state(q: Query, lang_override: str | None) -> BodyState:
+    state: BodyState = {"user_id": q.user_id, "user_query": q.query, "messages": []}
+    normalized = normalize_language_code(lang_override or q.lang)
+    if normalized:
+        state["language"] = cast(Literal["en", "he"], normalized)
+    return state
+
+
+def _record_run_metadata(final_state: BodyState) -> None:
+    debug = final_state.get("debug") or {}
+    trace = debug.get("trace") or []
+    app.state.last_trace = list(trace)
+    app.state.last_risk = debug.get("risk", {})
+    app.state.last_run_completed_at = datetime.now(timezone.utc).isoformat()
 
 
 @app.post("/api/graph/run")
-async def run_graph(q: Query):
+async def run_graph(q: Query, lang: str | None = QueryParam(default=None)):
     logger.info(f"Running graph for user {q.user_id}")
     try:
-        state: BodyState = {"user_id": q.user_id, "user_query": q.query, "messages": []}
+        state = _initial_state(q, lang)
         final_state = await app.state.graph.ainvoke(state)
         logger.debug(f"Query: {final_state.get('user_query_redacted', q.query)}")
         logger.info(f"Graph run completed for user {q.user_id}")
+        _record_run_metadata(final_state)
         return {"state": final_state}
     except Exception as e:
         logger.error(f"Graph run failed for user {q.user_id}: {str(e)}", exc_info=True)
@@ -71,9 +95,11 @@ async def run_graph(q: Query):
 
 
 @app.post("/api/graph/stream")
-async def stream_graph(q: Query) -> StreamingResponse:
+async def stream_graph(
+    q: Query, lang: str | None = QueryParam(default=None)
+) -> StreamingResponse:
     logger.info(f"Streaming graph for user {q.user_id}")
-    state: BodyState = {"user_id": q.user_id, "user_query": q.query, "messages": []}
+    state = _initial_state(q, lang)
 
     async def _stream_chunks() -> AsyncGenerator[str, None]:
         try:
@@ -107,6 +133,7 @@ async def stream_graph(q: Query) -> StreamingResponse:
 
             yield f"data: {json.dumps({'final': {'state': final_state}})}\n\n"
             logger.info(f"Graph stream completed for user {q.user_id}")
+            _record_run_metadata(final_state)
         except Exception as e:
             logger.error(
                 f"Graph stream failed for user {q.user_id}: {str(e)}", exc_info=True
@@ -118,16 +145,41 @@ async def stream_graph(q: Query) -> StreamingResponse:
 
 
 @app.post("/api/run")
-async def run_legacy(q: Query):
+async def run_legacy(q: Query, lang: str | None = QueryParam(default=None)):
     """Legacy endpoint; now routes through the compiled LangGraph graph."""
     logger.info(f"Legacy endpoint called for user {q.user_id}")
-    return await run_graph(q)
+    return await run_graph(q, lang)
 
 
 # Simple health and route inspection
 @app.get("/healthz")
 def healthz():
     return {"ok": True}
+
+
+@app.get("/api/debug/risk")
+def debug_risk():
+    thresholds = risk_ml._parse_thresholds(os.getenv("RISK_THRESHOLDS", ""))
+    labels = [
+        s.strip()
+        for s in os.getenv(
+            "RISK_LABELS", "urgent_care,see_doctor,self_care,info_only"
+        ).split(",")
+        if s.strip()
+    ]
+    return {
+        "last": getattr(app.state, "last_risk", {}),
+        "thresholds": thresholds,
+        "labels": labels,
+    }
+
+
+@app.get("/api/debug/trace")
+def debug_trace():
+    return {
+        "completed_at": getattr(app.state, "last_run_completed_at", None),
+        "trace": getattr(app.state, "last_trace", []),
+    }
 
 
 # Helper endpoints for demo: add a medication to private memory (upsert)

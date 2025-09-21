@@ -63,7 +63,9 @@ def fake_embed(monkeypatch):
 
     def _vec(text: str):
         t = text.lower()
-        if any(k in t for k in ["fever", "חום", "pain", "headache"]):
+        if any(
+            k in t for k in ["fever", "חום", "pain", "headache", "בטן", "כאבי", "כאב"]
+        ):
             return [1.0, 0.0, 0.0]
         if any(k in t for k in ["book", "appointment", "lab", "קבע", "תור"]):
             return [0.0, 1.0, 0.0]

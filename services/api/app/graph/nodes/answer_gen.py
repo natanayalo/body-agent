@@ -2,23 +2,65 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import List
+from typing import List, Tuple
 
 from app.config import settings
 from app.graph.state import BodyState
+from app.tools.language import DEFAULT_LANGUAGE, normalize_language_code
 
 logger = logging.getLogger(__name__)
 
-DISCLAIMER = (
-    "**Disclaimer:** This assistant does not replace professional medical advice."
-)
-URGENT_LINE = "If you develop concerning or worsening symptoms, seek urgent evaluation."
+LANG_CONFIG = {
+    "en": {
+        "prompt_intro": [
+            "You are a cautious health assistant. Summarise guidance based strictly on the provided data.",
+            "Avoid diagnoses; cite numbered sources when available.",
+        ],
+        "user_question_label": "User question:",
+        "sources_label": "Sources:",
+        "context_label": "Relevant personal context:",
+        "risk_flags_label": "Risk flags triggered:",
+        "fallback_summary_label": "Summary for:",
+        "fallback_key_points_label": "Key points:",
+        "fallback_risk_label": "Risk notice:",
+        "fallback_empty": "Here is a recap based on the available information.",
+        "disclaimer": "**Disclaimer:** This assistant does not replace professional medical advice.",
+        "urgent_line": "If you develop concerning or worsening symptoms, seek urgent evaluation.",
+    },
+    "he": {
+        "prompt_intro": [
+            "אתה עוזר בריאות זהיר. סכם הנחיות על בסיס המידע שסופק בלבד.",
+            "הימנע מאבחנות; ציין מקורות ממוספרים כשאפשר.",
+        ],
+        "user_question_label": "שאלת המשתמש:",
+        "sources_label": "מקורות:",
+        "context_label": "הקשר אישי רלוונטי:",
+        "risk_flags_label": "התראות סיכון:",
+        "fallback_summary_label": "סיכום עבור:",
+        "fallback_key_points_label": "נקודות עיקריות:",
+        "fallback_risk_label": "התראת סיכון:",
+        "fallback_empty": "להלן סיכום המבוסס על המידע הזמין.",
+        "disclaimer": "**הבהרה:** הכלי אינו מחליף ייעוץ רפואי מקצועי.",
+        "urgent_line": "אם תופיע החמרה או תסמינים מדאיגים, פנו לטיפול דחוף.",
+    },
+}
+
+DISCLAIMER = LANG_CONFIG[DEFAULT_LANGUAGE]["disclaimer"]
+URGENT_LINE = LANG_CONFIG[DEFAULT_LANGUAGE]["urgent_line"]
 FALLBACK_HIGHLIGHT_LENGTH = 160
 URGENT_TRIGGERS = {"urgent_care", "see_doctor"}
 
 
 def _resolve_provider() -> str:
     return os.getenv("LLM_PROVIDER", settings.llm_provider).strip().lower()
+
+
+def _language_config(state: BodyState) -> Tuple[str, dict]:
+    lang: str = DEFAULT_LANGUAGE
+    lang_value = state.get("language")
+    if isinstance(lang_value, str) and lang_value in LANG_CONFIG:
+        lang = lang_value
+    return lang, LANG_CONFIG[lang]
 
 
 def _should_skip(state: BodyState) -> bool:
@@ -36,10 +78,10 @@ def _build_prompt(state: BodyState) -> str:
     user_query = state.get("user_query_redacted", state.get("user_query", ""))
     snippets = state.get("public_snippets", []) or []
     memory_facts = state.get("memory_facts", []) or []
+    preferred_lang, config = _language_config(state)
     parts: List[str] = [
-        "You are a cautious health assistant. Summarise guidance based strictly on the provided data.",
-        "Avoid diagnoses; cite numbered sources when available.",
-        f"User question: {user_query}",
+        *config["prompt_intro"],
+        f"{config['user_question_label']} {user_query}",
     ]
 
     if snippets:
@@ -47,18 +89,18 @@ def _build_prompt(state: BodyState) -> str:
             f"[{idx+1}] {snip.get('title', 'Untitled')} - {snip.get('section', '')}: {snip.get('text', '')}"
             for idx, snip in enumerate(snippets)
         ]
-        parts.append("Sources:\n" + "\n".join(formatted))
+        parts.append(f"{config['sources_label']}\n" + "\n".join(formatted))
 
     if memory_facts:
         memories = [
             f"- {fact.get('entity', 'fact')}: {fact.get('name', fact.get('value', ''))}"
             for fact in memory_facts
         ]
-        parts.append("Relevant personal context:\n" + "\n".join(memories))
+        parts.append(f"{config['context_label']}\n" + "\n".join(memories))
 
     triggers = _risk_triggers(state)
     if triggers:
-        parts.append("Risk flags triggered: " + ", ".join(triggers))
+        parts.append(f"{config['risk_flags_label']} " + ", ".join(triggers))
 
     return "\n\n".join(parts)
 
@@ -116,39 +158,48 @@ def _call_openai(prompt: str) -> str | None:
 
 
 def _fallback_message(state: BodyState) -> str:
+    preferred_lang, config = _language_config(state)
     parts: List[str] = []
     user_query = state.get("user_query_redacted", state.get("user_query", ""))
     if user_query:
-        parts.append(f"Summary for: {user_query}")
+        parts.append(f"{config['fallback_summary_label']} {user_query}")
 
     snippets = state.get("public_snippets", []) or []
     if snippets:
-        highlights = []
+        preferred_highlights: List[str] = []
+        fallback_highlights: List[str] = []
         for idx, snip in enumerate(snippets, start=1):
             title = snip.get("title") or snip.get("section") or "Guidance"
             text = snip.get("text") or ""
             snippet = text.strip()
             truncated = snippet[:FALLBACK_HIGHLIGHT_LENGTH].strip()
             ellipsis = "..." if len(snippet) > FALLBACK_HIGHLIGHT_LENGTH else ""
-            highlights.append(f"[{idx}] {title}: {truncated}{ellipsis}")
-        parts.append("Key points:\n" + "\n".join(highlights))
+            highlight = f"[{idx}] {title}: {truncated}{ellipsis}"
+            fallback_highlights.append(highlight)
+
+            snippet_lang = normalize_language_code(snip.get("language"))
+            if snippet_lang == preferred_lang:
+                preferred_highlights.append(highlight)
+
+        selected = preferred_highlights or fallback_highlights
+        if selected:
+            parts.append(
+                f"{config['fallback_key_points_label']}\n" + "\n".join(selected)
+            )
 
     triggers = _risk_triggers(state)
     if triggers:
-        parts.append("Risk notice: " + ", ".join(triggers))
+        parts.append(f"{config['fallback_risk_label']} " + ", ".join(triggers))
 
-    return (
-        "\n\n".join(parts)
-        if parts
-        else "Here is a recap based on the available information."
-    )
+    return "\n\n".join(parts) if parts else config["fallback_empty"]
 
 
 def _build_reply(content: str, state: BodyState) -> str:
     triggers = _risk_triggers(state)
-    sections = [content.strip(), DISCLAIMER]
+    _, config = _language_config(state)
+    sections = [content.strip(), config["disclaimer"]]
     if any(t in URGENT_TRIGGERS for t in triggers):
-        sections.append(URGENT_LINE)
+        sections.append(config["urgent_line"])
     return "\n\n".join(section for section in sections if section)
 
 

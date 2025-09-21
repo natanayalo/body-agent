@@ -4,6 +4,7 @@ from app.graph.state import BodyState
 from app.tools.es_client import get_es_client
 from app.tools.embeddings import embed
 from app.config import settings
+from app.tools.language import DEFAULT_LANGUAGE, normalize_language_code
 from elasticsearch import TransportError, RequestError
 
 logger = logging.getLogger(__name__)
@@ -31,12 +32,34 @@ def _norm_med_terms(mem_facts: list[dict]) -> list[str]:
     return out
 
 
+def _preferred_language(state: BodyState) -> str:
+    lang = state.get("language")
+    normalized = normalize_language_code(lang) if lang else None
+    return normalized or DEFAULT_LANGUAGE
+
+
+def _prioritize_language(docs: list[dict], preferred: str) -> list[dict]:
+    if not docs:
+        return docs
+
+    primary, secondary = [], []
+    for doc in docs:
+        doc_lang_raw = doc.get("language")
+        doc_lang = normalize_language_code(doc_lang_raw) if doc_lang_raw else None
+        if doc_lang == preferred:
+            primary.append(doc)
+        else:
+            secondary.append(doc)
+    return primary + secondary
+
+
 def run(state: BodyState, es_client=None) -> BodyState:
     q = state.get("user_query_redacted", state["user_query"])
     mem = state.get("memory_facts") or []
     med_terms = _norm_med_terms(mem)
     es = es_client if es_client else get_es_client()
     docs = []
+    preferred_lang = _preferred_language(state)
 
     # Try kNN firs
     try:
@@ -85,6 +108,8 @@ def run(state: BodyState, es_client=None) -> BodyState:
             logger.error(
                 f"An unexpected error occurred during BM25 search: {e}", exc_info=True
             )
+
+    docs = _prioritize_language(docs, preferred_lang)
 
     # Build alerts & citations
     alerts = state.get("alerts", [])
