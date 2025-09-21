@@ -149,3 +149,21 @@ def test_detect_intent_with_unknown_intent_in_exemplars(monkeypatch, fake_embed)
 
     intent = supervisor.detect_intent("query for unknown")
     assert intent == "other"
+
+
+def test_detect_intent_hebrew_restaurant(monkeypatch, fake_embed):
+    import importlib
+
+    importlib.reload(supervisor)
+
+    intent = supervisor.detect_intent("איפה אפשר לאכול לידי?")
+    assert intent == "other"
+
+
+def test_detect_intent_hebrew_stomach_pain(monkeypatch):
+    import importlib
+
+    importlib.reload(supervisor)
+
+    intent = supervisor.detect_intent("מה אפשר לקחת כדי להקל על כאבי בטן?")
+    assert intent == "symptom"

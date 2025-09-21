@@ -173,3 +173,61 @@ def test_fallback_highlights_include_ellipsis_when_truncated():
     fallback = answer_gen._fallback_message(state)
     assert "Long Guidance" in fallback
     assert "..." in fallback
+
+
+def test_answer_gen_hebrew_fallback(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+
+    def no_generation(provider: str, prompt: str):
+        assert provider == "ollama"
+        return None
+
+    monkeypatch.setattr(answer_gen, "_generate_with_provider", no_generation)
+
+    state = BodyState(
+        user_query="יש לי חום",
+        user_query_redacted="יש לי חום",
+        public_snippets=[
+            {
+                "title": "חום גבוה",
+                "section": "כללי",
+                "text": "מומלץ לנוח ולשתות הרבה מים",
+                "language": "he",
+            }
+        ],
+        messages=[],
+        language="he",
+    )
+
+    out = answer_gen.run(state)
+    message = out["messages"][-1]
+    assert answer_gen.LANG_CONFIG["he"]["disclaimer"] in message["content"]
+    assert "נקודות עיקריות" in message["content"]
+
+
+def test_answer_gen_hebrew_fallback_uses_english_when_needed(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+
+    def no_generation(provider: str, prompt: str):
+        return None
+
+    monkeypatch.setattr(answer_gen, "_generate_with_provider", no_generation)
+
+    state = BodyState(
+        user_query="חיפוש",
+        public_snippets=[
+            {
+                "title": "Fever Home Care",
+                "section": "general",
+                "text": "Hydrate well; rest; light clothing.",
+                "language": "en",
+            }
+        ],
+        messages=[],
+        language="he",
+    )
+
+    out = answer_gen.run(state)
+    message = out["messages"][-1]["content"]
+    assert "נקודות עיקריות" in message
+    assert "Fever Home Care" in message

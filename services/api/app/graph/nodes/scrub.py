@@ -1,6 +1,7 @@
 import re
 from typing import cast
 from app.graph.state import BodyState
+from app.tools.language import resolve_language, normalize_language_code
 
 
 def run(state: BodyState) -> BodyState:
@@ -24,5 +25,10 @@ def run(state: BodyState) -> BodyState:
     new_state = dict(state)  # Make a copy
     new_state["user_query"] = red
     new_state["user_query_redacted"] = red
+    existing = new_state.get("language")
+    normalized = normalize_language_code(
+        existing if isinstance(existing, str) else None
+    )
+    new_state["language"] = normalized or resolve_language(None, txt)
 
     return cast(BodyState, new_state)

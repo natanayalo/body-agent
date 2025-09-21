@@ -20,6 +20,9 @@ _DEFAULT_EXAMPLES: Dict[str, List[str]] = {
         "יש לי חום",
         "כואב לי הראש",
         "אני מרגיש חלש",
+        "כואבת לי הבטן",
+        "כאבי בטן",
+        "מה אפשר לקחת לכאבי בטן",
     ],
     "meds": [
         "refill my prescription",
@@ -47,6 +50,15 @@ _DEFAULT_EXAMPLES: Dict[str, List[str]] = {
         "הוסף תזכורת",
         "בדיקה שבועית",
     ],
+    "other": [
+        "where can I eat near me",
+        "find a restaurant nearby",
+        "what's a good place to eat",
+        "recommend activities",
+        "איפה אפשר לאכול",
+        "מסעדה ליד הבית",
+        "מה לעשות הערב",
+    ],
 }
 
 
@@ -60,7 +72,7 @@ def _load_exemplars() -> Dict[str, List[str]]:
             # Ensure only known intents & non-empty strings
             out = {}
             for k, vals in data.items():
-                if k in {"symptom", "meds", "appointment", "routine"}:
+                if k in {"symptom", "meds", "appointment", "routine", "other"}:
                     out[k] = [v for v in vals if isinstance(v, str) and v.strip()]
             if out:
                 logging.info(f"Loaded intent exemplars from {path}")
@@ -104,7 +116,7 @@ def detect_intent(
     top, s_top = ordered[0]
     s_second = ordered[1][1] if len(ordered) > 1 else -1.0
     if s_top >= _THRESHOLD and (s_top - s_second) >= _MARGIN:
-        if top in {"symptom", "meds", "appointment", "routine"}:
+        if top in {"symptom", "meds", "appointment", "routine", "other"}:
             return top  # type: ignore
         else:
             return "other"

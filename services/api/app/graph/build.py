@@ -1,4 +1,7 @@
 from langgraph.graph import StateGraph, END
+from time import perf_counter
+from typing import Callable
+
 from app.graph.state import BodyState
 from app.graph.nodes import (
     supervisor,
@@ -24,17 +27,33 @@ def _route_after_memory(state: BodyState) -> str:
     return "planner"
 
 
+def _wrap_node(
+    name: str, fn: Callable[[BodyState], BodyState]
+) -> Callable[[BodyState], BodyState]:
+    def wrapped(state: BodyState) -> BodyState:
+        start = perf_counter()
+        result = fn(state)
+        elapsed_ms = (perf_counter() - start) * 1000.0
+        target = result if isinstance(result, dict) else state
+        debug = target.setdefault("debug", {})
+        trace = debug.setdefault("trace", [])
+        trace.append({"node": name, "elapsed_ms": elapsed_ms})
+        return result
+
+    return wrapped
+
+
 def build_graph():
     g = StateGraph(BodyState)
-    g.add_node("supervisor", supervisor.run)
-    g.add_node("scrub", scrub.run)
-    g.add_node("memory", memory.run)
-    g.add_node("health", health.run)
-    g.add_node("risk_ml", risk_ml.run)
-    g.add_node("places", places.run)
-    g.add_node("planner", planner.run)
-    g.add_node("answer_gen", answer_gen.run)
-    g.add_node("critic", critic.run)
+    g.add_node("supervisor", _wrap_node("supervisor", supervisor.run))
+    g.add_node("scrub", _wrap_node("scrub", scrub.run))
+    g.add_node("memory", _wrap_node("memory", memory.run))
+    g.add_node("health", _wrap_node("health", health.run))
+    g.add_node("risk_ml", _wrap_node("risk_ml", risk_ml.run))
+    g.add_node("places", _wrap_node("places", places.run))
+    g.add_node("planner", _wrap_node("planner", planner.run))
+    g.add_node("answer_gen", _wrap_node("answer_gen", answer_gen.run))
+    g.add_node("critic", _wrap_node("critic", critic.run))
 
     g.set_entry_point("scrub")
     g.add_edge("scrub", "supervisor")

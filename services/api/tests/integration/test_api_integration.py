@@ -116,6 +116,73 @@ def test_symptom_flow_with_stub_risk(client, fake_es, fake_pipe, sample_docs):
     assert not any("ML risk" in a for a in alerts)
 
 
+def test_hebrew_query_prefers_hebrew_snippets(
+    monkeypatch, client, fake_es, fake_pipe, sample_docs
+):
+    hits, fever_doc, *_ = sample_docs
+    he_doc = {
+        "title": "טיפול בחום",
+        "section": "כללי",
+        "language": "he",
+        "jurisdiction": "israel",
+        "source_url": "file://hebrew/fever.md",
+        "updated_on": "2025-01-01T00:00:00Z",
+        "text": "מומלץ לשתות מים, לנוח ולעקוב אחרי חום הגוף",
+    }
+
+    fake_es.handlers.clear()
+    fake_es.add_handler(
+        lambda index, body: index.endswith("public_medical_kb"),
+        hits([fever_doc, he_doc]),
+    )
+
+    fake_pipe.run(urgent_care=0.1, see_doctor=0.2, self_care=0.8, info_only=0.1)
+
+    import app.graph.nodes.answer_gen as ag
+
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+    monkeypatch.setattr(ag, "_generate_with_provider", lambda provider, prompt: None)
+
+    payload = {"user_id": "demo-he", "query": "יש לי חום גבוה"}
+    response = client.post("/api/graph/run", params={"lang": "he"}, json=payload)
+
+    assert response.status_code == 200
+    state = response.json()["state"]
+
+    assert state["language"] == "he"
+    assert state["messages"]
+    message = state["messages"][-1]["content"]
+    assert ag.LANG_CONFIG["he"]["disclaimer"] in message
+    assert "נקודות עיקריות" in message
+
+
+def test_debug_endpoints_after_run(client, fake_es, fake_pipe, sample_docs):
+    hits, fever_doc, *_ = sample_docs
+    fake_es.add_handler(
+        lambda index, body: index.endswith("public_medical_kb"),
+        hits([fever_doc]),
+    )
+
+    fake_pipe.run(urgent_care=0.75, see_doctor=0.2, self_care=0.05, info_only=0.0)
+
+    payload = {"user_id": "debug-user", "query": "I have a fever"}
+    response = client.post("/api/graph/run", json=payload)
+    assert response.status_code == 200
+
+    trace_response = client.get("/api/debug/trace")
+    assert trace_response.status_code == 200
+    trace_payload = trace_response.json()
+    assert isinstance(trace_payload.get("trace"), list)
+    assert any(entry.get("node") == "scrub" for entry in trace_payload["trace"])
+
+    risk_response = client.get("/api/debug/risk")
+    assert risk_response.status_code == 200
+    risk_payload = risk_response.json()
+    assert "thresholds" in risk_payload
+    assert "labels" in risk_payload
+    assert isinstance(risk_payload["labels"], list)
+
+
 def test_enforce_non_empty_query(client):
     payload = {"user_id": "test-user", "query": ""}
     r = client.post("/api/graph/run", json=payload)
