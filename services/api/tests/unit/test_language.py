@@ -22,3 +22,9 @@ def test_resolve_language_prefers_override():
     assert resolve_language("en", "טקסט בעברית") == "en"
     assert resolve_language(None, "טקסט בעברית") == "he"
     assert resolve_language(None, "plain english text") == DEFAULT_LANGUAGE
+
+
+def test_detect_language_threshold_proportion():
+    # Two Hebrew letters among ~10 alphabetic chars (~20%) should classify as Hebrew
+    sample = "abבגcdefgh"
+    assert detect_language(sample) == "he"

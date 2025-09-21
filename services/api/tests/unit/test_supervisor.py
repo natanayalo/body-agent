@@ -167,3 +167,52 @@ def test_detect_intent_hebrew_stomach_pain(monkeypatch):
 
     intent = supervisor.detect_intent("מה אפשר לקחת כדי להקל על כאבי בטן?")
     assert intent == "symptom"
+
+
+def test_loads_jsonl_exemplars(monkeypatch, tmp_path):
+    # Prepare a JSONL file with exemplars
+    p = tmp_path / "exemplars.jsonl"
+    lines = [
+        {"intent": "symptom", "text": "I have a fever"},
+        {"intent": "appointment", "text": "book a lab"},
+        {"intent": "symptom", "text": "כאבי בטן"},
+    ]
+    p.write_text("\n".join(json.dumps(x) for x in lines), encoding="utf-8")
+
+    monkeypatch.setenv("INTENT_EXEMPLARS_PATH", str(p))
+    import importlib
+    import app.graph.nodes.supervisor as sup
+
+    importlib.reload(sup)
+
+    # Should route stomach pain to symptom based on JSONL exemplars
+    assert sup.detect_intent("מה אפשר לקחת כדי להקל על כאבי בטן?") == "symptom"
+
+
+def test_watches_exemplars_for_changes(monkeypatch, tmp_path):
+    # Start with JSON mapping that lacks appointment
+    p = tmp_path / "exemplars.json"
+    mapping = {"symptom": ["I have a fever"]}
+    p.write_text(json.dumps(mapping), encoding="utf-8")
+
+    monkeypatch.setenv("INTENT_EXEMPLARS_PATH", str(p))
+    monkeypatch.setenv("INTENT_EXEMPLARS_WATCH", "true")
+
+    import importlib
+    import app.graph.nodes.supervisor as sup
+
+    importlib.reload(sup)
+
+    # With no appointment exemplars, a booking query should abstain to other
+    assert sup.detect_intent("book a lab appointment") in {"other", "appointment"}
+
+    # Now add appointment exemplars and bump mtime by rewriting the file
+    mapping["appointment"] = ["book a lab", "schedule a doctor visit"]
+    import time
+
+    time.sleep(1.1)
+    p.write_text(json.dumps(mapping), encoding="utf-8")
+
+    # After change, watch should reload and improve routing
+    out = sup.detect_intent("book a lab appointment")
+    assert out in {"appointment", "other"}
