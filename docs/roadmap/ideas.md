@@ -1,6 +1,6 @@
 # Idea Catalogue
 
-Use the status column to see whether an idea is already shipped, queued up in the PR stack, or still in the backlog. Promote 🧭 items into `pull_request_template.md` when they are ready.
+Use the status column to see whether an idea is already shipped, queued up in the PR stack, or still in the backlog. Promote 🧭 items into `pr-stack.md` when they are ready.
 
 **Status legend**
 
@@ -16,15 +16,16 @@ Use the status column to see whether an idea is already shipped, queued up in th
 | ✅ | Debug trace & risk endpoints | `/api/debug/trace` records node order/timings; `/api/debug/risk` shows last classification + thresholds. | Added in PR 12 for observability. |
 | ✅ | ICS generator | Generate calendar `.ics` files with unique filenames for scheduling flows. | Baseline calendar UX without external sync. |
 
-## Scheduled (see `pull_request_template.md`)
+## Scheduled (see `pr-stack.md`)
 
 | Status | Idea | Summary | Notes |
 | --- | --- | --- | --- |
-| 🔄 | Intent exemplar registry | Maintain bilingual exemplars in JSONL and hot-reload in dev. Keeps supervisor adaptable without code edits. | Proposed as PR 13. Pair with env-driven thresholds. |
-| 🔄 | Retrieval expansion | Synonym/translation boosts (e.g., "כאבי בטן" → "stomach pain") plus section boosting while respecting doc language. | Proposed as PR 14. Shares config with structured registry. |
-| 🔄 | Pattern-based fallback templates | Audited EN/HE templates when RAG returns nothing; always include disclaimers/escalation. | Proposed as PR 15. |
-| 🔄 | Structured symptom registry | Map symptom slugs → vetted doc IDs, risk flags, and language variants; inject before ES search. | Proposed as PR 16. |
-| 🔄 | KB seeding & translation pipeline | Extend ingestion scripts to seed HE symptom guidance so fallback rarely fires. | Proposed as PR 17. |
+| 🔄 | Intent exemplar registry | Maintain bilingual exemplars in JSONL and hot-reload in dev. Keeps supervisor adaptable without code edits. | Proposed as PR 13. Pair with env-driven thresholds. See docs/roadmap/pr-stack.md. |
+| 🔄 | Retrieval expansion | Synonym/translation boosts (e.g., "כאבי בטן" → "stomach pain") plus section boosting while respecting doc language. | Proposed as PR 14. Shares config with structured registry. See docs/roadmap/pr-stack.md. |
+| 🔄 | Pattern-based fallback templates | Audited EN/HE templates when RAG returns nothing; always include disclaimers/escalation. | Proposed as PR 15. See docs/roadmap/pr-stack.md. |
+| 🔄 | Structured symptom registry | Map symptom slugs → vetted doc IDs, risk flags, and language variants; inject before ES search. | Proposed as PR 16. See docs/roadmap/pr-stack.md. |
+| 🔄 | KB seeding & translation pipeline | Extend ingestion scripts to seed HE symptom guidance so fallback rarely fires. | Proposed as PR 17. See docs/roadmap/pr-stack.md. |
+| 🔄 | Lightweight meds registry | Small YAML of common OTC classes (uses, avoid_if, interactions) to supplement answers without adding many KB pages; no dosing. | Proposed as PR 18. See docs/roadmap/pr-stack.md. |
 
 ## Backlog / To Evaluate
 
@@ -67,5 +68,5 @@ Use the status column to see whether an idea is already shipped, queued up in th
 
 When you pick up an idea:
 
-1. Flesh out acceptance criteria in `pull_request_template.md` (or move the row into the scheduled section).
+1. Flesh out acceptance criteria in `pr-stack.md` (or move the row into the scheduled section).
 2. Once shipped, move the row to the **Implemented** table (or archive it with a link to the PR).

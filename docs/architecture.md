@@ -23,6 +23,7 @@ A user-facing assistant that **remembers you**, combines that memory with **vett
 2. **Appointment & test planner**
 
    * “Find an available clinic/lab near me this week; propose 3 slots that fit my calendar.”
+
    * Output: 3 options with travel time; add chosen slot to calendar; prep checklist.
 
 3. **Symptom triage (safe, light)**
@@ -357,5 +358,3 @@ planner → critic → END
 Deliverables: running Compose stack, seed KB (50–200 docs), 6–8 golden scenarios, basic web UI.
 
 ---
-
-If you’d like, I’ll generate a **repo scaffold** next (Docker Compose, FastAPI/LangGraph app, ES index scripts, and two demo flows with seed data) so you can run the prototype locally and iterate.
