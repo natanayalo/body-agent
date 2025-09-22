@@ -77,7 +77,7 @@ curl -X POST "http://localhost:8000/api/graph/run" -H "Content-Type: application
 **Symptom check (streaming):**
 
 ```bash
-curl -X POST "http://localhost:8000/api/graph/stream" -H "Content-Type: application/json" -d '''
+curl --no-buffer -X POST "http://localhost:8000/api/graph/stream" -H "Content-Type: application/json" -d '''
 {
   "user_id": "demo-user",
   "query": "I have a headache, what can I take?"
@@ -85,7 +85,7 @@ curl -X POST "http://localhost:8000/api/graph/stream" -H "Content-Type: applicat
 '''
 ```
 
-Server-Sent Events (SSE) format:
+Server-Sent Events (SSE) format (final is last):
 
 ```
 data: {"node":"memory","delta":{"memory_facts":[...]}}
@@ -95,6 +95,9 @@ data: {"node":"health","delta":{"public_snippets":[...]}}
 data: {"node":"risk_ml","delta":{"debug":{"scores":{...},"triggered":[...]}}}
 
 data: {"final":{"state":{...}}}
+```
+
+Note: `/api/graph/run` returns a stable envelope: `{ "state": { ... } }`.
 ```
 
 **Find a provider:**
