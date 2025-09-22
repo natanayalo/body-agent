@@ -16,13 +16,13 @@ Use the status column to see whether an idea is already shipped, queued up in th
 | ✅ | Debug trace & risk endpoints | `/api/debug/trace` records node order/timings; `/api/debug/risk` shows last classification + thresholds. | Added in PR 12 for observability. |
 | ✅ | ICS generator | Generate calendar `.ics` files with unique filenames for scheduling flows. | Baseline calendar UX without external sync. |
 | ✅ | Intent exemplar registry | Maintain bilingual exemplars in JSONL and hot-reload in dev. Keeps supervisor adaptable without code edits. | Shipped in PR 13; default path `/app/data/intent_exemplars.jsonl`. |
+| ✅ | Pattern-based fallback templates | Provide localized symptom templates when retrieval is empty; include disclaimers and risk notices. | Shipped in PR 15; templates now keep safety messaging when providers fail. |
 
 ## Scheduled (see `pr-stack.md`)
 
 | Status | Idea | Summary | Notes |
 | --- | --- | --- | --- |
 | 🔄 | Retrieval expansion | Synonym/translation boosts (e.g., "כאבי בטן" → "stomach pain") plus section boosting while respecting doc language. | Proposed as PR 14. Shares config with structured registry. See project/roadmap/pr-stack.md. |
-| 🔄 | Pattern-based fallback templates | Audited EN/HE templates when RAG returns nothing; always include disclaimers/escalation. | Proposed as PR 15. See project/roadmap/pr-stack.md. |
 | 🔄 | Structured symptom registry | Map symptom slugs → vetted doc IDs, risk flags, and language variants; inject before ES search. | Proposed as PR 16. See project/roadmap/pr-stack.md. |
 | 🔄 | KB seeding & translation pipeline | Extend ingestion scripts to seed HE symptom guidance so fallback rarely fires. | Proposed as PR 17. See project/roadmap/pr-stack.md. |
 | 🔄 | Lightweight meds registry | Small YAML of common OTC classes (uses, avoid_if, interactions) to supplement answers without adding many KB pages; no dosing. | Proposed as PR 18. See project/roadmap/pr-stack.md. |

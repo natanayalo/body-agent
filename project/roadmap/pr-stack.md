@@ -2,23 +2,24 @@ Here’s a crisp next-step plan you can ship as a sequence of small PRs, each wi
 
 ---
 
-# Current PR — PR 15 — Pattern-based fallback (safety templates)
+# Current PR — PR 14 — Retrieval expansion (query expansion + scoring)
 
-Why: Provide minimal, safe guidance when retrieval returns nothing.
+Why: Find relevant guidance when exact keywords aren’t present.
 
 Scope
 
-- Add a small, reviewed template set keyed by coarse symptom buckets (e.g., GI, respiratory, neuro), localized EN/HE.
-- Trigger only when no snippets were found; always include disclaimers and escalation conditions.
+- Add lightweight synonym/translation map for common symptoms (e.g., "כאבי בטן" → ["stomach pain", "abdominal pain"]).
+- Apply expansion before ES search; boost matches in `section: general|warnings` more than other sections.
+- Keep language prioritization; prefer docs in `state.language`.
 
 Acceptance
 
-- Unit tests assert GI queries yield a GI template when KB is empty; includes disclaimer and no diagnosis language.
-- Template fallback preserves risk notices when the model/provider fails and no snippets are available.
+- Hebrew stomach-pain query retrieves abdominal-pain guidance when present.
+- Unit tests cover expansion and section boosting; integration proves improved snippet relevance.
 
 Pointers
 
-- `services/api/app/graph/nodes/answer_gen.py` — fallback builder consults template map before generic recap.
+- `services/api/app/graph/nodes/health.py` — inject expanded terms into kNN/BM25; adjust `should` clauses and boosts.
 
 ---
 
@@ -39,30 +40,17 @@ Copy/structure tweaks in README:
 - Intent exemplars section surfaces the default location + hot‑reload knob early (points to `/app/data/intent_exemplars.jsonl`).
 - Noted that `/api/graph/run` returns a stable `{ "state": ... }` envelope.
 
+# Shipped — PR 15 — Pattern-based fallback (safety templates)
+
+- Added symptom-bucket templates (GI, respiratory, neuro, general) with EN/HE copies to cover no-retrieval cases.
+- Template fallback now mirrors recap format: summary, template body, and risk notices before disclaimer/urgent lines.
+- Tests cover GI fallback, Hebrew variants, YAML overrides, and risk notice preservation when providers fail.
+
 # Next PR Stack (Flexibility for Symptoms)
 
 These PRs broaden symptom coverage beyond fixed phrases and improve relevance for queries like stomach pain without hardcoding per-case logic.
 
 <!-- PR 13 shipped: Intent exemplars registry (+ multilingual) -->
-
-## PR 14 — Retrieval expansion (query expansion + scoring)
-
-Why: Find relevant guidance when exact keywords aren’t present.
-
-Scope
-
-- Add lightweight synonym/translation map for common symptoms (e.g., "כאבי בטן" → ["stomach pain", "abdominal pain"]).
-- Apply expansion before ES search; boost matches in `section: general|warnings` more than other sections.
-- Keep language prioritization; prefer docs in `state.language`.
-
-Acceptance
-
-- Hebrew stomach-pain query retrieves abdominal-pain guidance when present.
-- Unit tests cover expansion and section boosting; integration proves improved snippet relevance.
-
-Pointers
-
-- `services/api/app/graph/nodes/health.py` — inject expanded terms into kNN/BM25; adjust `should` clauses and boosts.
 
 ## PR 16 — Structured symptom registry (doc routing)
 
