@@ -73,7 +73,8 @@ def test_generate_with_unknown_provider(monkeypatch):
     out = answer_gen.run(state)
     message = out["messages"][-1]
     lower = message["content"].lower()
-    assert "summary for" in lower or "recap" in lower
+    # Allow either generic recap or pattern-based template fallback
+    assert ("summary for" in lower) or ("recap" in lower) or ("self-care" in lower)
     assert answer_gen.DISCLAIMER in message["content"]
 
 
@@ -231,3 +232,70 @@ def test_answer_gen_hebrew_fallback_uses_english_when_needed(monkeypatch):
     message = out["messages"][-1]["content"]
     assert "נקודות עיקריות" in message
     assert "Fever Home Care" in message
+
+
+def test_pattern_fallback_gi_when_no_snippets(monkeypatch):
+    # Force provider to return None so fallback path is taken
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+
+    def no_generation(provider: str, prompt: str):
+        return None
+
+    monkeypatch.setattr(answer_gen, "_generate_with_provider", no_generation)
+
+    state = BodyState(
+        user_query="What can I take to relieve stomach pain?",
+        public_snippets=[],
+        messages=[],
+        language="en",
+    )
+
+    out = answer_gen.run(state)
+    msg = out["messages"][-1]["content"]
+    assert "stomach" in msg.lower() or "self-care" in msg.lower()
+    assert answer_gen.DISCLAIMER in msg
+    # No dosing information should appear in templates
+    assert " mg" not in msg.lower()
+
+
+def test_pattern_fallback_hebrew_gi_when_no_snippets(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+
+    def no_generation(provider: str, prompt: str):
+        return None
+
+    monkeypatch.setattr(answer_gen, "_generate_with_provider", no_generation)
+
+    state = BodyState(
+        user_query="מה אפשר לקחת לכאבי בטן?",
+        user_query_redacted="מה אפשר לקחת לכאבי בטן?",
+        public_snippets=[],
+        messages=[],
+        language="he",
+    )
+    out = answer_gen.run(state)
+    msg = out["messages"][-1]["content"]
+    assert "בטן" in msg
+    assert answer_gen.LANG_CONFIG["he"]["disclaimer"] in msg
+
+
+def test_bucketize_symptom_variants_en():
+    assert answer_gen._bucketize_symptom("Stomach cramps and nausea", "en") == "gi"
+    assert answer_gen._bucketize_symptom("Bad cough and sore throat", "en") == "resp"
+    assert answer_gen._bucketize_symptom("Headache with dizziness", "en") == "neuro"
+    assert answer_gen._bucketize_symptom("Random text", "en") == "general"
+
+
+def test_bucketize_symptom_variants_he():
+    assert answer_gen._bucketize_symptom("כאבי בטן חזקים", "he") == "gi"
+    assert answer_gen._bucketize_symptom("שיעול וליחה", "he") == "resp"
+    assert answer_gen._bucketize_symptom("כאב ראש וסחרחורת", "he") == "neuro"
+    assert answer_gen._bucketize_symptom("טקסט כללי", "he") == "general"
+
+
+def test_template_fallback_general_when_unknown_lang(monkeypatch):
+    state = BodyState(user_query="zzz", language="xx")
+    # Force language config to default; template should still return a string
+    content = answer_gen._template_fallback(state)
+    assert isinstance(content, str)
+    assert content

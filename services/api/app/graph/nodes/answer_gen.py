@@ -50,6 +50,111 @@ URGENT_LINE = LANG_CONFIG[DEFAULT_LANGUAGE]["urgent_line"]
 FALLBACK_HIGHLIGHT_LENGTH = 160
 URGENT_TRIGGERS = {"urgent_care", "see_doctor"}
 
+# Lightweight, reviewed fallback templates for symptom buckets (EN/HE)
+FALLBACK_TEMPLATES = {
+    "gi": {
+        "en": (
+            "Self-care for mild stomach pain\n"
+            "- Rest, hydrate (small sips), and try bland foods (e.g., rice, toast).\n"
+            "- Avoid alcohol; consider pausing NSAIDs if they upset your stomach.\n"
+            "- Seek urgent care for severe/worsening pain, persistent vomiting, blood in stool, high fever, chest pain, or shortness of breath."
+        ),
+        "he": (
+            "עזרה עצמית לכאב בטן קל\n"
+            "- לנוח, לשתות לאט ולנסות מזון קל (למשל אורז, טוסט).\n"
+            "- להימנע מאלכוהול; לשקול הימנעות מ-NSAIDs אם יש גירוי בקיבה.\n"
+            "- פנו בדחיפות אם הכאב חמור/מחמיר, יש הקאות ממושכות, דם בצואה, חום גבוה, כאב בחזה או קוצר נשימה."
+        ),
+    },
+    "resp": {
+        "en": (
+            "Self-care for mild cough/cold\n"
+            "- Rest, fluids, and humidified air may help.\n"
+            "- Honey (for adults/children >1y) can soothe cough; avoid smoking/vaping.\n"
+            "- Seek care for breathing difficulty, chest pain, high fever, or if symptoms persist/worsen."
+        ),
+        "he": (
+            "עזרה עצמית לשיעול/התקררות קלים\n"
+            "- מנוחה, שתייה וחדר מאוורר/מאוּדה עשויים לעזור.\n"
+            "- דבש (למבוגרים/ילדים מעל שנה) עשוי להקל; להימנע מעישון.\n"
+            "- פנו לרופא אם יש קושי בנשימה, כאב בחזה, חום גבוה או החמרה."
+        ),
+    },
+    "neuro": {
+        "en": (
+            "Self-care for mild headache\n"
+            "- Rest in a quiet, dark room; hydrate and consider a light snack.\n"
+            "- Limit screen time and ensure regular sleep.\n"
+            "- Seek urgent care for "
+            "sudden worst headache, neurologic symptoms (weakness, confusion), head injury, or fever with stiff neck."
+        ),
+        "he": (
+            "עזרה עצמית לכאב ראש קל\n"
+            "- מנוחה בחדר שקט ומוחשך; שתייה קלה וחטיף קל.\n"
+            "- להפחית זמן מסך ולשמור על שינה סדירה.\n"
+            "- פנו בדחיפות אם זה 'כאב הראש הגרוע ביותר', יש סימנים נוירולוגיים, חבלת ראש או חום עם נוקשות צוואר."
+        ),
+    },
+    "general": {
+        "en": (
+            "General self-care\n"
+            "- Rest, hydrate, and avoid triggers when possible.\n"
+            "- Monitor symptoms and seek medical advice if they persist or worsen."
+        ),
+        "he": (
+            "עזרה עצמית כללית\n"
+            "- מנוחה, שתייה והימנעות מטריגרים.\n"
+            "- עקבו אחר התסמינים ופנו לייעוץ רפואי אם יש החמרה או התמדה."
+        ),
+    },
+}
+
+
+def _bucketize_symptom(text: str, lang: str) -> str:
+    s = (text or "").lower()
+    # Hebrew GI keywords
+    gi_he = ["כאבי בטן", "כאב בטן", "בטן", "שלשול", "הקאה", "בחילה", "קיבה"]
+    gi_en = [
+        "stomach",
+        "abdominal",
+        "belly",
+        "nausea",
+        "vomit",
+        "diarrhea",
+        "indigestion",
+    ]
+    resp_he = ["שיעול", "צינון", "גרון", "ליחה", "נשימה", "קוצר נשימה"]
+    resp_en = ["cough", "cold", "throat", "phlegm", "congestion", "breath", "wheez"]
+    neuro_he = ["כאב ראש", "מיגרנה", "סחרחורת", "התעלפות"]
+    neuro_en = ["headache", "migraine", "dizzi", "faint", "neurolog"]
+
+    if lang == "he":
+        if any(k in s for k in [*gi_he]):
+            return "gi"
+        if any(k in s for k in [*resp_he]):
+            return "resp"
+        if any(k in s for k in [*neuro_he]):
+            return "neuro"
+        return "general"
+    else:
+        if any(k in s for k in [*gi_en]):
+            return "gi"
+        if any(k in s for k in [*resp_en]):
+            return "resp"
+        if any(k in s for k in [*neuro_en]):
+            return "neuro"
+        return "general"
+
+
+def _template_fallback(state: BodyState) -> str:
+    lang, _ = _language_config(state)
+    query = state.get("user_query_redacted", state.get("user_query", ""))
+    bucket = _bucketize_symptom(query, lang)
+    template = FALLBACK_TEMPLATES.get(bucket, FALLBACK_TEMPLATES["general"]).get(
+        lang, FALLBACK_TEMPLATES["general"][DEFAULT_LANGUAGE]
+    )
+    return template
+
 
 def _resolve_provider() -> str:
     return os.getenv("LLM_PROVIDER", settings.llm_provider).strip().lower()
@@ -213,7 +318,11 @@ def run(state: BodyState) -> BodyState:
     prompt = _build_prompt(state)
     content = _generate_with_provider(provider, prompt)
     if not content:
-        content = _fallback_message(state)
+        # If no retrieved snippets, consult pattern-based templates; otherwise recap snippets
+        snippets = state.get("public_snippets", []) or []
+        content = (
+            _template_fallback(state) if not snippets else _fallback_message(state)
+        )
 
     reply = _build_reply(content, state)
     message = {
