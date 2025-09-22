@@ -76,7 +76,6 @@ jobs:
           echo "EMBEDDINGS_MODEL=__stub__" >> .env
           echo "INTENT_EXEMPLARS_PATH=${{ github.workspace }}/data/intent_exemplars.jsonl" >> .env
           mkdir -p data
-          cp docs/intent_exemplars.jsonl data/intent_exemplars.jsonl
       - name: "E2E: Start ES + seed (Makefile)"
         run: make e2e-local-up
       - name: "E2E: Start API (Makefile)"

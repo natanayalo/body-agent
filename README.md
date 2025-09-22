@@ -110,7 +110,7 @@ curl -X POST "http://localhost:8000/api/graph/run" -H "Content-Type: application
 
 ## Optional: Better intent routing with exemplars
 
-By default the supervisor uses an **embedding-based** router. The repo ships a curated EN/HE exemplar set at `docs/intent_exemplars.jsonl`, while the app reads from `INTENT_EXEMPLARS_PATH` (default `/app/data/intent_exemplars.jsonl`). Copy the curated file into your data volume or point the env var directly to your generated file. Hot-reload is available with `INTENT_EXEMPLARS_WATCH=true`.
+By default the supervisor uses an **embedding-based** router. The repo ships a curated EN/HE exemplar set at `data/intent_exemplars.jsonl`, and the app reads from `INTENT_EXEMPLARS_PATH` (default `/app/data/intent_exemplars.jsonl`). You can point the env var directly to your generated file or use the curated default. Hot-reload is available with `INTENT_EXEMPLARS_WATCH=true`.
 
 If you want to regenerate or extend the exemplars using the **MASSIVE** dataset:
 
