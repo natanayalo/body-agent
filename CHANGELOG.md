@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here. Dates are in YYYY-MM-DD.
 
+## 2025-09-21 — PR 13: Intent exemplars registry (multilingual)
+
+- Feature: File-backed intent exemplars registry for the supervisor.
+  - Supports JSON and JSONL via `INTENT_EXEMPLARS_PATH`.
+  - Hot-reload in dev with `INTENT_EXEMPLARS_WATCH=true`.
+  - Default path now `/app/data/intent_exemplars.jsonl` (mounted data volume).
+- Tests: Added/updated unit tests to cover JSONL parsing, watch/reload, and Hebrew routing for stomach-pain queries.
+- CI: Points env var to `data/intent_exemplars.jsonl` and ensures the data dir exists.
+- Docs: Planning moved to `docs/roadmap/`; added `AGENTS.md`; clarified exemplar paths and local workflows.
+
 ## 2025-09-21 — PR 12: i18n & language detection
 
 - Language detection and routing added.
@@ -39,16 +49,6 @@ All notable changes to this project are documented here. Dates are in YYYY-MM-DD
 - Migrated from linear pipeline to LangGraph StateGraph (`app/graph/build.py`).
   - Conditional routing based on intent.
   - Added `/api/graph/stream` SSE endpoint emitting node-by-node deltas.
-
-## 2025-09-21 — PR 13: Intent exemplars registry (multilingual)
-
-- Feature: File-backed intent exemplars registry for the supervisor.
-  - Supports JSON and JSONL via `INTENT_EXEMPLARS_PATH`.
-  - Hot-reload in dev with `INTENT_EXEMPLARS_WATCH=true`.
-  - Default path now `/app/data/intent_exemplars.jsonl` (mounted data volume).
-- Tests: Added/updated unit tests to cover JSONL parsing, watch/reload, and Hebrew routing for stomach-pain queries.
-- CI: Copies curated exemplars into `data/intent_exemplars.jsonl` and points env var to it.
-- Docs: Planning moved to `docs/roadmap/`; added `AGENTS.md`; clarified exemplar paths and local workflows.
 
 ## 2025-09-11 — Utilities & endpoints (shipped alongside PRs)
 
