@@ -39,7 +39,7 @@ Scope: These instructions apply to the whole repository. They are for AI coding 
 
 ## Key Env/Feature Flags
 
-- `INTENT_EXEMPLARS_PATH` (JSON/JSONL): exemplar registry for the supervisor; `INTENT_EXEMPLARS_WATCH=true` to hot-reload.
+- `INTENT_EXEMPLARS_PATH` (JSON/JSONL): exemplar registry for the supervisor (defaults to `/app/data/intent_exemplars.jsonl`); enable `INTENT_EXEMPLARS_WATCH=true` to hot-reload.
 - `LLM_PROVIDER` (`ollama|openai|none`), `OLLAMA_MODEL`, `OPENAI_API_KEY`.
 - `RISK_MODEL_ID`, `RISK_THRESHOLDS`, `RISK_HYPOTHESIS`.
 - ES indices: `ES_PRIVATE_INDEX`, `ES_PUBLIC_INDEX`, `ES_PLACES_INDEX`.

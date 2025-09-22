@@ -209,7 +209,7 @@ Why: Make routing robust for new wordings in EN/HE.
 
 Scope
 
-- Add `docs/intent_exemplars.jsonl` (or `services/api/app/data/intent_exemplars.jsonl`) with bilingual examples per intent.
+ - Add `data/intent_exemplars.jsonl` (or `services/api/app/data/intent_exemplars.jsonl`) with bilingual examples per intent.
 - Load via `INTENT_EXEMPLARS_PATH`; hot-reload in dev.
 - Keep current embedding classifier but feed from the registry; make threshold/margin env-driven.
 
