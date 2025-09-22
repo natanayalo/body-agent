@@ -21,11 +21,11 @@ Use the status column to see whether an idea is already shipped, queued up in th
 
 | Status | Idea | Summary | Notes |
 | --- | --- | --- | --- |
-| 🔄 | Retrieval expansion | Synonym/translation boosts (e.g., "כאבי בטן" → "stomach pain") plus section boosting while respecting doc language. | Proposed as PR 14. Shares config with structured registry. See docs/roadmap/pr-stack.md. |
-| 🔄 | Pattern-based fallback templates | Audited EN/HE templates when RAG returns nothing; always include disclaimers/escalation. | Proposed as PR 15. See docs/roadmap/pr-stack.md. |
-| 🔄 | Structured symptom registry | Map symptom slugs → vetted doc IDs, risk flags, and language variants; inject before ES search. | Proposed as PR 16. See docs/roadmap/pr-stack.md. |
-| 🔄 | KB seeding & translation pipeline | Extend ingestion scripts to seed HE symptom guidance so fallback rarely fires. | Proposed as PR 17. See docs/roadmap/pr-stack.md. |
-| 🔄 | Lightweight meds registry | Small YAML of common OTC classes (uses, avoid_if, interactions) to supplement answers without adding many KB pages; no dosing. | Proposed as PR 18. See docs/roadmap/pr-stack.md. |
+| 🔄 | Retrieval expansion | Synonym/translation boosts (e.g., "כאבי בטן" → "stomach pain") plus section boosting while respecting doc language. | Proposed as PR 14. Shares config with structured registry. See project/roadmap/pr-stack.md. |
+| 🔄 | Pattern-based fallback templates | Audited EN/HE templates when RAG returns nothing; always include disclaimers/escalation. | Proposed as PR 15. See project/roadmap/pr-stack.md. |
+| 🔄 | Structured symptom registry | Map symptom slugs → vetted doc IDs, risk flags, and language variants; inject before ES search. | Proposed as PR 16. See project/roadmap/pr-stack.md. |
+| 🔄 | KB seeding & translation pipeline | Extend ingestion scripts to seed HE symptom guidance so fallback rarely fires. | Proposed as PR 17. See project/roadmap/pr-stack.md. |
+| 🔄 | Lightweight meds registry | Small YAML of common OTC classes (uses, avoid_if, interactions) to supplement answers without adding many KB pages; no dosing. | Proposed as PR 18. See project/roadmap/pr-stack.md. |
 
 ## Backlog / To Evaluate
 

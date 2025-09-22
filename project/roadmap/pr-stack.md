@@ -21,6 +21,12 @@ Pointers
 
 ---
 
+# Next PR Stack (Flexibility for Symptoms)
+
+These PRs broaden symptom coverage beyond fixed phrases and improve relevance for queries like stomach pain without hardcoding per-case logic.
+
+<!-- PR 13 shipped: Intent exemplars registry (+ multilingual) -->
+
 ## PR 14 — Retrieval expansion (query expansion + scoring)
 
 Why: Find relevant guidance when exact keywords aren’t present.
@@ -39,8 +45,6 @@ Acceptance
 Pointers
 
 - `services/api/app/graph/nodes/health.py` — inject expanded terms into kNN/BM25; adjust `should` clauses and boosts.
-
-<!-- PR 15 content moved to 'Current PR' above -->
 
 ## PR 16 — Structured symptom registry (doc routing)
 

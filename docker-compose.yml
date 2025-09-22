@@ -28,7 +28,7 @@ services:
     volumes:
       - ./services/api/app:/app/app:rw
       - ./seeds:/app/seeds:ro
-      - ./docs:/app/docs:ro
+      - ./project:/app/docs:ro
       - ./data:/app/data:rw
       - ./scripts:/app/scripts:ro
       - hf-cache:/root/.cache/huggingface/hub
@@ -57,7 +57,7 @@ services:
     volumes:
       - ./services/api/app:/app/app:rw
       - ./seeds:/app/seeds:ro
-      - ./docs:/app/docs:ro
+      - ./project:/app/docs:ro
       - ./data:/app/data:rw
       - ./scripts:/app/scripts:ro
       - hf-cache:/root/.cache/huggingface/hub

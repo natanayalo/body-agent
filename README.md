@@ -110,7 +110,7 @@ curl -X POST "http://localhost:8000/api/graph/run" -H "Content-Type: application
 
 ## Optional: Better intent routing with exemplars
 
-By default the supervisor uses an **embedding-based** router. The repo ships a curated EN/HE exemplar set at `data/intent_exemplars.jsonl`, and the app reads from `INTENT_EXEMPLARS_PATH` (default `/app/data/intent_exemplars.jsonl`). You can point the env var directly to your generated file or use the curated default. Hot-reload is available with `INTENT_EXEMPLARS_WATCH=true`.
+By default the supervisor uses an **embedding-based** router. The repo ships a curated EN/HE exemplar set under `seeds/intent_exemplars.jsonl`, while the app reads from `INTENT_EXEMPLARS_PATH` (default `/app/data/intent_exemplars.jsonl`). Copy the curated file into your data volume or point the env var directly to your generated file. Hot-reload is available with `INTENT_EXEMPLARS_WATCH=true`.
 
 If you want to regenerate or extend the exemplars using the **MASSIVE** dataset:
 
@@ -127,7 +127,7 @@ Config knobs (in `.env`):
 ```
 INTENT_THRESHOLD=0.30   # min cosine for top intent
 INTENT_MARGIN=0.05      # top - second must exceed this
-FALLBACK_TEMPLATES_PATH=/app/data/safety_templates.json  # optional file-backed symptom templates (EN/HE)
+FALLBACK_TEMPLATES_PATH=/app/data/safety_templates.json  # optional file-backed symptom templates (EN/HE); see seeds/safety_templates.json
 FALLBACK_TEMPLATES_WATCH=false                           # enable hot-reload in dev
 ```
 
