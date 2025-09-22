@@ -14,12 +14,30 @@ Scope
 Acceptance
 
 - Unit tests assert GI queries yield a GI template when KB is empty; includes disclaimer and no diagnosis language.
+- Template fallback preserves risk notices when the model/provider fails and no snippets are available.
 
 Pointers
 
 - `services/api/app/graph/nodes/answer_gen.py` — fallback builder consults template map before generic recap.
 
 ---
+
+## Review Follow‑Up (High‑ROI docs + copy tweaks)
+
+- Architecture & sequences: added `project/architecture.md` (block diagram; med‑interaction and appointment sequences; ES hits; SSE order; run/stream envelope).
+- Config reference & modes: added `project/config.md` (env table; CI stub vs. local mode guidance).
+- Data seeding clarity: README now states the seed container auto‑populates indices on `docker compose up` (single source of truth).
+- Privacy & safety: added `project/privacy.md` (scrubbed fields, encryption at rest, disclaimers, risk gating).
+- Evaluation & quality: added `project/evaluation.md` (test matrix; RAG recall; thresholds; SSE contract; fixtures).
+- Troubleshooting / Ops: added `project/troubleshooting.md` (vector dims, permissions, health checks/logs).
+- Roadmap page: added `project/roadmap.md` (Now / Next / Later milestones).
+- Template fallback preserves risk notice formatting even when only pattern templates fire (PR 15 follow-up).
+
+Copy/structure tweaks in README:
+
+- Streaming example uses `curl --no-buffer` and notes that the `final` event is last.
+- Intent exemplars section surfaces the default location + hot‑reload knob early (points to `/app/data/intent_exemplars.jsonl`).
+- Noted that `/api/graph/run` returns a stable `{ "state": ... }` envelope.
 
 # Next PR Stack (Flexibility for Symptoms)
 
