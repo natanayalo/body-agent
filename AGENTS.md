@@ -33,9 +33,25 @@ Scope: These instructions apply to the whole repository. They are for AI coding 
 
 ## Running & Testing
 
-- Unit and integration tests: `venv/bin/pytest` (root `pytest.ini` config). Start ES/API with `docker compose up` when running E2E.
-- PYTHONPATH for local snippets: `PYTHONPATH=services/api`.
-- CI sets `INTENT_EXEMPLARS_PATH` and uses stubbed models where applicable.
+- PYTHONPATH for local runs: `PYTHONPATH=services/api`.
+- Unit + integration tests with coverage (95% gate):
+  - `venv/bin/pytest` (uses root `pytest.ini`).
+- Golden tests (quick eval):
+  - `make eval`
+- E2E tests (local ES + API in stub mode):
+  - `make e2e-local` (or run targets individually: `e2e-local-up`, `e2e-local-api`, `e2e-local-wait`, `e2e-local-test`).
+- Exemplars file: the app reads `INTENT_EXEMPLARS_PATH` (defaults to `/app/data/intent_exemplars.jsonl`). Ensure `data/intent_exemplars.jsonl` exists, or generate a new one and point the env var to it.
+
+## Before You Commit (required)
+
+- Run pre-commit on all files:
+  - `pre-commit install` (first time only)
+  - `pre-commit run --all-files`
+- Run tests locally and meet coverage ≥ 95%:
+  - `venv/bin/pytest` (unit + integration)
+  - Optionally: `make eval` and `make e2e-local` if your change touches retrieval/routing/graph wiring.
+- If you added config/env vars, update `.env.example` and `README.md`.
+- Keep diffs minimal and aligned with `docs/roadmap/pr-stack.md` acceptance criteria.
 
 ## Key Env/Feature Flags
 
