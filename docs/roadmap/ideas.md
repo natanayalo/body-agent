@@ -15,12 +15,12 @@ Use the status column to see whether an idea is already shipped, queued up in th
 | ✅ | PII scrubber node | Incoming queries are scrubbed for PII before any external connector runs. | Implemented via `scrub.run`; keep extending regexes as new connectors appear. |
 | ✅ | Debug trace & risk endpoints | `/api/debug/trace` records node order/timings; `/api/debug/risk` shows last classification + thresholds. | Added in PR 12 for observability. |
 | ✅ | ICS generator | Generate calendar `.ics` files with unique filenames for scheduling flows. | Baseline calendar UX without external sync. |
+| ✅ | Intent exemplar registry | Maintain bilingual exemplars in JSONL and hot-reload in dev. Keeps supervisor adaptable without code edits. | Shipped in PR 13; default path `/app/data/intent_exemplars.jsonl`. |
 
 ## Scheduled (see `pr-stack.md`)
 
 | Status | Idea | Summary | Notes |
 | --- | --- | --- | --- |
-| 🔄 | Intent exemplar registry | Maintain bilingual exemplars in JSONL and hot-reload in dev. Keeps supervisor adaptable without code edits. | Proposed as PR 13. Pair with env-driven thresholds. See docs/roadmap/pr-stack.md. |
 | 🔄 | Retrieval expansion | Synonym/translation boosts (e.g., "כאבי בטן" → "stomach pain") plus section boosting while respecting doc language. | Proposed as PR 14. Shares config with structured registry. See docs/roadmap/pr-stack.md. |
 | 🔄 | Pattern-based fallback templates | Audited EN/HE templates when RAG returns nothing; always include disclaimers/escalation. | Proposed as PR 15. See docs/roadmap/pr-stack.md. |
 | 🔄 | Structured symptom registry | Map symptom slugs → vetted doc IDs, risk flags, and language variants; inject before ES search. | Proposed as PR 16. See docs/roadmap/pr-stack.md. |
