@@ -1,3 +1,5 @@
+import pytest
+
 from app.graph.nodes import answer_gen
 from app.graph.state import BodyState
 
@@ -248,6 +250,7 @@ def test_pattern_fallback_gi_when_no_snippets(monkeypatch):
         public_snippets=[],
         messages=[],
         language="en",
+        debug={"risk": {"triggered": [{"label": "monitor_symptoms", "score": 0.4}]}},
     )
 
     out = answer_gen.run(state)
@@ -256,6 +259,8 @@ def test_pattern_fallback_gi_when_no_snippets(monkeypatch):
     assert answer_gen.DISCLAIMER in msg
     # No dosing information should appear in templates
     assert " mg" not in msg.lower()
+    assert answer_gen.LANG_CONFIG["en"]["fallback_risk_label"] in msg
+    assert "monitor_symptoms" in msg
 
 
 def test_pattern_fallback_hebrew_gi_when_no_snippets(monkeypatch):
@@ -367,13 +372,12 @@ def test_init_templates_map_loads_valid_json(monkeypatch, tmp_path):
 
 
 def test_load_yaml_templates(monkeypatch, tmp_path):
+    pytest.importorskip("yaml")
     p = tmp_path / "safety_templates.yaml"
     p.write_text("gi:\n  en: GI from YAML\n", encoding="utf-8")
     out = answer_gen._load_templates_from_file(str(p))
-    # Depending on environment, PyYAML may be present; accept either None (no PyYAML) or parsed dict
-    assert (out is None) or (
-        isinstance(out, dict) and out.get("gi", {}).get("en") == "GI from YAML"
-    )
+    assert out is not None
+    assert out.get("gi", {}).get("en") == "GI from YAML"
 
 
 def test_parse_templates_obj_variants():

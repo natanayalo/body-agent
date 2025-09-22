@@ -98,7 +98,6 @@ data: {"final":{"state":{...}}}
 ```
 
 Note: `/api/graph/run` returns a stable envelope: `{ "state": { ... } }`.
-```
 
 **Find a provider:**
 

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
-from typing import List, Tuple, Dict, Optional, Any
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.config import settings
 from app.graph.state import BodyState
@@ -109,6 +110,45 @@ FALLBACK_TEMPLATES: Dict[str, Dict[str, str]] = {
     },
 }
 
+GI_KEYWORDS_HE = ["כאבי בטן", "כאב בטן", "בטן", "שלשול", "הקאה", "בחילה", "קיבה"]
+GI_KEYWORDS_EN = [
+    "stomach",
+    "abdominal",
+    "belly",
+    "nausea",
+    "vomit",
+    "diarrhea",
+    "indigestion",
+]
+RESP_KEYWORDS_HE = ["שיעול", "צינון", "גרון", "ליחה", "נשימה", "קוצר נשימה"]
+RESP_KEYWORDS_EN = [
+    "cough",
+    "cold",
+    "throat",
+    "phlegm",
+    "congestion",
+    "breath",
+    "wheez",
+]
+NEURO_KEYWORDS_HE = ["כאב ראש", "מיגרנה", "סחרחורת", "התעלפות"]
+NEURO_KEYWORDS_EN = ["headache", "migraine", "dizzi", "faint", "neurolog"]
+
+_LANG_BUCKET_KEYWORDS: Dict[str, Tuple[Tuple[str, List[str]], ...]] = {
+    "he": (
+        ("gi", GI_KEYWORDS_HE),
+        ("resp", RESP_KEYWORDS_HE),
+        ("neuro", NEURO_KEYWORDS_HE),
+    ),
+    "en": (
+        ("gi", GI_KEYWORDS_EN),
+        ("resp", RESP_KEYWORDS_EN),
+        ("neuro", NEURO_KEYWORDS_EN),
+    ),
+}
+_DEFAULT_BUCKET_KEYWORDS: Tuple[Tuple[str, List[str]], ...] = _LANG_BUCKET_KEYWORDS.get(
+    DEFAULT_LANGUAGE, ()
+)
+
 _TEMPLATES_PATH: Optional[str] = os.getenv("FALLBACK_TEMPLATES_PATH")
 _TEMPLATES_WATCH: bool = (
     os.getenv("FALLBACK_TEMPLATES_WATCH", "false").strip().lower() == "true"
@@ -136,8 +176,6 @@ def _load_templates_from_file(path: str) -> Optional[Dict[str, Dict[str, str]]]:
     try:
         with open(path, "r", encoding="utf-8") as f:
             if path.endswith(".json"):
-                import json
-
                 data = json.load(f)
                 parsed = _parse_templates_obj(data)
             elif path.endswith(".yaml") or path.endswith(".yml"):
@@ -204,38 +242,11 @@ _init_templates_map()
 
 def _bucketize_symptom(text: str, lang: str) -> str:
     s = (text or "").lower()
-    # Hebrew GI keywords
-    gi_he = ["כאבי בטן", "כאב בטן", "בטן", "שלשול", "הקאה", "בחילה", "קיבה"]
-    gi_en = [
-        "stomach",
-        "abdominal",
-        "belly",
-        "nausea",
-        "vomit",
-        "diarrhea",
-        "indigestion",
-    ]
-    resp_he = ["שיעול", "צינון", "גרון", "ליחה", "נשימה", "קוצר נשימה"]
-    resp_en = ["cough", "cold", "throat", "phlegm", "congestion", "breath", "wheez"]
-    neuro_he = ["כאב ראש", "מיגרנה", "סחרחורת", "התעלפות"]
-    neuro_en = ["headache", "migraine", "dizzi", "faint", "neurolog"]
-
-    if lang == "he":
-        if any(k in s for k in [*gi_he]):
-            return "gi"
-        if any(k in s for k in [*resp_he]):
-            return "resp"
-        if any(k in s for k in [*neuro_he]):
-            return "neuro"
-        return "general"
-    else:
-        if any(k in s for k in [*gi_en]):
-            return "gi"
-        if any(k in s for k in [*resp_en]):
-            return "resp"
-        if any(k in s for k in [*neuro_en]):
-            return "neuro"
-        return "general"
+    keyword_map = _LANG_BUCKET_KEYWORDS.get(lang, _DEFAULT_BUCKET_KEYWORDS)
+    for bucket, keywords in keyword_map:
+        if any(k in s for k in keywords):
+            return bucket
+    return "general"
 
 
 def _template_fallback(state: BodyState) -> str:
@@ -271,6 +282,20 @@ def _risk_triggers(state: BodyState) -> List[str]:
     debug = state.get("debug") or {}
     risk = debug.get("risk") or {}
     return [t.get("label") for t in risk.get("triggered", []) if t.get("label")]
+
+
+def _fallback_summary_line(state: BodyState, config: dict) -> str:
+    user_query = state.get("user_query_redacted", state.get("user_query", ""))
+    if user_query:
+        return f"{config['fallback_summary_label']} {user_query}"
+    return ""
+
+
+def _risk_notice(state: BodyState, config: dict) -> str:
+    triggers = _risk_triggers(state)
+    if triggers:
+        return f"{config['fallback_risk_label']} " + ", ".join(triggers)
+    return ""
 
 
 def _build_prompt(state: BodyState) -> str:
@@ -357,11 +382,11 @@ def _call_openai(prompt: str) -> str | None:
 
 
 def _fallback_message(state: BodyState) -> str:
-    preferred_lang, config = _language_config(state)
+    _, config = _language_config(state)
     parts: List[str] = []
-    user_query = state.get("user_query_redacted", state.get("user_query", ""))
-    if user_query:
-        parts.append(f"{config['fallback_summary_label']} {user_query}")
+    summary_line = _fallback_summary_line(state, config)
+    if summary_line:
+        parts.append(summary_line)
 
     snippets = state.get("public_snippets", []) or []
     if snippets:
@@ -379,9 +404,9 @@ def _fallback_message(state: BodyState) -> str:
                 f"{config['fallback_key_points_label']}\n" + "\n".join(highlights)
             )
 
-    triggers = _risk_triggers(state)
-    if triggers:
-        parts.append(f"{config['fallback_risk_label']} " + ", ".join(triggers))
+    risk_notice = _risk_notice(state, config)
+    if risk_notice:
+        parts.append(risk_notice)
 
     return "\n\n".join(parts) if parts else config["fallback_empty"]
 
@@ -412,11 +437,16 @@ def run(state: BodyState) -> BodyState:
     prompt = _build_prompt(state)
     content = _generate_with_provider(provider, prompt)
     if not content:
-        # If no retrieved snippets, consult pattern-based templates; otherwise recap snippets
         snippets = state.get("public_snippets", []) or []
-        content = (
-            _template_fallback(state) if not snippets else _fallback_message(state)
-        )
+        if snippets:
+            content = _fallback_message(state)
+        else:
+            _, config = _language_config(state)
+            summary_line = _fallback_summary_line(state, config)
+            template = _template_fallback(state)
+            risk_notice = _risk_notice(state, config)
+            parts = [part for part in (summary_line, template, risk_notice) if part]
+            content = "\n\n".join(parts) if parts else config["fallback_empty"]
 
     reply = _build_reply(content, state)
     message = {
