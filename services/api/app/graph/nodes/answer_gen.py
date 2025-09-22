@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import List, Tuple
+from typing import List, Tuple, Dict, Optional, Any
 
 from app.config import settings
 from app.graph.state import BodyState
@@ -51,7 +51,7 @@ FALLBACK_HIGHLIGHT_LENGTH = 160
 URGENT_TRIGGERS = {"urgent_care", "see_doctor"}
 
 # Lightweight, reviewed fallback templates for symptom buckets (EN/HE)
-FALLBACK_TEMPLATES = {
+FALLBACK_TEMPLATES: Dict[str, Dict[str, str]] = {
     "gi": {
         "en": (
             "Self-care for mild stomach pain\n"
@@ -109,6 +109,98 @@ FALLBACK_TEMPLATES = {
     },
 }
 
+_TEMPLATES_PATH: Optional[str] = os.getenv("FALLBACK_TEMPLATES_PATH")
+_TEMPLATES_WATCH: bool = (
+    os.getenv("FALLBACK_TEMPLATES_WATCH", "false").strip().lower() == "true"
+)
+_TEMPLATES_MTIME: Optional[float] = None
+_TEMPLATES_MAP: Dict[str, Dict[str, str]] = dict(FALLBACK_TEMPLATES)
+
+
+def _parse_templates_obj(obj: Any) -> Dict[str, Dict[str, str]]:
+    out: Dict[str, Dict[str, str]] = {}
+    if isinstance(obj, dict):
+        for bucket, per_lang in obj.items():
+            if not isinstance(per_lang, dict):
+                continue
+            lang_map: Dict[str, str] = {}
+            for lang, text in per_lang.items():
+                if isinstance(lang, str) and isinstance(text, str) and text.strip():
+                    lang_map[lang] = text
+            if lang_map:
+                out[str(bucket)] = lang_map
+    return out
+
+
+def _load_templates_from_file(path: str) -> Optional[Dict[str, Dict[str, str]]]:
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            if path.endswith(".json"):
+                import json
+
+                data = json.load(f)
+                parsed = _parse_templates_obj(data)
+            elif path.endswith(".yaml") or path.endswith(".yml"):
+                try:
+                    import yaml  # type: ignore
+                except Exception:
+                    logger.warning(
+                        "PyYAML not installed; cannot parse YAML templates; using defaults."
+                    )
+                    return None
+                data = yaml.safe_load(f)
+                parsed = _parse_templates_obj(data)
+            else:
+                logger.warning(
+                    "Unknown templates extension for %s (use .json/.yaml/.yml)", path
+                )
+                return None
+        if parsed:
+            return parsed
+    except Exception as e:
+        logger.warning("Failed loading fallback templates from %s: %s", path, e)
+    return None
+
+
+def _init_templates_map() -> None:
+    global _TEMPLATES_MAP, _TEMPLATES_MTIME
+    path = _TEMPLATES_PATH
+    if path and os.path.exists(path):
+        parsed = _load_templates_from_file(path)
+        if parsed:
+            _TEMPLATES_MAP = parsed
+            try:
+                _TEMPLATES_MTIME = os.path.getmtime(path)
+            except OSError:
+                _TEMPLATES_MTIME = None
+            logger.info("Loaded fallback templates from %s", path)
+        else:
+            logger.warning("Templates file invalid/empty; using built-in defaults")
+    else:
+        logger.debug("FALLBACK_TEMPLATES_PATH not set or file missing; using defaults")
+
+
+def _maybe_reload_templates() -> None:
+    if not _TEMPLATES_WATCH:
+        return
+    path = _TEMPLATES_PATH
+    if not path or not os.path.exists(path):
+        return
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return
+    global _TEMPLATES_MTIME, _TEMPLATES_MAP
+    if _TEMPLATES_MTIME is None or mtime > _TEMPLATES_MTIME:
+        parsed = _load_templates_from_file(path)
+        if parsed:
+            _TEMPLATES_MAP = parsed
+            _TEMPLATES_MTIME = mtime
+            logger.info("Reloaded fallback templates after file change")
+
+
+_init_templates_map()
+
 
 def _bucketize_symptom(text: str, lang: str) -> str:
     s = (text or "").lower()
@@ -147,11 +239,13 @@ def _bucketize_symptom(text: str, lang: str) -> str:
 
 
 def _template_fallback(state: BodyState) -> str:
+    _maybe_reload_templates()
     lang, _ = _language_config(state)
     query = state.get("user_query_redacted", state.get("user_query", ""))
     bucket = _bucketize_symptom(query, lang)
-    template = FALLBACK_TEMPLATES.get(bucket, FALLBACK_TEMPLATES["general"]).get(
-        lang, FALLBACK_TEMPLATES["general"][DEFAULT_LANGUAGE]
+    source = _TEMPLATES_MAP if _TEMPLATES_MAP else FALLBACK_TEMPLATES
+    template = source.get(bucket, source.get("general", {})).get(
+        lang, source.get("general", {}).get(DEFAULT_LANGUAGE, "")
     )
     return template
 

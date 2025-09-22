@@ -299,3 +299,97 @@ def test_template_fallback_general_when_unknown_lang(monkeypatch):
     content = answer_gen._template_fallback(state)
     assert isinstance(content, str)
     assert content
+
+
+def test_load_templates_from_file(monkeypatch, tmp_path):
+    # Prepare a minimal JSON templates file overriding GI EN bucket
+    p = tmp_path / "safety_templates.json"
+    p.write_text(
+        '{"gi": {"en": "FILE GI TEMPLATE", "he": "תבנית GI"}}', encoding="utf-8"
+    )
+
+    # Point the module to the file and enable watch, then trigger reload
+    monkeypatch.setattr(answer_gen, "_TEMPLATES_PATH", str(p))
+    monkeypatch.setattr(answer_gen, "_TEMPLATES_WATCH", True)
+    # Ensure reload occurs
+    answer_gen._maybe_reload_templates()
+
+    state = BodyState(user_query="stomach pain", language="en")
+    content = answer_gen._template_fallback(state)
+    assert "FILE GI TEMPLATE" in content
+
+
+def test_load_templates_unknown_extension(monkeypatch, tmp_path):
+    p = tmp_path / "safety_templates.txt"
+    p.write_text('{"gi": {"en": "X"}}', encoding="utf-8")
+    assert answer_gen._load_templates_from_file(str(p)) is None
+
+
+def test_init_templates_map_with_missing_and_invalid(monkeypatch, tmp_path):
+    # Missing path → keep defaults
+    monkeypatch.setattr(answer_gen, "_TEMPLATES_PATH", None)
+    answer_gen._init_templates_map()
+
+    # Invalid (empty parsed) content → warn and keep defaults
+    p = tmp_path / "safety_templates.json"
+    p.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(answer_gen, "_TEMPLATES_PATH", str(p))
+    answer_gen._init_templates_map()
+
+
+def test_maybe_reload_templates_handles_flags(monkeypatch, tmp_path):
+    # Watch disabled → no-op
+    monkeypatch.setattr(answer_gen, "_TEMPLATES_WATCH", False)
+    answer_gen._maybe_reload_templates()
+
+
+def test_build_prompt_includes_memory_and_triggers():
+    state = BodyState(
+        user_query="Test",
+        public_snippets=[{"title": "X", "text": "Short"}],
+        memory_facts=[{"entity": "allergy", "name": "penicillin"}],
+        debug={"risk": {"triggered": [{"label": "see_doctor", "score": 0.6}]}},
+    )
+    prompt = answer_gen._build_prompt(state)
+    assert "Relevant personal context" in prompt or "הקשר אישי" in prompt
+    assert "allergy" in prompt
+    assert "see_doctor" in prompt
+
+
+def test_init_templates_map_loads_valid_json(monkeypatch, tmp_path):
+    p = tmp_path / "safety_templates.json"
+    p.write_text('{"general": {"en": "GEN", "he": "כללי"}}', encoding="utf-8")
+    monkeypatch.setattr(answer_gen, "_TEMPLATES_PATH", str(p))
+    answer_gen._init_templates_map()
+    state = BodyState(user_query="zzz", language="en")
+    content = answer_gen._template_fallback(state)
+    assert content.startswith("GEN")
+
+
+def test_load_yaml_templates(monkeypatch, tmp_path):
+    p = tmp_path / "safety_templates.yaml"
+    p.write_text("gi:\n  en: GI from YAML\n", encoding="utf-8")
+    out = answer_gen._load_templates_from_file(str(p))
+    # Depending on environment, PyYAML may be present; accept either None (no PyYAML) or parsed dict
+    assert (out is None) or (
+        isinstance(out, dict) and out.get("gi", {}).get("en") == "GI from YAML"
+    )
+
+
+def test_parse_templates_obj_variants():
+    # Non-dict input returns empty
+    assert answer_gen._parse_templates_obj([1, 2, 3]) == {}
+    # Dict with non-dict bucket value is skipped
+    assert answer_gen._parse_templates_obj({"gi": "text"}) == {}
+    # Dict with non-string value is skipped
+    assert answer_gen._parse_templates_obj({"gi": {"en": 123}}) == {}
+    # Valid map passes through
+    out = answer_gen._parse_templates_obj({"gi": {"en": "X"}})
+    assert out == {"gi": {"en": "X"}}
+
+
+def test_fallback_message_empty_when_no_data():
+    state = BodyState(user_query="", public_snippets=[], messages=[])
+    msg = answer_gen._fallback_message(state)
+    # Should return the language-specific empty recap string
+    assert isinstance(msg, str) and len(msg) > 0

@@ -127,11 +127,14 @@ Config knobs (in `.env`):
 ```
 INTENT_THRESHOLD=0.30   # min cosine for top intent
 INTENT_MARGIN=0.05      # top - second must exceed this
+FALLBACK_TEMPLATES_PATH=/app/data/safety_templates.json  # optional file-backed symptom templates (EN/HE)
+FALLBACK_TEMPLATES_WATCH=false                           # enable hot-reload in dev
 ```
 
 Notes:
 - We currently map only obvious MASSIVE labels to our buckets (`appointment`, `routine`). Health-specific intents (`symptom`, `meds`) are curated in the script.
 - The supervisor precomputes embeddings for exemplars at import time for speed.
+- Fallback answer generation includes pattern-based, file-backed templates for common symptom buckets; when a provider is disabled/unavailable and retrieval returns nothing, a safe, non-dosing template is used.
 
 
 ## Development
