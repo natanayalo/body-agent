@@ -1,0 +1,40 @@
+{"intent": "symptom", "lang": "en", "text": "I have a fever and chills"}
+{"intent": "symptom", "lang": "en", "text": "My head is pounding and I feel nauseous"}
+{"intent": "symptom", "lang": "en", "text": "Sharp stomach pain after eating dinner"}
+{"intent": "symptom", "lang": "en", "text": "My child woke up with a rash and cough"}
+{"intent": "symptom", "lang": "he", "text": "יש לי חום גבוה וכאבי שרירים"}
+{"intent": "symptom", "lang": "he", "text": "כואב לי הראש ואני מרגיש סחרחורת"}
+{"intent": "symptom", "lang": "he", "text": "מה לעשות עם כאבים חדים בצד שמאל של הבטן"}
+{"intent": "symptom", "lang": "he", "text": "אני מתקשה לנשום מאז הבוקר"}
+{"intent": "meds", "lang": "en", "text": "Refill my prescription for levothyroxine"}
+{"intent": "meds", "lang": "en", "text": "Is it safe to combine ibuprofen with acetaminophen"}
+{"intent": "meds", "lang": "en", "text": "Remind me to take my blood pressure pill tonight"}
+{"intent": "meds", "lang": "en", "text": "I missed my morning dose of metformin"}
+{"intent": "meds", "lang": "he", "text": "אני צריך מרשם חדש ללבוטירוקסין"}
+{"intent": "meds", "lang": "he", "text": "האם מותר לקחת אקמול עם איבופרופן"}
+{"intent": "meds", "lang": "he", "text": "תזכיר לי לקחת את כדור הלחץ דם בערב"}
+{"intent": "meds", "lang": "he", "text": "פספסתי את המנה של הכדורים בבוקר"}
+{"intent": "appointment", "lang": "en", "text": "Book a doctor's appointment for next Tuesday morning"}
+{"intent": "appointment", "lang": "en", "text": "Schedule a blood test at the local clinic"}
+{"intent": "appointment", "lang": "en", "text": "Find a pediatrician appointment near Tel Aviv"}
+{"intent": "appointment", "lang": "en", "text": "Reschedule my physiotherapy visit"}
+{"intent": "appointment", "lang": "he", "text": "קבע תור לרופא משפחה ליום ראשון"}
+{"intent": "appointment", "lang": "he", "text": "אני צריך בדיקות דם ביום חמישי"}
+{"intent": "appointment", "lang": "he", "text": "מצא לי תור לרופא ילדים קרוב"}
+{"intent": "appointment", "lang": "he", "text": "אני רוצה להזיז את התור לפיזיותרפיה"}
+{"intent": "routine", "lang": "en", "text": "Set a reminder to drink water every two hours"}
+{"intent": "routine", "lang": "en", "text": "Create a daily mood check-in"}
+{"intent": "routine", "lang": "en", "text": "Add a weekly task to review my medications"}
+{"intent": "routine", "lang": "en", "text": "Make a nightly stretching reminder"}
+{"intent": "routine", "lang": "he", "text": "הוסף תזכורת לשתות מים כל שעתיים"}
+{"intent": "routine", "lang": "he", "text": "צור בדיקה יומית של מצב רוח"}
+{"intent": "routine", "lang": "he", "text": "הוסף משימה שבועית לבדוק תרופות"}
+{"intent": "routine", "lang": "he", "text": "תזכיר לי לעשות מתיחות לפני השינה"}
+{"intent": "other", "lang": "en", "text": "Where can I find a good restaurant near me"}
+{"intent": "other", "lang": "en", "text": "Suggest fun things to do tonight"}
+{"intent": "other", "lang": "en", "text": "What are the best coffee shops in the city"}
+{"intent": "other", "lang": "en", "text": "Plan a weekend getaway"}
+{"intent": "other", "lang": "he", "text": "איפה אפשר לשתות קפה טוב בתל אביב"}
+{"intent": "other", "lang": "he", "text": "תציע לי מסעדות שוות באזור"}
+{"intent": "other", "lang": "he", "text": "מה עושים הערב בעיר"}
+{"intent": "other", "lang": "he", "text": "תעזור לי למצוא בילוי לסוף שבוע"}

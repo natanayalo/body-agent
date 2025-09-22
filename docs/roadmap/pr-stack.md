@@ -209,7 +209,7 @@ Why: Make routing robust for new wordings in EN/HE.
 
 Scope
 
-- Add `plan/intents.exemplars.jsonl` (or `services/api/app/data/intent_exemplars.jsonl`) with bilingual examples per intent.
+ - Add `data/intent_exemplars.jsonl` (or `services/api/app/data/intent_exemplars.jsonl`) with bilingual examples per intent.
 - Load via `INTENT_EXEMPLARS_PATH`; hot-reload in dev.
 - Keep current embedding classifier but feed from the registry; make threshold/margin env-driven.
 
@@ -291,3 +291,31 @@ Acceptance
 Pointers
 
 - `scripts/ingest_public_kb.py`, `docker-compose.yml` volumes; README instructions.
+
+---
+
+# PR 18 — Lightweight meds registry (OTC classes + guardrails)
+
+Why: Provide high coverage for “what can I take…” questions without adding many KB pages by using a tiny, structured registry of common OTC classes and safety guardrails.
+
+Scope
+
+- Add `services/api/app/data/med_classes.yml` with a handful of OTC classes (e.g., `acetaminophen`, `ibuprofen`, `naproxen`, `antacids`, `oral_rehydration_salts`). Each item includes: `aliases`, `uses`, `avoid_if`, `interactions` (e.g., NSAIDs ↔ anticoagulants), `age_limits`, `pregnancy`, `notes`.
+- New loader `app/tools/meds_registry.py` reading from `MED_CLASSES_PATH` and hot-reloading in dev (`MED_CLASSES_WATCH=true`).
+- In `answer_gen.run`, when intent is `symptom` and the user phrasing suggests OTC relief (e.g., “what can I take”, “can I take …”), add a short “OTC options and safety” section sourced from the registry. Never provide dosing; prioritize retrieved snippets when present; fall back to registry guardrails if retrieval is sparse.
+- Interaction awareness: if `memory_facts` include anticoagulants (e.g., warfarin), add a caution bullet for NSAIDs (from the registry) without prescribing behavior.
+- Config: add `MED_CLASSES_PATH` (default to the repo example under `/app/data/med_classes.yml`) and `MED_CLASSES_WATCH` to `.env.example` and README.
+- i18n: keep the registry English-first; surface localized phrasing via existing fallback templates (PR 15) when applicable.
+
+Acceptance
+
+- With no new KB docs, a stomach-pain query yields an answer that includes a concise OTC/safety section (e.g., antacids, general caution on NSAIDs) plus standard disclaimer; no dosing text appears.
+- If `memory_facts` contain warfarin, the answer includes an NSAID bleeding-risk caution; removing warfarin removes that caution.
+- Works alongside PR 14 (retrieval expansion) and PR 15 (fallback templates) — when relevant GI docs exist, they rank first; registry content supplements rather than replaces them.
+- Unit tests cover: registry loading, anticoagulant caution injection, and that dosing is omitted.
+
+Pointers
+
+- `services/api/app/graph/nodes/answer_gen.py` — inject registry-backed “OTC options and safety” section under guardrails.
+- `services/api/app/tools/meds_registry.py` — new module to load/watch `med_classes.yml`.
+- `.env.example`/README — document `MED_CLASSES_PATH`, `MED_CLASSES_WATCH` defaults.

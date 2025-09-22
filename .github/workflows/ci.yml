@@ -74,7 +74,7 @@ jobs:
           echo "LLM_PROVIDER=none" >> .env
           echo "RISK_MODEL_ID=__stub__" >> .env
           echo "EMBEDDINGS_MODEL=__stub__" >> .env
-          echo "INTENT_EXEMPLARS_PATH=${{ github.workspace }}/data/intent_exemplars.json" >> .env
+          echo "INTENT_EXEMPLARS_PATH=${{ github.workspace }}/data/intent_exemplars.jsonl" >> .env
           mkdir -p data
       - name: "E2E: Start ES + seed (Makefile)"
         run: make e2e-local-up

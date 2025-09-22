@@ -110,18 +110,17 @@ curl -X POST "http://localhost:8000/api/graph/run" -H "Content-Type: application
 
 ## Optional: Better intent routing with exemplars
 
-By default the supervisor uses an **embedding-based** router with built-in examples. You can improve accuracy and multilingual coverage by generating exemplars from the **MASSIVE** dataset (plus curated fallbacks for health-specific intents).
+By default the supervisor uses an **embedding-based** router. The repo ships a curated EN/HE exemplar set at `data/intent_exemplars.jsonl`, and the app reads from `INTENT_EXEMPLARS_PATH` (default `/app/data/intent_exemplars.jsonl`). You can point the env var directly to your generated file or use the curated default. Hot-reload is available with `INTENT_EXEMPLARS_WATCH=true`.
 
-# generate exemplars (internet required once)
+If you want to regenerate or extend the exemplars using the **MASSIVE** dataset:
+
 ```bash
+# internet required on first run
 docker compose exec api python scripts/build_intent_exemplars.py \
   --langs en he --per-intent 40 --out /app/data/intent_exemplars.json
 ```
-# point the API to the file
-```bash
-echo "INTENT_EXEMPLARS_PATH=/app/data/intent_exemplars.json" >> .env
-docker compose restart api
-```
+
+Then update `INTENT_EXEMPLARS_PATH` in `.env` to point at your generated file (for example `/app/data/intent_exemplars.json`) and restart the API container.
 
 Config knobs (in `.env`):
 

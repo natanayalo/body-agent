@@ -1,7 +1,7 @@
 from __future__ import annotations
 import json
 import os
-from typing import Dict, List, Literal
+from typing import Dict, List, Literal, Optional
 import numpy as np
 import logging
 from app.graph.state import BodyState
@@ -11,6 +11,8 @@ from app.tools.embeddings import embed
 _EX_PATH = os.getenv("INTENT_EXEMPLARS_PATH")
 _THRESHOLD = float(os.getenv("INTENT_THRESHOLD", "0.30"))
 _MARGIN = float(os.getenv("INTENT_MARGIN", "0.05"))
+_WATCH = os.getenv("INTENT_EXEMPLARS_WATCH", "false").strip().lower() == "true"
+_EX_MTIME: Optional[float] = None
 
 _DEFAULT_EXAMPLES: Dict[str, List[str]] = {
     "symptom": [
@@ -62,48 +64,108 @@ _DEFAULT_EXAMPLES: Dict[str, List[str]] = {
 }
 
 
+def _parse_json_exemplars(obj: dict) -> Dict[str, List[str]]:
+    out: Dict[str, List[str]] = {}
+    for k, vals in obj.items():
+        if k in {"symptom", "meds", "appointment", "routine", "other"}:
+            out[k] = [v for v in vals if isinstance(v, str) and v.strip()]
+    return out
+
+
+def _parse_jsonl_exemplars(lines: List[str]) -> Dict[str, List[str]]:
+    buckets: Dict[str, List[str]] = {
+        k: [] for k in ["symptom", "meds", "appointment", "routine", "other"]
+    }
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        intent = rec.get("intent") or rec.get("label")
+        text = rec.get("text") or rec.get("example")
+        if isinstance(intent, str) and isinstance(text, str):
+            if intent in buckets and text.strip():
+                buckets[intent].append(text.strip())
+    # remove empty buckets
+    return {k: v for k, v in buckets.items() if v}
+
+
 def _load_exemplars() -> Dict[str, List[str]]:
     # Load exemplars from file if provided; otherwise defaults
+    global _EX_MTIME
     path = _EX_PATH
     if path and os.path.exists(path):
         try:
             with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            # Ensure only known intents & non-empty strings
-            out = {}
-            for k, vals in data.items():
-                if k in {"symptom", "meds", "appointment", "routine", "other"}:
-                    out[k] = [v for v in vals if isinstance(v, str) and v.strip()]
-            if out:
+                if path.endswith(".jsonl"):
+                    data = _parse_jsonl_exemplars(f.readlines())
+                else:
+                    data = _parse_json_exemplars(json.load(f))
+            if data:
+                try:
+                    _EX_MTIME = os.path.getmtime(path)
+                except OSError:
+                    _EX_MTIME = None
                 logging.info(f"Loaded intent exemplars from {path}")
-                return out
-            else:
-                logging.warning(
-                    f"Exemplars file {path} is empty or malformed, using default exemplars."
-                )
-                return _DEFAULT_EXAMPLES
-        except Exception as e:
+                return data
+            logging.warning(
+                f"Exemplars file {path} is empty or malformed, using default exemplars."
+            )
+            return _DEFAULT_EXAMPLES
+        except (OSError, json.JSONDecodeError) as e:
             logging.error(
                 f"Failed to load intent exemplars from {path}: {e}", exc_info=True
             )
             logging.info("Using default intent exemplars.")
             return _DEFAULT_EXAMPLES
     logging.info(
-        "INTENT_EXEMPLARS_PATH not set or file not found, using default intent exemplars."
+        "INTENT_EXEMPLARS_PATH not set or file not found, using default exemplars."
     )
     return _DEFAULT_EXAMPLES
 
 
 _EXEMPLARS = _load_exemplars()
-_EX_VECS = {
-    k: np.array(embed(v)) if v else np.zeros((0, 384)) for k, v in _EXEMPLARS.items()
-}
+_EX_VECS: Dict[str, np.ndarray] = {}
+
+
+def _rebuild_vectors() -> None:
+    global _EX_VECS
+    _EX_VECS = {
+        k: np.array(embed(v)) if v else np.zeros((0, 384))
+        for k, v in _EXEMPLARS.items()
+    }
+
+
+_rebuild_vectors()
+
+
+def _maybe_reload() -> None:
+    if not _WATCH:
+        return
+    path = _EX_PATH
+    if not path or not os.path.exists(path):
+        return
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return
+    global _EX_MTIME, _EXEMPLARS
+    if _EX_MTIME is None or mtime > _EX_MTIME:
+        new_map = _load_exemplars()
+        if new_map:
+            _EXEMPLARS = new_map
+            _rebuild_vectors()
+            logging.info("Reloaded intent exemplars after file change")
 
 
 def detect_intent(
     text: str,
 ) -> Literal["meds", "appointment", "symptom", "routine", "other"]:
     # Embedding exemplar classifier with abstain (threshold + margin)
+    _maybe_reload()
     q = np.array(embed([text])[0])
     # cosine since embeddings are normalized
     scores = {
