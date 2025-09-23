@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
-from typing import List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.config import settings
 from app.graph.state import BodyState
@@ -50,6 +51,215 @@ URGENT_LINE = LANG_CONFIG[DEFAULT_LANGUAGE]["urgent_line"]
 FALLBACK_HIGHLIGHT_LENGTH = 160
 URGENT_TRIGGERS = {"urgent_care", "see_doctor"}
 
+# Lightweight, reviewed fallback templates for symptom buckets (EN/HE)
+FALLBACK_TEMPLATES: Dict[str, Dict[str, str]] = {
+    "gi": {
+        "en": (
+            "Self-care for mild stomach pain\n"
+            "- Rest, hydrate (small sips), and try bland foods (e.g., rice, toast).\n"
+            "- Avoid alcohol; consider pausing NSAIDs if they upset your stomach.\n"
+            "- Seek urgent care for severe/worsening pain, persistent vomiting, blood in stool, high fever, chest pain, or shortness of breath."
+        ),
+        "he": (
+            "עזרה עצמית לכאב בטן קל\n"
+            "- לנוח, לשתות לאט ולנסות מזון קל (למשל אורז, טוסט).\n"
+            "- להימנע מאלכוהול; לשקול הימנעות מ-NSAIDs אם יש גירוי בקיבה.\n"
+            "- פנו בדחיפות אם הכאב חמור/מחמיר, יש הקאות ממושכות, דם בצואה, חום גבוה, כאב בחזה או קוצר נשימה."
+        ),
+    },
+    "resp": {
+        "en": (
+            "Self-care for mild cough/cold\n"
+            "- Rest, fluids, and humidified air may help.\n"
+            "- Honey (for adults/children >1y) can soothe cough; avoid smoking/vaping.\n"
+            "- Seek care for breathing difficulty, chest pain, high fever, or if symptoms persist/worsen."
+        ),
+        "he": (
+            "עזרה עצמית לשיעול/התקררות קלים\n"
+            "- מנוחה, שתייה וחדר מאוורר/מאוּדה עשויים לעזור.\n"
+            "- דבש (למבוגרים/ילדים מעל שנה) עשוי להקל; להימנע מעישון.\n"
+            "- פנו לרופא אם יש קושי בנשימה, כאב בחזה, חום גבוה או החמרה."
+        ),
+    },
+    "neuro": {
+        "en": (
+            "Self-care for mild headache\n"
+            "- Rest in a quiet, dark room; hydrate and consider a light snack.\n"
+            "- Limit screen time and ensure regular sleep.\n"
+            "- Seek urgent care for "
+            "sudden worst headache, neurologic symptoms (weakness, confusion), head injury, or fever with stiff neck."
+        ),
+        "he": (
+            "עזרה עצמית לכאב ראש קל\n"
+            "- מנוחה בחדר שקט ומוחשך; שתייה קלה וחטיף קל.\n"
+            "- להפחית זמן מסך ולשמור על שינה סדירה.\n"
+            "- פנו בדחיפות אם זה 'כאב הראש הגרוע ביותר', יש סימנים נוירולוגיים, חבלת ראש או חום עם נוקשות צוואר."
+        ),
+    },
+    "general": {
+        "en": (
+            "General self-care\n"
+            "- Rest, hydrate, and avoid triggers when possible.\n"
+            "- Monitor symptoms and seek medical advice if they persist or worsen."
+        ),
+        "he": (
+            "עזרה עצמית כללית\n"
+            "- מנוחה, שתייה והימנעות מטריגרים.\n"
+            "- עקבו אחר התסמינים ופנו לייעוץ רפואי אם יש החמרה או התמדה."
+        ),
+    },
+}
+
+GI_KEYWORDS_HE = ["כאבי בטן", "כאב בטן", "בטן", "שלשול", "הקאה", "בחילה", "קיבה"]
+GI_KEYWORDS_EN = [
+    "stomach",
+    "abdominal",
+    "belly",
+    "nausea",
+    "vomit",
+    "diarrhea",
+    "indigestion",
+]
+RESP_KEYWORDS_HE = ["שיעול", "צינון", "גרון", "ליחה", "נשימה", "קוצר נשימה"]
+RESP_KEYWORDS_EN = [
+    "cough",
+    "cold",
+    "throat",
+    "phlegm",
+    "congestion",
+    "breath",
+    "wheez",
+]
+NEURO_KEYWORDS_HE = ["כאב ראש", "מיגרנה", "סחרחורת", "התעלפות"]
+NEURO_KEYWORDS_EN = ["headache", "migraine", "dizzi", "faint", "neurolog"]
+
+_LANG_BUCKET_KEYWORDS: Dict[str, Tuple[Tuple[str, List[str]], ...]] = {
+    "he": (
+        ("gi", GI_KEYWORDS_HE),
+        ("resp", RESP_KEYWORDS_HE),
+        ("neuro", NEURO_KEYWORDS_HE),
+    ),
+    "en": (
+        ("gi", GI_KEYWORDS_EN),
+        ("resp", RESP_KEYWORDS_EN),
+        ("neuro", NEURO_KEYWORDS_EN),
+    ),
+}
+_DEFAULT_BUCKET_KEYWORDS: Tuple[Tuple[str, List[str]], ...] = _LANG_BUCKET_KEYWORDS.get(
+    DEFAULT_LANGUAGE, ()
+)
+
+_TEMPLATES_PATH: Optional[str] = os.getenv("FALLBACK_TEMPLATES_PATH")
+_TEMPLATES_WATCH: bool = (
+    os.getenv("FALLBACK_TEMPLATES_WATCH", "false").strip().lower() == "true"
+)
+_TEMPLATES_MTIME: Optional[float] = None
+_TEMPLATES_MAP: Dict[str, Dict[str, str]] = dict(FALLBACK_TEMPLATES)
+
+
+def _parse_templates_obj(obj: Any) -> Dict[str, Dict[str, str]]:
+    out: Dict[str, Dict[str, str]] = {}
+    if isinstance(obj, dict):
+        for bucket, per_lang in obj.items():
+            if not isinstance(per_lang, dict):
+                continue
+            lang_map: Dict[str, str] = {}
+            for lang, text in per_lang.items():
+                if isinstance(lang, str) and isinstance(text, str) and text.strip():
+                    lang_map[lang] = text
+            if lang_map:
+                out[str(bucket)] = lang_map
+    return out
+
+
+def _load_templates_from_file(path: str) -> Optional[Dict[str, Dict[str, str]]]:
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            if path.endswith(".json"):
+                data = json.load(f)
+                parsed = _parse_templates_obj(data)
+            elif path.endswith(".yaml") or path.endswith(".yml"):
+                try:
+                    import yaml  # type: ignore
+                except Exception:
+                    logger.warning(
+                        "PyYAML not installed; cannot parse YAML templates; using defaults."
+                    )
+                    return None
+                data = yaml.safe_load(f)
+                parsed = _parse_templates_obj(data)
+            else:
+                logger.warning(
+                    "Unknown templates extension for %s (use .json/.yaml/.yml)", path
+                )
+                return None
+        if parsed:
+            return parsed
+    except Exception as e:
+        logger.warning("Failed loading fallback templates from %s: %s", path, e)
+    return None
+
+
+def _init_templates_map() -> None:
+    global _TEMPLATES_MAP, _TEMPLATES_MTIME
+    path = _TEMPLATES_PATH
+    if path and os.path.exists(path):
+        parsed = _load_templates_from_file(path)
+        if parsed:
+            _TEMPLATES_MAP = parsed
+            try:
+                _TEMPLATES_MTIME = os.path.getmtime(path)
+            except OSError:
+                _TEMPLATES_MTIME = None
+            logger.info("Loaded fallback templates from %s", path)
+        else:
+            logger.warning("Templates file invalid/empty; using built-in defaults")
+    else:
+        logger.debug("FALLBACK_TEMPLATES_PATH not set or file missing; using defaults")
+
+
+def _maybe_reload_templates() -> None:
+    if not _TEMPLATES_WATCH:
+        return
+    path = _TEMPLATES_PATH
+    if not path or not os.path.exists(path):
+        return
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return
+    global _TEMPLATES_MTIME, _TEMPLATES_MAP
+    if _TEMPLATES_MTIME is None or mtime > _TEMPLATES_MTIME:
+        parsed = _load_templates_from_file(path)
+        if parsed:
+            _TEMPLATES_MAP = parsed
+            _TEMPLATES_MTIME = mtime
+            logger.info("Reloaded fallback templates after file change")
+
+
+_init_templates_map()
+
+
+def _bucketize_symptom(text: str, lang: str) -> str:
+    s = (text or "").lower()
+    keyword_map = _LANG_BUCKET_KEYWORDS.get(lang, _DEFAULT_BUCKET_KEYWORDS)
+    for bucket, keywords in keyword_map:
+        if any(k in s for k in keywords):
+            return bucket
+    return "general"
+
+
+def _template_fallback(state: BodyState) -> str:
+    _maybe_reload_templates()
+    lang, _ = _language_config(state)
+    query = state.get("user_query_redacted", state.get("user_query", ""))
+    bucket = _bucketize_symptom(query, lang)
+    source = _TEMPLATES_MAP if _TEMPLATES_MAP else FALLBACK_TEMPLATES
+    template = source.get(bucket, source.get("general", {})).get(
+        lang, source.get("general", {}).get(DEFAULT_LANGUAGE, "")
+    )
+    return template
+
 
 def _resolve_provider() -> str:
     return os.getenv("LLM_PROVIDER", settings.llm_provider).strip().lower()
@@ -72,6 +282,20 @@ def _risk_triggers(state: BodyState) -> List[str]:
     debug = state.get("debug") or {}
     risk = debug.get("risk") or {}
     return [t.get("label") for t in risk.get("triggered", []) if t.get("label")]
+
+
+def _fallback_summary_line(state: BodyState, config: dict) -> str:
+    user_query = state.get("user_query_redacted", state.get("user_query", ""))
+    if user_query:
+        return f"{config['fallback_summary_label']} {user_query}"
+    return ""
+
+
+def _risk_notice(state: BodyState, config: dict) -> str:
+    triggers = _risk_triggers(state)
+    if triggers:
+        return f"{config['fallback_risk_label']} " + ", ".join(triggers)
+    return ""
 
 
 def _build_prompt(state: BodyState) -> str:
@@ -158,11 +382,11 @@ def _call_openai(prompt: str) -> str | None:
 
 
 def _fallback_message(state: BodyState) -> str:
-    preferred_lang, config = _language_config(state)
+    _, config = _language_config(state)
     parts: List[str] = []
-    user_query = state.get("user_query_redacted", state.get("user_query", ""))
-    if user_query:
-        parts.append(f"{config['fallback_summary_label']} {user_query}")
+    summary_line = _fallback_summary_line(state, config)
+    if summary_line:
+        parts.append(summary_line)
 
     snippets = state.get("public_snippets", []) or []
     if snippets:
@@ -180,9 +404,9 @@ def _fallback_message(state: BodyState) -> str:
                 f"{config['fallback_key_points_label']}\n" + "\n".join(highlights)
             )
 
-    triggers = _risk_triggers(state)
-    if triggers:
-        parts.append(f"{config['fallback_risk_label']} " + ", ".join(triggers))
+    risk_notice = _risk_notice(state, config)
+    if risk_notice:
+        parts.append(risk_notice)
 
     return "\n\n".join(parts) if parts else config["fallback_empty"]
 
@@ -213,7 +437,16 @@ def run(state: BodyState) -> BodyState:
     prompt = _build_prompt(state)
     content = _generate_with_provider(provider, prompt)
     if not content:
-        content = _fallback_message(state)
+        snippets = state.get("public_snippets", []) or []
+        if snippets:
+            content = _fallback_message(state)
+        else:
+            _, config = _language_config(state)
+            summary_line = _fallback_summary_line(state, config)
+            template = _template_fallback(state)
+            risk_notice = _risk_notice(state, config)
+            parts = [part for part in (summary_line, template, risk_notice) if part]
+            content = "\n\n".join(parts) if parts else config["fallback_empty"]
 
     reply = _build_reply(content, state)
     message = {

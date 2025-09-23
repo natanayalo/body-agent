@@ -77,7 +77,7 @@ curl -X POST "http://localhost:8000/api/graph/run" -H "Content-Type: application
 **Symptom check (streaming):**
 
 ```bash
-curl -X POST "http://localhost:8000/api/graph/stream" -H "Content-Type: application/json" -d '''
+curl --no-buffer -X POST "http://localhost:8000/api/graph/stream" -H "Content-Type: application/json" -d '''
 {
   "user_id": "demo-user",
   "query": "I have a headache, what can I take?"
@@ -85,7 +85,7 @@ curl -X POST "http://localhost:8000/api/graph/stream" -H "Content-Type: applicat
 '''
 ```
 
-Server-Sent Events (SSE) format:
+Server-Sent Events (SSE) format (final is last):
 
 ```
 data: {"node":"memory","delta":{"memory_facts":[...]}}
@@ -96,6 +96,8 @@ data: {"node":"risk_ml","delta":{"debug":{"scores":{...},"triggered":[...]}}}
 
 data: {"final":{"state":{...}}}
 ```
+
+Note: `/api/graph/run` returns a stable envelope: `{ "state": { ... } }`.
 
 **Find a provider:**
 
@@ -110,7 +112,7 @@ curl -X POST "http://localhost:8000/api/graph/run" -H "Content-Type: application
 
 ## Optional: Better intent routing with exemplars
 
-By default the supervisor uses an **embedding-based** router. The repo ships a curated EN/HE exemplar set at `data/intent_exemplars.jsonl`, and the app reads from `INTENT_EXEMPLARS_PATH` (default `/app/data/intent_exemplars.jsonl`). You can point the env var directly to your generated file or use the curated default. Hot-reload is available with `INTENT_EXEMPLARS_WATCH=true`.
+By default the supervisor uses an **embedding-based** router. The repo ships a curated EN/HE exemplar set under `seeds/intent_exemplars.jsonl`, while the app reads from `INTENT_EXEMPLARS_PATH` (default `/app/data/intent_exemplars.jsonl`). Copy the curated file into your data volume or point the env var directly to your generated file. Hot-reload is available with `INTENT_EXEMPLARS_WATCH=true`.
 
 If you want to regenerate or extend the exemplars using the **MASSIVE** dataset:
 
@@ -127,11 +129,14 @@ Config knobs (in `.env`):
 ```
 INTENT_THRESHOLD=0.30   # min cosine for top intent
 INTENT_MARGIN=0.05      # top - second must exceed this
+FALLBACK_TEMPLATES_PATH=/app/data/safety_templates.json  # optional file-backed symptom templates (EN/HE); see seeds/safety_templates.json
+FALLBACK_TEMPLATES_WATCH=false                           # enable hot-reload in dev
 ```
 
 Notes:
 - We currently map only obvious MASSIVE labels to our buckets (`appointment`, `routine`). Health-specific intents (`symptom`, `meds`) are curated in the script.
 - The supervisor precomputes embeddings for exemplars at import time for speed.
+- Fallback answer generation includes pattern-based, file-backed templates for common symptom buckets; when a provider is disabled/unavailable and retrieval returns nothing, a safe, non-dosing template is used.
 
 
 ## Development

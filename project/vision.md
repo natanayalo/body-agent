@@ -1,4 +1,4 @@
-Love both directions. Here’s how I’d shape them so you can *actually* ship something with LangGraph + Elasticsearch, keep data private, and still have room to expand.
+Here’s how to *actually* ship something with LangGraph + Elasticsearch, keep data private, and still have room to expand.
 
 # 1) “Body Agent” — Personal Health & Life Copilot (care + planning, private by default)
 

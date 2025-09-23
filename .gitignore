@@ -45,7 +45,8 @@ Thumbs.db
 services/api/app/data/
 *.ics
 seeds/intent_exemplars.json
-data/
+# Ignore data runtime directory but keep curated defaults
+data/*
 
 # pre-commit cache (local only)
 .pre-commit-cache/
