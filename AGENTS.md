@@ -5,7 +5,7 @@ Scope: These instructions apply to the whole repository. They are for AI coding 
 ## Mission & Priorities
 
 - Privacy-first: never surface raw PII beyond the scrubber boundary. Prefer redacted `user_query_redacted` when possible.
-- Ship in small, well-scoped increments aligned with `project/roadmap/pr-stack.md`.
+- Ship in small, well-scoped increments aligned with `project/roadmap.md` (phases) and `project/roadmap/pr-stack.md`.
 - Keep solutions simple, focused, and testable. Don’t fix unrelated issues.
 
 ## Repo Map (essentials)
@@ -13,14 +13,14 @@ Scope: These instructions apply to the whole repository. They are for AI coding 
 - `services/api/app/graph/nodes/` — pipeline nodes (supervisor, scrub, memory, health, risk_ml, places, planner, answer_gen, critic).
 - `services/api/app/graph/build.py` — LangGraph wiring and routing.
 - `services/api/app/tools/` — shared utilities (embeddings, ES client, crypto, language, etc.).
-- `project/roadmap/` — roadmap and specs. Use this to align PRs and acceptance criteria.
+- `project/` — product docs: roadmap (`project/roadmap.md`, `project/roadmap/pr-stack.md`, `project/roadmap/ideas.md`), direction (`project/vision.md`, `project/architecture.md`), and runbooks (`project/config.md`, `project/evaluation.md`, `project/privacy.md`, `project/troubleshooting.md`).
 - `seeds/` — seed KB and providers. E2E tests rely on this content.
 - `docker-compose.yml` — local dev stack; note mounted volumes.
 
 ## Planning Protocol
 
 - Before doing multi-step work, create/maintain a short plan (5–7 words per step). Keep exactly one step in_progress. Update as you go.
-- Use small, incremental changes that match the “Next PR Stack” in `project/roadmap/pr-stack.md` when possible.
+- Use small, incremental changes tied to the “Next PR Stack” in `project/roadmap/pr-stack.md` (phase context lives in `project/roadmap.md`).
 - Add or refine acceptance criteria within `project/roadmap/pr-stack.md` for new work; reflect backlog items in `project/roadmap/ideas.md`.
 
 ## Execution Guardrails
