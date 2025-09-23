@@ -128,6 +128,28 @@ class _FakeES:
     def index(self, index: str, id: str, document: dict):
         self.calls.append(("index", index, id, document))
 
+    def msearch(self, body):
+        self.calls.append(("msearch", json.loads(json.dumps(body))))
+        if not isinstance(body, list):
+            return {"responses": []}
+
+        responses = []
+        i = 0
+        while i < len(body):
+            header = body[i] if i < len(body) else {}
+            query = body[i + 1] if i + 1 < len(body) else {}
+            i += 2
+
+            index = ""
+            if isinstance(header, dict):
+                index = header.get("index", "")
+            if not index and isinstance(query, dict):
+                index = query.get("index", "")
+
+            responses.append(self.search(index, query))
+
+        return {"responses": responses}
+
 
 @pytest.fixture()  # Changed scope to function, removed autouse=True
 def fake_es(session_monkeypatch):
@@ -220,4 +242,13 @@ def sample_docs():
         "updated_on": "2025-01-01T00:00:00Z",
         "text": "Increased bleeding risk with NSAIDs like ibuprofen",
     }
-    return hits, fever_doc, ibu_warn, warf_inter
+    abdomen_doc = {
+        "title": "Abdominal Pain Home Care",
+        "section": "general",
+        "language": "en",
+        "jurisdiction": "generic",
+        "source_url": "file://abdominal_pain.md",
+        "updated_on": "2025-01-01T00:00:00Z",
+        "text": "Try clear liquids for a few hours; seek urgent care if pain is severe or with fever.",
+    }
+    return hits, fever_doc, ibu_warn, warf_inter, abdomen_doc

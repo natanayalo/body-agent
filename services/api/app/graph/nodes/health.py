@@ -1,10 +1,13 @@
 import re
 import logging
+from typing import Iterable
+
 from app.graph.state import BodyState
 from app.tools.es_client import get_es_client
 from app.tools.embeddings import embed
 from app.config import settings
 from app.tools.language import DEFAULT_LANGUAGE, normalize_language_code
+from app.tools import symptom_registry
 from elasticsearch import TransportError, RequestError
 
 logger = logging.getLogger(__name__)
@@ -53,17 +56,108 @@ def _prioritize_language(docs: list[dict], preferred: str) -> list[dict]:
     return primary + secondary
 
 
+def _doc_identity(doc: dict) -> str:
+    if not isinstance(doc, dict):
+        return ""
+    lang_raw = doc.get("language")
+    lang = normalize_language_code(lang_raw) if lang_raw else ""
+    if src := doc.get("source_url"):
+        return f"src::{src}::{lang}"
+    title = doc.get("title")
+    section = doc.get("section")
+    return f"title::{title}::{section}::{lang}"
+
+
+def _merge_docs(*groups: Iterable[dict]) -> list[dict]:
+    merged: list[dict] = []
+    seen: set[str] = set()
+    for group in groups:
+        for doc in group or []:
+            key = _doc_identity(doc)
+            if key and key in seen:
+                continue
+            if key:
+                seen.add(key)
+            merged.append(doc)
+    return merged
+
+
+def _fetch_registry_docs(es, refs: list[dict]) -> list[dict]:
+    docs: list[dict] = []
+    if not refs:
+        return docs
+
+    searches: list[dict] = []
+    for ref in refs:
+        if not isinstance(ref, dict):
+            continue
+
+        must: list[dict] = []
+        for field in ("source_url", "title", "section", "language"):
+            value = ref.get(field)
+            if not value:
+                continue
+            must.append({"match_phrase": {field: value}})
+
+        if not must:
+            continue
+
+        searches.append({"index": settings.es_public_index})
+        searches.append(
+            {
+                "query": {"bool": {"must": must}},
+                "_source": {"excludes": ["embedding"]},
+                "size": 1,
+            }
+        )
+
+    if not searches:
+        return docs
+
+    try:
+        responses = es.msearch(body=searches).get("responses", [])
+    except (TransportError, RequestError) as exc:
+        logger.warning("Registry doc msearch failed: %s", exc)
+        return docs
+    except Exception as exc:  # pragma: no cover
+        logger.error("Unexpected registry msearch error: %s", exc, exc_info=True)
+        return docs
+
+    for res in responses or []:
+        if not isinstance(res, dict):
+            continue
+        if res.get("error"):
+            logger.warning("Registry doc msearch returned error: %s", res.get("error"))
+            continue
+        hit = (res.get("hits", {}).get("hits") or [None])[0]
+        if hit and isinstance(hit, dict):
+            doc = hit.get("_source")
+            if isinstance(doc, dict):
+                docs.append(doc)
+
+    return docs
+
+
 def run(state: BodyState, es_client=None) -> BodyState:
     q = state.get("user_query_redacted", state["user_query"])
     mem = state.get("memory_facts") or []
     med_terms = _norm_med_terms(mem)
     es = es_client if es_client else get_es_client()
-    docs = []
     preferred_lang = _preferred_language(state)
+    registry_matches = symptom_registry.match_query(q)
+    expansion_terms = symptom_registry.expansion_terms(registry_matches, preferred_lang)
+    registry_docs = _fetch_registry_docs(
+        es, symptom_registry.doc_refs(registry_matches)
+    )
+
+    docs = []
 
     # Try kNN firs
     try:
-        vector = embed([q])[0]
+        vector_query = q
+        if expansion_terms:
+            vector_query = " ".join([q] + expansion_terms)
+        vector = embed([vector_query])[0]
         knn_body = {
             "knn": {
                 "field": "embedding",
@@ -76,10 +170,10 @@ def run(state: BodyState, es_client=None) -> BodyState:
         }
         res = es.search(index=settings.es_public_index, body=knn_body)
         docs = [h["_source"] for h in res.get("hits", {}).get("hits", [])]
-    except (TransportError, RequestError) as e:
+    except (TransportError, RequestError) as e:  # pragma: no cover
         logger.warning(f"kNN search failed: {e}. Falling back to BM25.")
         docs = []
-    except Exception as e:
+    except Exception as e:  # pragma: no cover
         logger.error(
             f"An unexpected error occurred during kNN search: {e}", exc_info=True
         )
@@ -89,12 +183,23 @@ def run(state: BodyState, es_client=None) -> BodyState:
     if not docs:
         try:
             should = [
-                {"match": {"text": q}},
-                {"match": {"title": q}},
+                {"match": {"text": {"query": q, "boost": 2.0}}},
+                {"match": {"title": {"query": q, "boost": 1.8}}},
             ]
+
+            for term in expansion_terms:
+                should.append({"match": {"title": {"query": term, "boost": 1.6}}})
+                should.append({"match": {"text": {"query": term, "boost": 1.4}}})
+
             for t in med_terms:
-                should.append({"match": {"title": t}})
-                should.append({"match": {"text": t}})
+                should.append({"match": {"title": {"query": t, "boost": 1.2}}})
+                should.append({"match": {"text": {"query": t, "boost": 1.1}}})
+
+            for section, boost in (("general", 1.5), ("warnings", 1.3)):
+                should.append(
+                    {"match": {"section": {"query": section, "boost": boost}}}
+                )
+
             bm25_body = {
                 "query": {"bool": {"should": should, "minimum_should_match": 1}},
                 "_source": {"excludes": ["embedding"]},
@@ -102,13 +207,14 @@ def run(state: BodyState, es_client=None) -> BodyState:
             }
             res = es.search(index=settings.es_public_index, body=bm25_body)
             docs.extend([h["_source"] for h in res.get("hits", {}).get("hits", [])])
-        except (TransportError, RequestError) as e:
+        except (TransportError, RequestError) as e:  # pragma: no cover
             logger.warning(f"BM25 search failed: {e}.")
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
             logger.error(
                 f"An unexpected error occurred during BM25 search: {e}", exc_info=True
             )
 
+    docs = _merge_docs(registry_docs, docs)
     docs = _prioritize_language(docs, preferred_lang)
 
     # Build alerts & citations

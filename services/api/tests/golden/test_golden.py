@@ -51,7 +51,7 @@ def test_golden_cases(
 ):
     # Reset handlers for isolated expectations
     fake_es.handlers = []
-    hits_fn, fever_doc, ibu_warn, warf_inter = sample_docs
+    hits_fn, fever_doc, ibu_warn, warf_inter, abdomen_doc = sample_docs
     doc_lookup = {
         "fever_doc": fever_doc,
         "ibu_warn": ibu_warn,

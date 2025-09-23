@@ -39,6 +39,10 @@ This page lists the key environment variables, defaults, and how to run in CI (s
 - `INTENT_MARGIN` (default `0.05`)
 - `INTENT_LANGS` (default `en,he`)
 
+## Symptom registry (doc routing)
+
+- `SYMPTOM_REGISTRY_PATH` (default `/app/registry/symptoms.yml`)
+
 ## Fallback templates (pattern-based)
 
 - `FALLBACK_TEMPLATES_PATH` (optional; default unset; example `/app/data/safety_templates.json`)
