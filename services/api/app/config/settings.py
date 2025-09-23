@@ -3,6 +3,10 @@
 from pydantic import BaseModel
 import os
 
+_SYMPTOM_REGISTRY_DEFAULT = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "registry", "symptoms.yml")
+)
+
 
 class Settings(BaseModel):
     app_env: str = os.getenv("APP_ENV", "dev")
@@ -26,3 +30,7 @@ class Settings(BaseModel):
     # Logging settings
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
     log_file: str = os.getenv("LOG_FILE", "/var/log/body-agent/api.log")
+
+    symptom_registry_path: str = os.getenv(
+        "SYMPTOM_REGISTRY_PATH", _SYMPTOM_REGISTRY_DEFAULT
+    )

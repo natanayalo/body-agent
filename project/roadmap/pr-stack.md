@@ -2,24 +2,22 @@ Here’s a crisp next-step plan you can ship as a sequence of small PRs, each wi
 
 ---
 
-# Current PR — PR 14 — Retrieval expansion (query expansion + scoring)
+# Current PR — PR 17 — KB seeding & translation pipeline
 
-Why: Find relevant guidance when exact keywords aren’t present.
+Why: Ensure coverage for core symptoms in Hebrew.
 
 Scope
 
-- Add lightweight synonym/translation map for common symptoms (e.g., "כאבי בטן" → ["stomach pain", "abdominal pain"]).
-- Apply expansion before ES search; boost matches in `section: general|warnings` more than other sections.
-- Keep language prioritization; prefer docs in `state.language`.
+- Extend `scripts/ingest_public_kb.py` to accept a symptom list and fetch/translate selected pages to HE (store provenance).
+- Add a make target (`make seed-he`) to populate fresh bilingual docs.
 
 Acceptance
 
-- Hebrew stomach-pain query retrieves abdominal-pain guidance when present.
-- Unit tests cover expansion and section boosting; integration proves improved snippet relevance.
+- CI/dev “seed HE” flow creates HE docs; retrieval prioritizes them; integration tests updated.
 
 Pointers
 
-- `services/api/app/graph/nodes/health.py` — inject expanded terms into kNN/BM25; adjust `should` clauses and boosts.
+- `scripts/ingest_public_kb.py`, `docker-compose.yml` volumes; README instructions.
 
 ---
 
@@ -40,51 +38,31 @@ Copy/structure tweaks in README:
 - Intent exemplars section surfaces the default location + hot‑reload knob early (points to `/app/data/intent_exemplars.jsonl`).
 - Noted that `/api/graph/run` returns a stable `{ "state": ... }` envelope.
 
+# Shipped — PR 16 — Structured symptom registry (doc routing)
+
+- Added `services/api/app/registry/symptoms.yml` with canonical symptom phrases, risk flags, and doc references.
+- Introduced loader `app/tools/symptom_registry.py` (cached, env override) and wired `health.run` to inject registry docs ahead of ES search.
+- Ensured registry docs dedupe with kNN/BM25 results while preserving language prioritization.
+- Seeded abdominal-pain markdown and unit tests verifying registry lookups and ordering.
+
 # Shipped — PR 15 — Pattern-based fallback (safety templates)
 
 - Added symptom-bucket templates (GI, respiratory, neuro, general) with EN/HE copies to cover no-retrieval cases.
 - Template fallback now mirrors recap format: summary, template body, and risk notices before disclaimer/urgent lines.
 - Tests cover GI fallback, Hebrew variants, YAML overrides, and risk notice preservation when providers fail.
 
+# Shipped — PR 14 — Retrieval expansion (query expansion + scoring)
+
+- `health.run` now expands symptom queries via the registry, appending EN synonyms/HE variants before embedding.
+- BM25 fallback includes boosted `section:general|warnings` matches and still respects medication-derived terms.
+- Added targeted unit coverage for Hebrew stomach-pain flows, ensuring abdominal-pain snippets rise to the top.
+- Updated seeds/tests so abdominal-pain guidance is consistently surfaced when available.
+
 # Next PR Stack (Flexibility for Symptoms)
 
-These PRs broaden symptom coverage beyond fixed phrases and improve relevance for queries like stomach pain without hardcoding per-case logic.
+Remaining work focuses on overlaying OTC safety guardrails on top of the richer symptom retrieval flow shipped in PRs 14–16.
 
 <!-- PR 13 shipped: Intent exemplars registry (+ multilingual) -->
-
-## PR 16 — Structured symptom registry (doc routing)
-
-Why: Fast path to vetted pages without brittle keywords.
-
-Scope
-
-- Introduce `symptoms.yml` mapping canonical symptom names → doc IDs/URLs + risk flags and language variants.
-- On match, add the mapped docs directly to `public_snippets` (deduped) before ES search.
-
-Acceptance
-
-- Registry hit yields the mapped documents at the top; unit tests verify ordering and dedupe.
-
-Pointers
-
-- New loader module under `services/api/app/data/` + hook in `health.run` pre-query.
-
-## PR 17 — KB seeding & translation pipeline
-
-Why: Ensure coverage for core symptoms in Hebrew.
-
-Scope
-
-- Extend `scripts/ingest_public_kb.py` to accept a symptom list and fetch/translate selected pages to HE (store provenance).
-- Add a make target (`make seed-he`) to populate fresh bilingual docs.
-
-Acceptance
-
-- CI/dev “seed HE” flow creates HE docs; retrieval prioritizes them; integration tests updated.
-
-Pointers
-
-- `scripts/ingest_public_kb.py`, `docker-compose.yml` volumes; README instructions.
 
 ---
 

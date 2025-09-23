@@ -220,4 +220,13 @@ def sample_docs():
         "updated_on": "2025-01-01T00:00:00Z",
         "text": "Increased bleeding risk with NSAIDs like ibuprofen",
     }
-    return hits, fever_doc, ibu_warn, warf_inter
+    abdomen_doc = {
+        "title": "Abdominal Pain Home Care",
+        "section": "general",
+        "language": "en",
+        "jurisdiction": "generic",
+        "source_url": "file://abdominal_pain.md",
+        "updated_on": "2025-01-01T00:00:00Z",
+        "text": "Try clear liquids for a few hours; seek urgent care if pain is severe or with fever.",
+    }
+    return hits, fever_doc, ibu_warn, warf_inter, abdomen_doc
