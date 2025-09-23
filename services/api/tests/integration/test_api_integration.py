@@ -9,7 +9,7 @@ def test_healthz(client):
 
 
 def test_graph_run_end_to_end(client, fake_es, fake_pipe, sample_docs):
-    hits, fever_doc, ibu_warn, warf_inter = sample_docs
+    hits, fever_doc, ibu_warn, warf_inter, abdomen_doc = sample_docs
     # Return warning + interaction docs from public KB
     fake_es.add_handler(
         lambda i, b: i.endswith("public_medical_kb"), hits([ibu_warn, warf_inter])
@@ -95,7 +95,7 @@ def test_run_graph_exception(mock_invoke, client):
 
 
 def test_symptom_flow_with_stub_risk(client, fake_es, fake_pipe, sample_docs):
-    hits, fever_doc, _, _ = sample_docs
+    hits, fever_doc, _, _, _ = sample_docs
     fake_es.add_handler(lambda i, b: i.endswith("public_medical_kb"), hits([fever_doc]))
 
     # Stub the risk model to be non-urgent
@@ -119,7 +119,7 @@ def test_symptom_flow_with_stub_risk(client, fake_es, fake_pipe, sample_docs):
 def test_hebrew_query_prefers_hebrew_snippets(
     monkeypatch, client, fake_es, fake_pipe, sample_docs
 ):
-    hits, fever_doc, *_ = sample_docs
+    hits, fever_doc, _, _, _ = sample_docs
     he_doc = {
         "title": "טיפול בחום",
         "section": "כללי",
@@ -157,7 +157,7 @@ def test_hebrew_query_prefers_hebrew_snippets(
 
 
 def test_debug_endpoints_after_run(client, fake_es, fake_pipe, sample_docs):
-    hits, fever_doc, *_ = sample_docs
+    hits, fever_doc, _, _, _ = sample_docs
     fake_es.add_handler(
         lambda index, body: index.endswith("public_medical_kb"),
         hits([fever_doc]),
@@ -196,7 +196,7 @@ def test_enforce_non_empty_query(client):
 def test_e2e_medication_interaction_flow(
     mock_health_embed, mock_main_embed, client, fake_es, sample_docs
 ):
-    hits, fever_doc, ibu_warn, warf_inter = sample_docs
+    hits, fever_doc, ibu_warn, warf_inter, abdomen_doc = sample_docs
 
     # Configure fake_es to return memory facts and interaction documents
     user_id = "test-user-med-interaction"

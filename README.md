@@ -131,6 +131,7 @@ INTENT_THRESHOLD=0.30   # min cosine for top intent
 INTENT_MARGIN=0.05      # top - second must exceed this
 FALLBACK_TEMPLATES_PATH=/app/data/safety_templates.json  # optional file-backed symptom templates (EN/HE); see seeds/safety_templates.json
 FALLBACK_TEMPLATES_WATCH=false                           # enable hot-reload in dev
+SYMPTOM_REGISTRY_PATH=/app/registry/symptoms.yml         # maps canonical symptoms to doc IDs + expansions
 ```
 
 Notes:

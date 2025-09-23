@@ -14,7 +14,7 @@ def mock_embed_and_settings():
 
 
 def test_health_knn_then_bm25_fallback(sample_docs, monkeypatch):
-    hits_func, fever_doc, ibu_warn, warf_inter = sample_docs
+    hits_func, fever_doc, ibu_warn, warf_inter, abdomen_doc = sample_docs
 
     mock_es_instance = MagicMock()
     mock_es_instance.search.side_effect = [
@@ -53,15 +53,21 @@ def test_health_knn_then_bm25_fallback(sample_docs, monkeypatch):
 
 
 def test_interaction_alert_requires_two_user_meds(sample_docs, monkeypatch, fake_es):
-    hits, fever_doc, ibu_warn, warf_inter = sample_docs
+    hits, fever_doc, ibu_warn, warf_inter, abdomen_doc = sample_docs
 
     def handler(index, body):
         if index == "test_public_index":
             should = body.get("query", {}).get("bool", {}).get("should", [])
-            search_terms = []
-            for s in should:
-                if "match" in s:
-                    search_terms.extend(s["match"].values())
+            search_terms: list[str] = []
+            for clause in should:
+                match = clause.get("match", {})
+                for payload in match.values():
+                    if isinstance(payload, dict):
+                        term = payload.get("query")
+                        if isinstance(term, str):
+                            search_terms.append(term)
+                    elif isinstance(payload, str):
+                        search_terms.append(payload)
 
             if "ibuprofen" in search_terms and "warfarin" not in search_terms:
                 return True
@@ -94,7 +100,7 @@ def test_interaction_alert_requires_two_user_meds(sample_docs, monkeypatch, fake
 def test_health_dedupes_citations_and_alerts(
     mock_get_es_client, sample_docs, monkeypatch
 ):
-    hits, _, _, _ = sample_docs
+    hits, _, _, _, _ = sample_docs
     doc1 = {
         "title": "Ibuprofen",
         "section": "warnings",
@@ -166,7 +172,7 @@ def test_health_bm25_search_exception(mock_get_es_client, monkeypatch):
 
 
 def test_health_default_guidance_message(fake_es, sample_docs):
-    hits, _, _, _ = sample_docs
+    hits, _, _, _, _ = sample_docs
     # Mock ES to return no relevant documents, so no specific alerts/messages are generated
     fake_es.add_handler(lambda i, b: i.endswith("public_medical_kb"), hits([]))
     state: BodyState = {"user_query": "test", "messages": []}
@@ -212,6 +218,45 @@ def test_health_with_memory_facts_and_empty_ing(monkeypatch):
 
     result_state = reloaded_health.run(state)
     assert "public_snippets" in result_state
+
+
+def test_health_expands_hebrew_symptom_and_boosts_sections(fake_es, sample_docs):
+    hits, _, _, _, abdomen_doc = sample_docs
+
+    def registry_predicate(index, body):
+        must = body.get("query", {}).get("bool", {}).get("must", [])
+        return any(
+            clause.get("match_phrase", {}).get("title") == "Abdominal Pain Home Care"
+            for clause in must
+        )
+
+    fake_es.add_handler(registry_predicate, hits([abdomen_doc]))
+    fake_es.add_handler(lambda index, body: "knn" in body, {"hits": {"hits": []}})
+
+    state = BodyState(
+        user_query="כאבי בטן חזקים בערב",
+        user_query_redacted="כאבי בטן חזקים בערב",
+        messages=[],
+        language="he",
+    )
+
+    out = health.run(state, es_client=fake_es)
+
+    assert out["public_snippets"], "Expect registry doc injection"
+    assert out["public_snippets"][0]["title"] == "Abdominal Pain Home Care"
+
+    bm25_body = fake_es.calls[-1][1]
+    should = bm25_body["query"]["bool"]["should"]
+
+    assert any(
+        clause.get("match", {}).get("title", {}).get("query") == "abdominal pain"
+        for clause in should
+    ), "Expected abdominal pain expansion in BM25 clauses"
+    assert any(
+        clause.get("match", {}).get("section", {}).get("query") == "general"
+        and clause.get("match", {}).get("section", {}).get("boost") == 1.5
+        for clause in should
+    ), "Expected general section boost"
 
 
 def test_health_warning_section(monkeypatch):
