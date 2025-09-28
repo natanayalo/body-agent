@@ -2,10 +2,10 @@ from __future__ import annotations
 import json
 import os
 import re
-from typing import Dict, List, Literal, Optional, cast
+from typing import Dict, List, Literal, Optional
 import numpy as np
 import logging
-from app.graph.state import BodyState
+from app.graph.state import BodyState, SubIntent
 from app.tools.embeddings import embed
 from app.tools.med_normalize import find_medications_in_text
 
@@ -187,9 +187,6 @@ def detect_intent(
     return "other"
 
 
-SubIntent = Literal["onset", "interaction", "schedule", "side_effects", "refill"]
-
-
 _SUB_INTENT_KEYWORDS: Dict[SubIntent, List[str]] = {
     "onset": [
         "when will it start",
@@ -202,6 +199,7 @@ _SUB_INTENT_KEYWORDS: Dict[SubIntent, List[str]] = {
         "kick in",
         "מתי זה מתחיל להשפיע",
         "מתי זה אמור להשפיע",
+        "מתי התרופה אמורה להשפיע",
         "מתי זה משפיע",
         "מתי יתחיל להשפיע",
         "תוך כמה זמן",
@@ -300,8 +298,6 @@ _MED_CONTEXT_TOKENS = {
     "כדורים",
 }
 
-_SUB_INTENTS_FORCE_MED: set[SubIntent] = {"onset", "interaction", "side_effects"}
-
 
 def _has_med_context(text: str) -> bool:
     tokens = set(re.findall(r"\w+", text.lower()))
@@ -314,10 +310,10 @@ def detect_med_sub_intent(text: str) -> Optional[SubIntent]:
         for keyword in keywords:
             if keyword in lowered:
                 return sub_intent
-    if ("אפשר לקחת" in lowered or "מותר לקחת" in lowered) and " עם" in lowered:
-        return cast(SubIntent, "interaction")
-    if "לשלב" in lowered and " עם" in lowered:
-        return cast(SubIntent, "interaction")
+    if " עם" in lowered and (
+        "אפשר לקחת" in lowered or "מותר לקחת" in lowered or "לשלב" in lowered
+    ):
+        return "interaction"
     return None
 
 
@@ -335,12 +331,10 @@ def run(state: BodyState) -> BodyState:
     sub_intent = detect_med_sub_intent(query_text)
     if sub_intent:
         has_context = bool(normalized_meds) or _has_med_context(query_text)
-        should_force_meds = sub_intent in _SUB_INTENTS_FORCE_MED or has_context
 
-        if detected_intent != "meds" and should_force_meds:
-            detected_intent = "meds"
-            state["intent"] = detected_intent
-
-        if detected_intent == "meds" and should_force_meds:
+        if detected_intent == "meds":
+            state["sub_intent"] = sub_intent
+        elif has_context:
+            state["intent"] = "meds"
             state["sub_intent"] = sub_intent
     return state

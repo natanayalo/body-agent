@@ -16,6 +16,14 @@ def mock_load_exemplars_deps(monkeypatch):
     yield mock_exists, mock_json_load
 
 
+@pytest.fixture(autouse=True)
+def reload_supervisor_module():
+    import importlib
+
+    importlib.reload(supervisor)
+    yield
+
+
 def test_load_exemplars_from_file_success(monkeypatch, mock_load_exemplars_deps):
     mock_exists, mock_json_load = mock_load_exemplars_deps
     mock_exists.return_value = True
@@ -35,7 +43,6 @@ def test_load_exemplars_from_file_success(monkeypatch, mock_load_exemplars_deps)
     mock_file = mock_open(read_data=mock_file_content)
     monkeypatch.setattr("builtins.open", mock_file)
 
-    # Reload the module to re-run _load_exemplars
     import importlib
 
     importlib.reload(supervisor)
@@ -54,7 +61,6 @@ def test_load_exemplars_from_file_malformed(monkeypatch, mock_load_exemplars_dep
     )  # Simulate malformed JSON
     monkeypatch.setenv("INTENT_EXEMPLARS_PATH", "/tmp/malformed_exemplars.json")
 
-    # Reload the module to re-run _load_exemplars
     import importlib
 
     importlib.reload(supervisor)
@@ -68,7 +74,6 @@ def test_load_exemplars_from_file_non_existent(monkeypatch, mock_load_exemplars_
     mock_exists.return_value = False  # Simulate non-existent file
     monkeypatch.setenv("INTENT_EXEMPLARS_PATH", "/tmp/non_existent_exemplars.json")
 
-    # Reload the module to re-run _load_exemplars
     import importlib
 
     importlib.reload(supervisor)
@@ -88,18 +93,12 @@ def test_detect_intent_returns_other_if_no_match(fake_embed):
     supervisor._THRESHOLD = 1.0  # High threshold
     supervisor._MARGIN = 1.0  # High margin
 
-    # Reload supervisor to apply new thresholds
-    import importlib
-
-    importlib.reload(supervisor)
-
     intent = supervisor.detect_intent("This is a completely unrelated query")
     assert intent == "other"
 
     # Restore original thresholds
     supervisor._THRESHOLD = original_threshold
     supervisor._MARGIN = original_margin
-    importlib.reload(supervisor)  # Reload to restore original values
 
 
 def test_load_exemplars_from_file_empty_or_invalid_content(
@@ -153,28 +152,16 @@ def test_detect_intent_with_unknown_intent_in_exemplars(monkeypatch, fake_embed)
 
 
 def test_detect_intent_hebrew_restaurant(monkeypatch, fake_embed):
-    import importlib
-
-    importlib.reload(supervisor)
-
     intent = supervisor.detect_intent("איפה אפשר לאכול לידי?")
     assert intent == "other"
 
 
 def test_detect_intent_hebrew_stomach_pain(monkeypatch):
-    import importlib
-
-    importlib.reload(supervisor)
-
     intent = supervisor.detect_intent("מה אפשר לקחת כדי להקל על כאבי בטן?")
     assert intent == "symptom"
 
 
 def test_run_records_normalized_query_meds(monkeypatch):
-    import importlib
-
-    importlib.reload(supervisor)
-
     state = BodyState(
         user_query="אקמול ונורופן",
         user_query_redacted="אקמול ונורופן",
@@ -187,10 +174,6 @@ def test_run_records_normalized_query_meds(monkeypatch):
 
 
 def test_run_sets_sub_intent_onset():
-    import importlib
-
-    importlib.reload(supervisor)
-
     state = BodyState(
         user_query="When will ibuprofen start working?",
         user_query_redacted="When will ibuprofen start working?",
@@ -202,10 +185,6 @@ def test_run_sets_sub_intent_onset():
 
 
 def test_run_sets_sub_intent_interaction_hebrew():
-    import importlib
-
-    importlib.reload(supervisor)
-
     state = BodyState(
         user_query="אפשר לקחת אקמול עם נורופן?",
         user_query_redacted="אפשר לקחת אקמול עם נורופן?",
@@ -217,10 +196,6 @@ def test_run_sets_sub_intent_interaction_hebrew():
 
 
 def test_run_sets_sub_intent_refill():
-    import importlib
-
-    importlib.reload(supervisor)
-
     state = BodyState(
         user_query="Reminder to refill my meds",
         user_query_redacted="Reminder to refill my meds",
@@ -232,13 +207,9 @@ def test_run_sets_sub_intent_refill():
 
 
 def test_run_sets_sub_intent_onset_hebrew_without_med_name():
-    import importlib
-
-    importlib.reload(supervisor)
-
     state = BodyState(
-        user_query="מתי זה אמור להשפיע?",
-        user_query_redacted="מתי זה אמור להשפיע?",
+        user_query="מתי התרופה אמורה להשפיע?",
+        user_query_redacted="מתי התרופה אמורה להשפיע?",
         language="he",
     )
 
@@ -248,10 +219,6 @@ def test_run_sets_sub_intent_onset_hebrew_without_med_name():
 
 
 def test_run_sets_sub_intent_interaction_with_phrase():
-    import importlib
-
-    importlib.reload(supervisor)
-
     state = BodyState(
         user_query="Interaction with ibuprofen?",
         user_query_redacted="Interaction with ibuprofen?",
@@ -264,10 +231,6 @@ def test_run_sets_sub_intent_interaction_with_phrase():
 
 
 def test_run_schedule_requires_med_context():
-    import importlib
-
-    importlib.reload(supervisor)
-
     state = BodyState(
         user_query="Remind me tomorrow",
         user_query_redacted="Remind me tomorrow",
@@ -280,10 +243,6 @@ def test_run_schedule_requires_med_context():
 
 
 def test_run_sets_sub_intent_schedule_with_med_context():
-    import importlib
-
-    importlib.reload(supervisor)
-
     state = BodyState(
         user_query="Remind me to take my meds every morning",
         user_query_redacted="Remind me to take my meds every morning",

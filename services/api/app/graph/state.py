@@ -1,6 +1,9 @@
 from typing import Literal, TypedDict, Required
 
 
+SubIntent = Literal["onset", "interaction", "schedule", "side_effects", "refill"]
+
+
 class BodyState(TypedDict, total=False):
     user_id: str
     user_query: Required[str]
@@ -8,7 +11,7 @@ class BodyState(TypedDict, total=False):
     user_query_pivot: str
     language: Literal["en", "he"]
     intent: Literal["meds", "appointment", "symptom", "routine", "other"]
-    sub_intent: Literal["onset", "interaction", "schedule", "side_effects", "refill"]
+    sub_intent: SubIntent
     memory_facts: list[dict]
     public_snippets: list[dict]
     candidates: list[dict]
