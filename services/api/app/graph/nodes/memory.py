@@ -3,6 +3,7 @@ from typing import Any, Dict
 from app.graph.state import BodyState
 from app.tools.es_client import get_es_client
 from app.tools.embeddings import embed
+from app.tools.med_normalize import normalize_fact
 from app.config import settings
 
 
@@ -93,7 +94,12 @@ def run(state: BodyState, es_client=None) -> BodyState:
         }
         res = es.search(index=settings.es_private_index, body=body)
         hits = res.get("hits", {}).get("hits", [])
-    facts = [h["_source"] for h in hits]
+    facts = []
+    for hit in hits:
+        doc = hit.get("_source", {})
+        if isinstance(doc, dict):
+            normalize_fact(doc)
+            facts.append(doc)
     state["memory_facts"] = facts
     prefs = extract_preferences(facts)
     if prefs:

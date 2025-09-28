@@ -65,6 +65,7 @@ def test_add_med_endpoint(mock_get_es_client, mock_embed, client):
     mock_get_es_client.return_value.index.assert_called_once()
     args, kwargs = mock_get_es_client.return_value.index.call_args
     assert kwargs["document"]["name"] == "Ibuprofen 200mg"
+    assert kwargs["document"]["normalized"]["ingredient"] == "ibuprofen"
 
 
 @patch("app.main.embed", return_value=[[0.1, 0.2, 0.3]])
@@ -83,6 +84,7 @@ def test_add_med_encrypted_value(mock_embed, client, fake_es):
     assert doc.get("user_id") == user_id
     assert doc.get("name") == "Ibuprofen 200mg"
     assert doc.get("value_encrypted") is True
+    assert doc.get("normalized", {}).get("ingredient") == "ibuprofen"
     # Encrypted value should not equal plaintext
     assert doc.get("value") and doc["value"] != payload["value"]
 

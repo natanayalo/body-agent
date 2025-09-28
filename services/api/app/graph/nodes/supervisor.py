@@ -6,6 +6,7 @@ import numpy as np
 import logging
 from app.graph.state import BodyState
 from app.tools.embeddings import embed
+from app.tools.med_normalize import find_medications_in_text
 
 # ---- Config ----
 _EX_PATH = os.getenv("INTENT_EXEMPLARS_PATH")
@@ -186,9 +187,13 @@ def detect_intent(
 
 
 def run(state: BodyState) -> BodyState:
-    detected_intent = detect_intent(
-        state.get("user_query_redacted", state.get("user_query", ""))
-    )
+    query_text = state.get("user_query_redacted", state.get("user_query", ""))
+    detected_intent = detect_intent(query_text)
     state["intent"] = detected_intent
     logging.debug(f"Detected intent: {detected_intent}")
+
+    normalized_meds = find_medications_in_text(query_text, state.get("language"))
+    if normalized_meds:
+        debug = state.setdefault("debug", {})
+        debug["normalized_query_meds"] = normalized_meds
     return state

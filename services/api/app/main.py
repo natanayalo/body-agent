@@ -21,6 +21,7 @@ from contextlib import asynccontextmanager
 
 from app.tools.embeddings import embed
 from app.tools.crypto import encrypt_for_user
+from app.tools.med_normalize import normalize_medication_name
 from scalar_fastapi import Layout, Theme, get_scalar_api_reference
 
 logger = logging.getLogger(__name__)
@@ -199,11 +200,14 @@ def add_med(m: MedInput):
         .lower()
     )
     doc_id = f"{m.user_id}:med:{base}"
+    normalized = normalize_medication_name(m.name)
+    ingredient = normalized["ingredient"] if normalized else base
+
     doc = {
         "user_id": m.user_id,
         "entity": "medication",
         "name": m.name.strip(),
-        "normalized": {"ingredient": base},
+        "normalized": {"ingredient": ingredient},
         # Store sensitive value encrypted at rest
         "value": encrypt_for_user(m.user_id, m.value),
         "value_encrypted": True,
