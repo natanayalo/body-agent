@@ -139,12 +139,20 @@ def _fetch_registry_docs(es, refs: list[dict]) -> list[dict]:
 
 
 def run(state: BodyState, es_client=None) -> BodyState:
-    q = state.get("user_query_redacted", state["user_query"])
+    if "user_query" not in state and "user_query_redacted" not in state:
+        raise KeyError("user_query")
+
+    raw_query = state.get("user_query_redacted") or state.get("user_query", "")
+    pivot_query = (state.get("user_query_pivot") or "").strip()
+    parts = [p for p in (pivot_query, raw_query) if p]
+    deduped_parts = list(dict.fromkeys(parts))
+    search_query = deduped_parts[0] if deduped_parts else raw_query
+    combined_query = " ".join(deduped_parts).strip() or search_query
     mem = state.get("memory_facts") or []
     med_terms = _norm_med_terms(mem)
     es = es_client if es_client else get_es_client()
     preferred_lang = _preferred_language(state)
-    registry_matches = symptom_registry.match_query(q)
+    registry_matches = symptom_registry.match_query(raw_query)
     expansion_terms = symptom_registry.expansion_terms(registry_matches, preferred_lang)
     registry_docs = _fetch_registry_docs(
         es, symptom_registry.doc_refs(registry_matches)
@@ -154,9 +162,9 @@ def run(state: BodyState, es_client=None) -> BodyState:
 
     # Try kNN firs
     try:
-        vector_query = q
+        vector_query = combined_query
         if expansion_terms:
-            vector_query = " ".join([q] + expansion_terms)
+            vector_query = " ".join([combined_query] + expansion_terms)
         vector = embed([vector_query])[0]
         knn_body = {
             "knn": {
@@ -183,9 +191,13 @@ def run(state: BodyState, es_client=None) -> BodyState:
     if not docs:
         try:
             should = [
-                {"match": {"text": {"query": q, "boost": 2.0}}},
-                {"match": {"title": {"query": q, "boost": 1.8}}},
+                {"match": {"text": {"query": search_query, "boost": 2.0}}},
+                {"match": {"title": {"query": search_query, "boost": 1.8}}},
             ]
+
+            if pivot_query and raw_query and pivot_query != raw_query:
+                should.append({"match": {"text": {"query": raw_query, "boost": 1.2}}})
+                should.append({"match": {"title": {"query": raw_query, "boost": 1.1}}})
 
             for term in expansion_terms:
                 should.append({"match": {"title": {"query": term, "boost": 1.6}}})

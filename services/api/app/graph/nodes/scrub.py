@@ -1,7 +1,11 @@
 import re
 from typing import cast
 from app.graph.state import BodyState
-from app.tools.language import resolve_language, normalize_language_code
+from app.tools.language import (
+    resolve_language,
+    normalize_language_code,
+    pivot_to_english,
+)
 
 
 def run(state: BodyState) -> BodyState:
@@ -29,6 +33,13 @@ def run(state: BodyState) -> BodyState:
     normalized = normalize_language_code(
         existing if isinstance(existing, str) else None
     )
-    new_state["language"] = normalized or resolve_language(None, txt)
+    language = normalized or resolve_language(None, txt)
+    new_state["language"] = language
+
+    pivot = pivot_to_english(red, language)
+    if pivot:
+        new_state["user_query_pivot"] = pivot
+    else:
+        new_state.pop("user_query_pivot", None)
 
     return cast(BodyState, new_state)
