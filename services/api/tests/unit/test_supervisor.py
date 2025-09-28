@@ -186,6 +186,130 @@ def test_run_records_normalized_query_meds(monkeypatch):
     assert meds == ["acetaminophen", "ibuprofen"]
 
 
+def test_run_sets_sub_intent_onset():
+    import importlib
+
+    importlib.reload(supervisor)
+
+    state = BodyState(
+        user_query="When will ibuprofen start working?",
+        user_query_redacted="When will ibuprofen start working?",
+        language="en",
+    )
+
+    out = supervisor.run(state)
+    assert out.get("sub_intent") == "onset"
+
+
+def test_run_sets_sub_intent_interaction_hebrew():
+    import importlib
+
+    importlib.reload(supervisor)
+
+    state = BodyState(
+        user_query="אפשר לקחת אקמול עם נורופן?",
+        user_query_redacted="אפשר לקחת אקמול עם נורופן?",
+        language="he",
+    )
+
+    out = supervisor.run(state)
+    assert out.get("sub_intent") == "interaction"
+
+
+def test_run_sets_sub_intent_refill():
+    import importlib
+
+    importlib.reload(supervisor)
+
+    state = BodyState(
+        user_query="Reminder to refill my meds",
+        user_query_redacted="Reminder to refill my meds",
+        language="en",
+    )
+
+    out = supervisor.run(state)
+    assert out.get("sub_intent") == "refill"
+
+
+def test_run_sets_sub_intent_onset_hebrew_without_med_name():
+    import importlib
+
+    importlib.reload(supervisor)
+
+    state = BodyState(
+        user_query="מתי זה אמור להשפיע?",
+        user_query_redacted="מתי זה אמור להשפיע?",
+        language="he",
+    )
+
+    out = supervisor.run(state)
+    assert out.get("intent") == "meds"
+    assert out.get("sub_intent") == "onset"
+
+
+def test_run_sets_sub_intent_interaction_with_phrase():
+    import importlib
+
+    importlib.reload(supervisor)
+
+    state = BodyState(
+        user_query="Interaction with ibuprofen?",
+        user_query_redacted="Interaction with ibuprofen?",
+        language="en",
+    )
+
+    out = supervisor.run(state)
+    assert out.get("intent") == "meds"
+    assert out.get("sub_intent") == "interaction"
+
+
+def test_run_schedule_requires_med_context():
+    import importlib
+
+    importlib.reload(supervisor)
+
+    state = BodyState(
+        user_query="Remind me tomorrow",
+        user_query_redacted="Remind me tomorrow",
+        language="en",
+    )
+
+    out = supervisor.run(state)
+    assert out.get("intent") != "meds"
+    assert "sub_intent" not in out
+
+
+def test_run_sets_sub_intent_schedule_with_med_context():
+    import importlib
+
+    importlib.reload(supervisor)
+
+    state = BodyState(
+        user_query="Remind me to take my meds every morning",
+        user_query_redacted="Remind me to take my meds every morning",
+        language="en",
+    )
+
+    out = supervisor.run(state)
+    assert out.get("intent") == "meds"
+    assert out.get("sub_intent") == "schedule"
+
+
+def test_run_sub_intent_none_when_no_keywords():
+    import importlib
+
+    importlib.reload(supervisor)
+
+    state = BodyState(
+        user_query="Checking my appointment schedule",
+        user_query_redacted="Checking my appointment schedule",
+        language="en",
+    )
+
+    out = supervisor.run(state)
+    assert "sub_intent" not in out
+
+
 def test_loads_jsonl_exemplars(monkeypatch, tmp_path):
     # Prepare a JSONL file with exemplars
     p = tmp_path / "exemplars.jsonl"
