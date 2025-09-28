@@ -87,22 +87,12 @@ def pivot_to_english(text: str, language: str | None) -> str | None:
     if not _HEBREW_CHARS.search(text):
         return None
 
-    lowered = text.lower()
-    pivot = lowered
-    replaced = False
+    pivot = text.lower()
     for pattern, replacement in _HE_TO_EN_REPLACEMENTS:
-        new_value = pattern.sub(replacement, pivot)
-        if new_value != pivot:
-            replaced = True
-        pivot = new_value
+        pivot = pattern.sub(replacement, pivot)
 
     cleaned = _strip_extra_whitespace(_HEBREW_CHARS.sub("", pivot))
-    if cleaned:
-        return cleaned
-
-    return (
-        pivot if replaced else None
-    )  # pragma: no cover (no mixed-script fallback yet)
+    return cleaned if cleaned else None
 
 
 def _strip_extra_whitespace(value: str) -> str:
