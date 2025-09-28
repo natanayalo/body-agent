@@ -5,6 +5,7 @@ class BodyState(TypedDict, total=False):
     user_id: str
     user_query: Required[str]
     user_query_redacted: str
+    user_query_pivot: str
     language: Literal["en", "he"]
     intent: Literal["meds", "appointment", "symptom", "routine", "other"]
     memory_facts: list[dict]

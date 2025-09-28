@@ -1,0 +1,33 @@
+name: Spike (time-boxed)
+description: Explore an idea with a fixed time box and clear exit.
+labels: [spike]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Spike goal
+      description: What question are we answering?
+      placeholder: Investigate feasibility of ...
+    validations:
+      required: true
+  - type: input
+    id: timebox
+    attributes:
+      label: Time box
+      description: When does the spike end? (date or hours)
+      placeholder: 2025-10-01 or 6h
+    validations:
+      required: true
+  - type: textarea
+    id: plan
+    attributes:
+      label: Approach
+      description: Steps or experiments you will run.
+  - type: textarea
+    id: decision
+    attributes:
+      label: Exit criteria
+      description: Must end with Keep / Cut / Convert to ticket.
+      placeholder: Keep (do X next) / Cut (stop) / Convert (create issue ...)
+    validations:
+      required: true

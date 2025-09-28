@@ -98,7 +98,17 @@ def run(state: BodyState) -> BodyState:
     logger.debug(f"Using hypothesis template: {hyp}")
 
     # Build text with lightweight context (med names only)
-    text = state.get("user_query_redacted", state.get("user_query", ""))
+    base_query = state.get("user_query_redacted") or state.get("user_query", "")
+    pivot_query = (state.get("user_query_pivot") or "").strip()
+    text_components = []
+    if pivot_query:
+        text_components.append(pivot_query)
+        if base_query and base_query != pivot_query:
+            text_components.append(f"Original: {base_query}")
+    elif base_query:
+        text_components.append(base_query)
+
+    text = "\n".join(text_components)
     logger.debug(f"Base query text: {text}")
 
     meds = []

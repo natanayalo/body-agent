@@ -16,6 +16,24 @@ def test_risk_ml_triggers_only_above_threshold(fake_pipe):
     assert any("ML risk: urgent_care" in a for a in out2.get("alerts", []))
 
 
+def test_risk_ml_uses_pivot_query(monkeypatch):
+    mock_pipe = MagicMock()
+    mock_pipe.return_value = {"labels": [], "scores": []}
+    monkeypatch.setattr(risk_ml, "_get_pipe", lambda: mock_pipe)
+
+    state = BodyState(
+        user_query="כאבי בטן",
+        user_query_redacted="כאבי בטן",
+        user_query_pivot="stomach pain",
+    )
+
+    risk_ml.run(state)
+    mock_pipe.assert_called_once()
+    text_argument = mock_pipe.call_args[0][0]
+    assert "stomach pain" in text_argument
+    assert "Original:" in text_argument
+
+
 def test_critic_banner_gated_by_ml(fake_pipe):
     # No ML triggers → critic should NOT add red-flag banner
     state = BodyState(
