@@ -17,15 +17,20 @@ Use the status column to see whether an idea is already shipped, queued up in th
 | ✅ | ICS generator | Generate calendar `.ics` files with unique filenames for scheduling flows. | Baseline calendar UX without external sync. |
 | ✅ | Intent exemplar registry | Maintain bilingual exemplars in JSONL and hot-reload in dev. Keeps supervisor adaptable without code edits. | Shipped in PR 13; default path `/app/data/intent_exemplars.jsonl`. |
 | ✅ | Pattern-based fallback templates | Provide localized symptom templates when retrieval is empty; include disclaimers and risk notices. | Shipped in PR 15; templates now keep safety messaging when providers fail. |
+| ✅ | Retrieval expansion | Synonym/translation boosts and section boosting for health retrieval (e.g., "כאבי בטן" → "abdominal pain"). | Shipped in PR 14; tuned boosts while respecting doc language. |
+| ✅ | Structured symptom registry | Map symptom slugs → vetted doc refs and language variants; inject before ES search. | Shipped in PR 16; deduping preserves localized snippets. |
 
 ## Scheduled (see `pr-stack.md`)
 
 | Status | Idea | Summary | Notes |
 | --- | --- | --- | --- |
-| 🔄 | Retrieval expansion | Synonym/translation boosts (e.g., "כאבי בטן" → "stomach pain") plus section boosting while respecting doc language. | Proposed as PR 14. Shares config with structured registry. See project/roadmap/pr-stack.md. |
-| 🔄 | Structured symptom registry | Map symptom slugs → vetted doc IDs, risk flags, and language variants; inject before ES search. | Proposed as PR 16. See project/roadmap/pr-stack.md. |
-| 🔄 | KB seeding & translation pipeline | Extend ingestion scripts to seed HE symptom guidance so fallback rarely fires. | Proposed as PR 17. See project/roadmap/pr-stack.md. |
-| 🔄 | Lightweight meds registry | Small YAML of common OTC classes (uses, avoid_if, interactions) to supplement answers without adding many KB pages; no dosing. | Proposed as PR 18. See project/roadmap/pr-stack.md. |
+| 🔄 | KB seeding & translation pipeline | Extend ingestion scripts to seed HE symptom guidance so fallback rarely fires. | Current PR 17. See project/roadmap/pr-stack.md. |
+| 🔄 | Language detect & EN pivot | Detect HE and pivot query text to EN for stable retrieval; thread `user_query_pivot`. | Planned as PR 18. See pr-stack. |
+| 🔄 | Med normalization | Minimal lexicon to normalize brands → ingredients; enrich memory facts. | Planned as PR 19. See pr-stack. |
+| 🔄 | Meds sub-intent | Classify meds sub-intent (onset, interaction, schedule, etc.) for flow gating. | Planned as PR 20. See pr-stack. |
+| 🔄 | Planner suppression (meds) | Do not emit schedule for meds flows unless sub-intent is `schedule`. | Planned as PR 21. See pr-stack. |
+| 🔄 | Risk gating for onset | Raise thresholds/short-circuit risk for benign meds onset flows. | Planned as PR 22. See pr-stack. |
+| 🔄 | Med facts micro-KB | Deterministic onset metadata and citations for common meds; render localized answers. | Planned as PR 23. See pr-stack. |
 
 ## Backlog / To Evaluate
 
@@ -65,6 +70,7 @@ Use the status column to see whether an idea is already shipped, queued up in th
 | Status | Idea | Summary | Notes |
 | --- | --- | --- | --- |
 | 🧭 | Preference-aware provider scoring | Blend semantic score with distance, hours fit, insurance match using configurable weights. | Requires more provider metadata + tests. |
+| 🧭 | Lightweight meds registry | Small YAML of common OTC classes (uses, avoid_if, interactions) to supplement answers without dosing. | Consider after Milestone 2; overlap with med facts work.
 
 When you pick up an idea:
 
