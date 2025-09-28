@@ -3,6 +3,7 @@ import json
 import pytest
 from unittest.mock import MagicMock
 from app.graph.nodes import supervisor
+from app.graph.state import BodyState
 
 
 # Mock the os.path.exists and json.load for _load_exemplars tests
@@ -167,6 +168,22 @@ def test_detect_intent_hebrew_stomach_pain(monkeypatch):
 
     intent = supervisor.detect_intent("מה אפשר לקחת כדי להקל על כאבי בטן?")
     assert intent == "symptom"
+
+
+def test_run_records_normalized_query_meds(monkeypatch):
+    import importlib
+
+    importlib.reload(supervisor)
+
+    state = BodyState(
+        user_query="אקמול ונורופן",
+        user_query_redacted="אקמול ונורופן",
+        language="he",
+    )
+
+    out = supervisor.run(state)
+    meds = out.get("debug", {}).get("normalized_query_meds")
+    assert meds == ["acetaminophen", "ibuprofen"]
 
 
 def test_loads_jsonl_exemplars(monkeypatch, tmp_path):

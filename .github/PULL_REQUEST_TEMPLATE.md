@@ -1,17 +1,13 @@
 ## Outcome
-What user problem does this change solve?
+<!-- Replace this comment with a one-sentence user outcome. -->
 
 ## Demo
-Paste runnable steps (60–90s max):
+<!-- Replace this comment with runnable steps (≤90s). -->
 ```bash
-# example:
-curl -s http://localhost:8000/api/graph/run \
-  -H 'content-type: application/json' \
-  -d '{"user_id":"demo","query":"אקמול מתי משפיע?"}' |
-  jq '.state.messages[-1].content'
+# TODO: add runnable demo commands
 ```
 
-## Acceptance Checks
-- [ ] Test added/updated (name: `test_...`)
-- [ ] Docs updated (link)
-- [ ] If not demoable, explain why and the next step (≤ 3 days)
+## Acceptance
+- [ ] Tests: <!-- List the tests you added/updated (e.g., `tests/unit/test_...::test_...`) -->
+- [ ] Docs: <!-- Link to updated docs or say “N/A” -->
+- [ ] Not demoable: <!-- If you cannot demo, explain why and the next step (≤3 days). Otherwise leave blank. -->

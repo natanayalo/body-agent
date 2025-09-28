@@ -46,10 +46,14 @@ def test_memory_run(fake_es, monkeypatch):
     fake_es.search.assert_called_once()
 
     # Check that the results are deduplicated
-    assert len(result_state.get("memory_facts", [])) == 3
-    fact_names = [fact["name"] for fact in result_state.get("memory_facts", [])]
+    facts = result_state.get("memory_facts", [])
+    assert len(facts) == 3
+    fact_names = [fact["name"] for fact in facts]
     assert "Ibuprofen 200mg" in fact_names
     assert "Aspirin 100mg" in fact_names
+
+    ingredients = {fact.get("normalized", {}).get("ingredient") for fact in facts}
+    assert {"ibuprofen", "aspirin"}.issubset(ingredients)
 
 
 def test_extract_preferences_builds_object():

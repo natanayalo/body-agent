@@ -16,7 +16,7 @@ If a task cannot produce a demo within five calendar days, reduce scope or move 
 
 ## Demo First
 
-Every PR must contain a 60–90 second “how to try it” section (see the PR template). If demo steps are missing, you’re still planning—not shipping.
+Every PR must contain a 60–90 second “how to try it” section (see the PR template). Fill in the template—replace the placeholder comments and remove the `# TODO` block. If demo steps are missing, you’re still planning—not shipping.
 
 ## Finish Mode Labels
 
