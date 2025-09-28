@@ -50,8 +50,9 @@ Scope: These instructions apply to the whole repository. They are for AI coding 
 - Run tests locally and meet coverage ≥ 95%:
   - `venv/bin/pytest` (unit + integration)
   - Optionally: `make eval` and `make e2e-local` if your change touches retrieval/routing/graph wiring.
-- If you added config/env vars, update `.env.example` and `README.md`.
+- If you added config/env vars, update `.env.example`, `README.md`, and `project/config.md`.
 - Keep diffs minimal and aligned with `project/roadmap/pr-stack.md` acceptance criteria.
+ - If scope/milestones changed, update `project/roadmap.md` and ensure `project/roadmap/pr-stack.md` reflects the current slices.
 
 ## Key Env/Feature Flags
 
