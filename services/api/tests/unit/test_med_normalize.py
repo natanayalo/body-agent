@@ -19,14 +19,14 @@ def test_find_medications_in_text_multilingual():
 
 
 def test_find_medications_in_text_hebrew_prefix_only_for_he():
-    meds_he = med_normalize.find_medications_in_text("ונורופן", language="he")
+    meds_he = med_normalize.find_medications_in_text("ונורופן.", language="he")
     assert meds_he == ["ibuprofen"]
-    meds_en = med_normalize.find_medications_in_text("ונורופן", language="en")
+    meds_en = med_normalize.find_medications_in_text("ונורופן.", language="en")
     assert meds_en == []
 
 
 def test_find_medications_in_text_ignores_substrings():
-    meds = med_normalize.find_medications_in_text("החומרים", language="he")
+    meds = med_normalize.find_medications_in_text("החומרים.", language="he")
     assert meds == []
 
 

@@ -121,9 +121,13 @@ def find_medications_in_text(text: str, language: Optional[str] = None) -> List[
     lang = normalize_language_code(language)
     for alias, canonical in _ALIAS_TO_CANONICAL.items():
         if lang == "he":
-            pattern = re.compile(rf"(?<!\S)(?:ו)?{re.escape(alias)}(?!\S)")
+            pattern = re.compile(
+                rf"(?<![\w\u0590-\u05FF])(?:ו)?{re.escape(alias)}(?![\w\u0590-\u05FF])"
+            )
         else:
-            pattern = re.compile(rf"(?<!\S){re.escape(alias)}(?!\S)")
+            pattern = re.compile(
+                rf"(?<![\w\u0590-\u05FF]){re.escape(alias)}(?![\w\u0590-\u05FF])"
+            )
         if pattern.search(lowered):
             checked.add(canonical)
     return sorted(checked)
