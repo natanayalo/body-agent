@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional
 
+from app.tools.language import normalize_language_code
+
 _HEBREW_DOSAGE_UNITS = ("מ" "ג", "גרם")  # rendered as מ"ג (mg)
 
 # Base lexicon: canonical ingredient -> set of aliases (lowercase, stripped)
@@ -48,6 +50,10 @@ for canonical, aliases in _LEXICON.items():
     for alias in aliases:
         _ALIAS_TO_CANONICAL[alias.lower()] = canonical
 
+_ALIASES_BY_LENGTH: List[str] = sorted(
+    _ALIAS_TO_CANONICAL.keys(), key=len, reverse=True
+)
+
 
 def _strip_dosage(value: str) -> str:
     cleaned = re.sub(r"\b\d+(\.\d+)?\s?(mg|mcg|ml|g)\b", "", value, flags=re.IGNORECASE)
@@ -82,10 +88,10 @@ def normalize_medication_name(name: str) -> Optional[Dict[str, str]]:
     if canonical:
         return {"ingredient": canonical, "alias": cleaned}
 
-    # Fall back to longest matching alias contained in the cleaned string.
-    for alias, candidate in _ALIAS_TO_CANONICAL.items():
+    # Fall back to the longest matching alias contained in the cleaned string.
+    for alias in _ALIASES_BY_LENGTH:
         if alias in cleaned and len(alias) > 2:
-            return {"ingredient": candidate, "alias": alias}
+            return {"ingredient": _ALIAS_TO_CANONICAL[alias], "alias": alias}
 
     return {"ingredient": cleaned}
 
@@ -112,9 +118,12 @@ def find_medications_in_text(text: str, language: Optional[str] = None) -> List[
 
     checked = set()
     lowered = text.lower()
-    # Use word-boundary style lookarounds so multi-word Hebrew aliases match cleanly.
+    lang = normalize_language_code(language)
     for alias, canonical in _ALIAS_TO_CANONICAL.items():
-        pattern = re.compile(rf"(?<!\S)(?:ו)?{re.escape(alias)}(?!\S)")
+        if lang == "he":
+            pattern = re.compile(rf"(?<!\S)(?:ו)?{re.escape(alias)}(?!\S)")
+        else:
+            pattern = re.compile(rf"(?<!\S){re.escape(alias)}(?!\S)")
         if pattern.search(lowered):
             checked.add(canonical)
     return sorted(checked)
