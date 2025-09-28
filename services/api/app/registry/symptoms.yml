@@ -1,0 +1,29 @@
+stomach_pain:
+  phrases:
+    en:
+      - "stomach pain"
+      - "abdominal pain"
+      - "stomach ache"
+    he:
+      - "כאבי בטן"
+      - "כאב בטן"
+  docs:
+    - title: "Abdominal Pain Home Care"
+      section: "general"
+      language: "en"
+  risk_flags:
+    - "self_care"
+fever:
+  phrases:
+    en:
+      - "fever"
+      - "high fever"
+    he:
+      - "חום"
+      - "יש לי חום"
+  docs:
+    - title: "Fever Home Care"
+      section: "general"
+      language: "en"
+  risk_flags:
+    - "see_doctor"
