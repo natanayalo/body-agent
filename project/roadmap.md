@@ -1,22 +1,22 @@
 # Roadmap (MVP → v1)
 
-## Now
+## Now — Milestone 1 (Meds “onset” relevance)
 
-- StateGraph compiled and stable
-- SSE streaming with node deltas + final state
-- Intent exemplars (watch+reload)
-- Deterministic ingest + seeds
+- Language detection + HE→EN pivot for retrieval (PR 18)
+- Med normalization lexicon + sub-intent classification (PR 19–20)
+- Planner/risk gating updates for onset flows (PR 21–22)
+- Deterministic med-facts micro-KB powering onset answers (PR 23)
 
-## Next (1–2 weeks)
+## Next — Milestone 2 (Retrieval quality & cleanliness)
 
-- Policy-driven red flags (YAML), risk gating refinements
-- UI sample with streaming display
-- Provider ranking that respects user preferences
+- BM25 fallback with medication boosts when kNN misses (PR 24)
+- Citation dedupe with URL normalization (PR 25)
+- Language-aware answer rendering in `answer_gen` (PR 26)
 
-## Later
+## Later — Milestones 3 & 4 (Stability + privacy)
 
-- Client-side field-level encryption
-- Calendar provider integration (CalDAV/Google)
-- MCP tool adapters for vetted web sources
+- Idempotent seed job, SSE contract test, docs polish (PR 27–29)
+- Intent exemplar hot-reload refinements + expanded PII scrub rules (PR 30–31)
+-- Longer-term: client-side field encryption, calendar integration, vetted MCP adapters
 
 See `project/roadmap/pr-stack.md` for current PR slices and acceptance criteria.
