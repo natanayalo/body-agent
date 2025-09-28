@@ -1,0 +1,48 @@
+name: Feature
+description: Plan a new user-facing capability with clear outcomes.
+labels: [finish-mode]
+body:
+  - type: textarea
+    id: story
+    attributes:
+      label: User story
+      description: Who is the user, what do they want, and why?
+      placeholder: |
+        As a...
+        I want...
+        So that...
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Bullet list of observable outcomes.
+      placeholder: |
+        - When I ... then ...
+        - ...
+    validations:
+      required: true
+  - type: textarea
+    id: demo
+    attributes:
+      label: Demo snippet
+      description: Provide a curl/UI step we can run to verify.
+      placeholder: |
+        curl -s http://localhost:8000/api/graph/run ...
+    validations:
+      required: true
+  - type: textarea
+    id: measure
+    attributes:
+      label: Measure of success
+      description: What metric or observable signal will change?
+      placeholder: SSE final event arrives, alert present, citation count, etc.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Out of scope
+      description: Name what you are intentionally not doing.
+      placeholder: e.g., "Does not add scheduling UI"

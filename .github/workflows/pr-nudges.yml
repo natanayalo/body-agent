@@ -1,0 +1,61 @@
+name: PR Nudges
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+jobs:
+  nudges:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Collect diff stats
+        id: diff
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          LOC_ADDED=$(git diff --numstat "$BASE_SHA" "$HEAD_SHA" | awk '{add+=$1} END {print add+0}')
+          CHANGED_FILES=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          echo "loc=$LOC_ADDED" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$CHANGED_FILES" > changed_files.txt
+      - name: Determine nudges
+        id: nudges
+        run: |
+          CHANGED_FILES=$(cat changed_files.txt)
+          NEEDS_DEMO="false"
+          NEEDS_TESTS="false"
+          LOC=${{ steps.diff.outputs.loc }}
+          if [ "$LOC" -gt 400 ]; then
+            NEEDS_DEMO="true"
+          fi
+          if echo "$CHANGED_FILES" | grep -q '^services/api/app/graph/nodes/'; then
+            if ! echo "$CHANGED_FILES" | grep -q '^services/api/tests/'; then
+              NEEDS_TESTS="true"
+            fi
+          fi
+          echo "needs_demo=$NEEDS_DEMO" >> "$GITHUB_OUTPUT"
+          echo "needs_tests=$NEEDS_TESTS" >> "$GITHUB_OUTPUT"
+      - name: Post reminder comment
+        if: steps.nudges.outputs.needs_demo == 'true' || steps.nudges.outputs.needs_tests == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const needsDemo = ${{ steps.nudges.outputs.needs_demo == 'true' }};
+            const needsTests = ${{ steps.nudges.outputs.needs_tests == 'true' }};
+            let body = [];
+            if (needsDemo) {
+              body.push('⚠️  LOC > 400 — please ensure the PR description includes runnable demo steps.');
+            }
+            if (needsTests) {
+              body.push('⚠️  Changes touch `app/graph/nodes/*` but no tests were modified. Add or update coverage before merging.');
+            }
+            if (body.length) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body.join('\n')
+              });
+            }
