@@ -4,21 +4,36 @@ import os
 from typing import Any, Dict, List
 
 from app.graph.nodes.memory import extract_preferences
-from app.graph.state import BodyState
+from app.graph.state import BodyState, SubIntent
 from app.tools.calendar_tools import CalendarEvent, create_event
 from app.tools.es_client import get_es_client
 
 logger = logging.getLogger(__name__)
 
 
+MEDS_INTENT = "meds"
+APPOINTMENT_INTENT = "appointment"
+PLAN_TYPE_MED_SCHEDULE = "med_schedule"
+PLAN_TYPE_NONE = "none"
+SUB_INTENT_SCHEDULE: SubIntent = "schedule"
+
+
 def run(state: BodyState, es_client: Any = None) -> BodyState:
     intent = state.get("intent")
     now = datetime.now(UTC)
 
-    if intent == "meds":
+    if intent == MEDS_INTENT:
+        sub_intent = state.get("sub_intent")
+        if sub_intent != SUB_INTENT_SCHEDULE:
+            logger.debug(
+                "Planner: Suppressing plan for meds sub_intent '%s'", sub_intent
+            )
+            state["plan"] = {"type": PLAN_TYPE_NONE}
+            return state
+
         # Produce a toy schedule: morning/evening entries for next 24h
         plan = {
-            "type": "med_schedule",
+            "type": PLAN_TYPE_MED_SCHEDULE,
             "items": [
                 {
                     "title": "Morning meds",
@@ -33,7 +48,7 @@ def run(state: BodyState, es_client: Any = None) -> BodyState:
         state["plan"] = plan
         return state
 
-    if intent == "appointment":
+    if intent == APPOINTMENT_INTENT:
         logger.debug("Planner: Handling 'appointment' intent.")
         prefs = state.get("preferences") or {}
         if not prefs and (user_id := state.get("user_id")):
@@ -78,7 +93,7 @@ def run(state: BodyState, es_client: Any = None) -> BodyState:
             explanations = list(reasons)
             reasons_str = ", ".join(explanations)
             state["plan"] = {
-                "type": "appointment",
+                "type": APPOINTMENT_INTENT,
                 "event_path": path,
                 "provider": best,
                 "reasons": reasons_str,
@@ -88,5 +103,5 @@ def run(state: BodyState, es_client: Any = None) -> BodyState:
 
     # Fallback
     logger.debug("Planner: Falling back to 'none' plan.")
-    state["plan"] = {"type": "none"}
+    state["plan"] = {"type": PLAN_TYPE_NONE}
     return state
