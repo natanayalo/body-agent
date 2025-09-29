@@ -11,7 +11,7 @@ def test_supervisor_embedding_intents(fake_embed):
 
 def test_planner_preferences_ranking():
     state = BodyState(
-        intent="appointment",
+        intent=planner.APPOINTMENT_INTENT,
         user_id="demo-user",
         user_query="book appointment",
         preferences={"preferred_kinds": ["lab"], "hours_window": "morning"},
@@ -34,35 +34,51 @@ def test_planner_preferences_ranking():
     )
     out = planner.run(state)
     plan = out.get("plan", {})
-    assert plan.get("type") == "appointment"
+    assert plan.get("type") == planner.APPOINTMENT_INTENT
     assert plan.get("provider", {}).get("name") == "Dizengoff Lab Center"
     explanations = plan.get("explanations", [])
     assert explanations
     assert any("preferred" in reason for reason in explanations)
 
 
-def test_planner_meds_intent():
-    state = BodyState(intent="meds", user_query="I need meds", messages=[])
+def test_planner_meds_schedule_intent():
+    state = BodyState(
+        intent=planner.MEDS_INTENT,
+        user_query="I need meds",
+        messages=[],
+        sub_intent=planner.SUB_INTENT_SCHEDULE,
+    )
     out = planner.run(state)
     plan = out.get("plan", {})
-    assert plan.get("type") == "med_schedule"
+    assert plan.get("type") == planner.PLAN_TYPE_MED_SCHEDULE
     assert len(plan.get("items", [])) == 2
+
+
+def test_planner_meds_non_schedule_sub_intent():
+    state = BodyState(
+        intent=planner.MEDS_INTENT,
+        user_query="when will it work",
+        messages=[],
+        sub_intent="onset",
+    )
+    out = planner.run(state)
+    assert out.get("plan", {}) == {"type": planner.PLAN_TYPE_NONE}
 
 
 def test_planner_appointment_no_candidates():
     state = BodyState(
-        intent="appointment",
+        intent=planner.APPOINTMENT_INTENT,
         user_id="demo-user",
         user_query="book appointment",
         candidates=[],
     )
     out = planner.run(state)
-    assert out.get("plan", {}).get("type") == "none"
+    assert out.get("plan", {}).get("type") == planner.PLAN_TYPE_NONE
 
 
 def test_planner_appointment_no_preferences():
     state = BodyState(
-        intent="appointment",
+        intent=planner.APPOINTMENT_INTENT,
         user_id="demo-user",
         user_query="book appointment",
         candidates=[
@@ -71,7 +87,7 @@ def test_planner_appointment_no_preferences():
     )
     out = planner.run(state)
     plan = out.get("plan", {})
-    assert plan.get("type") == "appointment"
+    assert plan.get("type") == planner.APPOINTMENT_INTENT
     assert plan.get("provider", {}).get("name") == "Clinic A"
     assert plan.get("reasons") == ""
     assert plan.get("explanations", []) == []
@@ -80,12 +96,12 @@ def test_planner_appointment_no_preferences():
 def test_planner_fallback_intent():
     state = BodyState(intent="other", user_query="What is the weather?", messages=[])
     out = planner.run(state)
-    assert out.get("plan", {}).get("type") == "none"
+    assert out.get("plan", {}).get("type") == planner.PLAN_TYPE_NONE
 
 
 def test_planner_appointment_no_user_id():
     state = BodyState(
-        intent="appointment",
+        intent=planner.APPOINTMENT_INTENT,
         user_query="book appointment",
         candidates=[
             {"name": "Clinic A", "kind": "clinic", "hours": "Sun-Thu 12:00-20:00"}
@@ -93,7 +109,7 @@ def test_planner_appointment_no_user_id():
     )
     out = planner.run(state)
     plan = out.get("plan", {})
-    assert plan.get("type") == "appointment"
+    assert plan.get("type") == planner.APPOINTMENT_INTENT
     assert plan.get("provider", {}).get("name") == "Clinic A"
     assert plan.get("reasons") == ""
     assert plan.get("explanations", []) == []
@@ -101,7 +117,7 @@ def test_planner_appointment_no_user_id():
 
 def test_planner_appointment_user_id_no_prefs():
     state = BodyState(
-        intent="appointment",
+        intent=planner.APPOINTMENT_INTENT,
         user_id="test-user",  # user_id is present
         user_query="book appointment",
         candidates=[
@@ -110,7 +126,7 @@ def test_planner_appointment_user_id_no_prefs():
     )
     out = planner.run(state)
     plan = out.get("plan", {})
-    assert plan.get("type") == "appointment"
+    assert plan.get("type") == planner.APPOINTMENT_INTENT
     assert plan.get("provider", {}).get("name") == "Clinic A"
     assert plan.get("reasons") == ""
     assert plan.get("explanations", []) == []
@@ -118,7 +134,7 @@ def test_planner_appointment_user_id_no_prefs():
 
 def test_planner_appointment_candidate_no_hours():
     state = BodyState(
-        intent="appointment",
+        intent=planner.APPOINTMENT_INTENT,
         user_id="test-user",
         user_query="book appointment",
         candidates=[
@@ -128,7 +144,7 @@ def test_planner_appointment_candidate_no_hours():
     )
     out = planner.run(state)
     plan = out.get("plan", {})
-    assert plan.get("type") == "appointment"
+    assert plan.get("type") == planner.APPOINTMENT_INTENT
     assert plan.get("provider", {}).get("name") in ["Clinic A", "Clinic B"]
     assert plan.get("reasons") == ""
     assert plan.get("explanations", []) == []

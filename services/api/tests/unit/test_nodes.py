@@ -51,24 +51,40 @@ def test_health_node_with_med_terms():
     assert len(new_state["citations"]) == 2
 
 
-def test_planner_node_meds_intent():
-    state: BodyState = {"user_query": "", "user_query_redacted": "", "intent": "meds"}
+def test_planner_node_meds_schedule_intent():
+    state: BodyState = {
+        "user_query": "",
+        "user_query_redacted": "",
+        "intent": planner.MEDS_INTENT,
+        "sub_intent": planner.SUB_INTENT_SCHEDULE,
+    }
     new_state = planner.run(state)
-    assert new_state["plan"]["type"] == "med_schedule"
+    assert new_state["plan"]["type"] == planner.PLAN_TYPE_MED_SCHEDULE
+
+
+def test_planner_node_meds_non_schedule():
+    state: BodyState = {
+        "user_query": "",
+        "user_query_redacted": "",
+        "intent": planner.MEDS_INTENT,
+        "sub_intent": "onset",
+    }
+    new_state = planner.run(state)
+    assert new_state["plan"] == {"type": planner.PLAN_TYPE_NONE}
 
 
 def test_planner_node_appointment_intent():
     state: BodyState = {
         "user_query": "",
         "user_query_redacted": "",
-        "intent": "appointment",
+        "intent": planner.APPOINTMENT_INTENT,
         "candidates": [
             {"name": "Clinic A", "phone": "123", "kind": "clinic"},
             {"name": "Clinic B", "phone": "456", "kind": "lab"},
         ],
     }
     new_state = planner.run(state)
-    assert new_state["plan"]["type"] == "appointment"
+    assert new_state["plan"]["type"] == planner.APPOINTMENT_INTENT
     assert new_state["plan"]["provider"]["name"] == "Clinic A"
 
 
