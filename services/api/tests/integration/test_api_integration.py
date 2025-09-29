@@ -158,6 +158,31 @@ def test_hebrew_query_prefers_hebrew_snippets(
     assert "נקודות עיקריות" in message
 
 
+def test_meds_onset_hebrew_uses_med_facts(monkeypatch, client, fake_es, fake_pipe):
+    fake_es.handlers.clear()
+
+    fake_pipe.run(urgent_care=0.1, see_doctor=0.1, self_care=0.8, info_only=0.1)
+
+    import app.graph.nodes.answer_gen as ag
+
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+    monkeypatch.setattr(ag, "_generate_with_provider", lambda provider, prompt: None)
+
+    payload = {"user_id": "med-onset", "query": "אקמול תוך כמה זמן משפיע"}
+    response = client.post("/api/graph/run", params={"lang": "he"}, json=payload)
+
+    assert response.status_code == 200
+    state = response.json()["state"]
+
+    assert state.get("intent") == "meds"
+    assert state.get("sub_intent") == "onset"
+    message = state.get("messages", [])[-1]["content"]
+    assert "אקמול" in message
+    citations = state.get("citations", [])
+    assert len(citations) == 1
+    assert citations[0].startswith("https://")
+
+
 def test_debug_endpoints_after_run(client, fake_es, fake_pipe, sample_docs):
     hits, fever_doc, _, _, _ = sample_docs
     fake_es.add_handler(

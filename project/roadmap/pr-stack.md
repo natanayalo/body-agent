@@ -191,6 +191,46 @@ Scope
 - `answer_gen` chooses templates/prompts using `state.language` (fallback EN).
 - Tests ensure HE queries yield HE answers while EN remains unchanged.
 
+## PR 32 — Paraphrase onset facts via Ollama (flagged)
+
+Why: Improve readability/localization of deterministic onset answers without altering facts.
+
+Scope
+
+- Add optional `PARAPHRASE_ONSET=true|false` env flag (default false).
+- When a med fact exists, call Ollama to paraphrase the given `summary`/`follow_up` in the user’s language.
+- Enforce validators to block any added numbers/claims; always append `Source: {label}`; keep citation URL from facts.
+
+Acceptance
+
+- With the flag on, onset answers remain factually identical (numbers unchanged) but are paraphrased; exactly one citation.
+- With the flag off, current deterministic rendering is used.
+- Unit tests cover validator behavior and flag on/off.
+
+Pointers
+
+- `services/api/app/graph/nodes/answer_gen.py`, `.env.example` entries, new tests under `services/api/tests/unit/test_answer_gen.py`.
+
+## PR 33 — LLM neutral fallback for onset (no fact; flagged)
+
+Why: Provide helpful guidance when no onset fact exists without guessing timings or dosing.
+
+Scope
+
+- Add optional `ONSET_LLM_FALLBACK=true|false` env flag (default false).
+- When `onset_for(...)` returns None, generate a short neutral blurb (no numbers/times) and disclaimer; no citation.
+- Enforce validators to reject any numeric/time tokens.
+
+Acceptance
+
+- With the flag on and no fact present, onset answers contain no timings/doses and include the disclaimer.
+- With the flag off, existing pattern/template fallback is used.
+- Unit tests assert no-number/no-time validation and flag behavior.
+
+Pointers
+
+- `services/api/app/graph/nodes/answer_gen.py`, `.env.example`, tests in `services/api/tests/unit/test_answer_gen.py`.
+
 ---
 
 # Milestone 3 — Stability & CI polish

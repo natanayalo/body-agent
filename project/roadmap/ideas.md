@@ -70,7 +70,9 @@ Use the status column to see whether an idea is already shipped, queued up in th
 | Status | Idea | Summary | Notes |
 | --- | --- | --- | --- |
 | 🧭 | Preference-aware provider scoring | Blend semantic score with distance, hours fit, insurance match using configurable weights. | Requires more provider metadata + tests. |
-| 🧭 | Lightweight meds registry | Small YAML of common OTC classes (uses, avoid_if, interactions) to supplement answers without dosing. | Consider after Milestone 2; overlap with med facts work.
+| 🧭 | Lightweight meds registry | Small YAML of common OTC classes (uses, avoid_if, interactions) to supplement answers without dosing. | Consider after Milestone 2; overlap with med facts work. |
+| 🧭 | LLM paraphrase for onset facts | When a deterministic med fact exists, paraphrase it into the user’s language via Ollama (no new numbers/claims) behind a feature flag. | Enforce validators to reject added numbers; always include “Source: …”. |
+| 🧭 | LLM neutral fallback (no fact) | If no onset fact is found, generate a neutral, non‑timed guidance blurb (no dosing/times) behind a feature flag. | Safer than guessing; reject outputs with numbers/time words; include disclaimer.
 
 When you pick up an idea:
 

@@ -1,0 +1,46 @@
+{
+  "acetaminophen": {
+    "name": "acetaminophen",
+    "display_names": {
+      "en": "acetaminophen",
+      "he": "אקמול (acetaminophen)"
+    },
+    "aliases": ["paracetamol", "אקמול", "acamol"],
+    "onset": {
+      "en": {
+        "summary": "Acetaminophen typically starts to relieve pain or fever within 30–60 minutes.",
+        "follow_up": "If you do not feel better after about an hour or symptoms worsen, contact a clinician."
+      },
+      "he": {
+        "summary": "אקמול בדרך כלל מתחיל להשפיע תוך 30–60 דקות ולהקל על כאב או חום.",
+        "follow_up": "אם אין שיפור תוך כשעה או שיש החמרה, פנו לרופא."
+      }
+    },
+    "source": {
+      "label": "NHS",
+      "url": "https://www.nhs.uk/medicines/paracetamol-for-adults/about-paracetamol/"
+    }
+  },
+  "ibuprofen": {
+    "name": "ibuprofen",
+    "display_names": {
+      "en": "ibuprofen",
+      "he": "איבופרופן (ibuprofen)"
+    },
+    "aliases": ["advil", "motrin", "nurofen", "נורופן"],
+    "onset": {
+      "en": {
+        "summary": "Ibuprofen usually begins easing pain or fever within 20–30 minutes after a dose.",
+        "follow_up": "If there is no improvement after about an hour or symptoms worsen, speak with a clinician."
+      },
+      "he": {
+        "summary": "איבופרופן לרוב מתחיל להקל על כאב או חום תוך 20–30 דקות מהנטילה.",
+        "follow_up": "אם אין הקלה לאחר כשעה או שיש החמרה, פנו לרופא."
+      }
+    },
+    "source": {
+      "label": "NHS",
+      "url": "https://www.nhs.uk/medicines/ibuprofen-for-adults/how-and-when-to-take-ibuprofen/"
+    }
+  }
+}

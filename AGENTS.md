@@ -47,8 +47,9 @@ Scope: These instructions apply to the whole repository. They are for AI coding 
 - Run pre-commit on all files:
   - `pre-commit install` (first time only)
   - `pre-commit run --all-files`
-- Run tests locally and meet coverage ≥ 95%:
-  - `venv/bin/pytest` (unit + integration)
+- Run tests locally and meet coverage ≥ 95% overall **and ≥ 90% per file**:
+  - `venv/bin/pytest --cov --cov-report=term-missing` (unit + integration)
+  - Fail the run if anything drops below the thresholds (they match CI).
   - Optionally: `make eval` and `make e2e-local` if your change touches retrieval/routing/graph wiring.
 - If you added config/env vars, update `.env.example`, `README.md`, and `project/config.md`.
 - Keep diffs minimal and aligned with `project/roadmap/pr-stack.md` acceptance criteria.
@@ -80,6 +81,7 @@ Scope: These instructions apply to the whole repository. They are for AI coding 
 - Otherwise:
   - Propose an entry under “Scheduled” in `project/roadmap/ideas.md`.
   - If ready to execute, add a new PR block in `project/roadmap/pr-stack.md` with Why/Scope/Acceptance/Pointers.
+- When a PR is finished, remove its block from `project/roadmap/pr-stack.md` and mark the corresponding idea as completed in `project/roadmap/ideas.md`.
 
 ## Communication (for agents)
 

@@ -2,6 +2,7 @@ import pytest
 
 from app.graph.nodes import answer_gen
 from app.graph.state import BodyState
+from app.tools import med_facts
 
 
 def test_answer_gen_skips_when_provider_none(monkeypatch):
@@ -9,6 +10,65 @@ def test_answer_gen_skips_when_provider_none(monkeypatch):
     state = BodyState(user_query="Help", messages=[])
     out = answer_gen.run(state)
     assert out.get("messages", []) == []
+
+
+def test_answer_gen_meds_onset_uses_med_facts(monkeypatch):
+    med_facts.clear_cache()
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+
+    def fail_generate(provider: str, prompt: str):  # pragma: no cover - should not run
+        raise AssertionError("LLM provider should not be called for meds onset")
+
+    monkeypatch.setattr(answer_gen, "_generate_with_provider", fail_generate)
+
+    state = BodyState(
+        user_query="אקמול מתי משפיע",
+        user_query_redacted="אקמול מתי משפיע",
+        intent="meds",
+        sub_intent="onset",
+        language="he",
+        debug={"normalized_query_meds": ["acetaminophen"]},
+        messages=[],
+    )
+
+    out = answer_gen.run(state)
+    message = out["messages"][-1]
+    content = message["content"]
+
+    assert "אקמול" in content
+    assert "מקור" in content or "Source" in content
+    assert answer_gen.LANG_CONFIG["he"]["disclaimer"] in content
+    citations = out.get("citations", [])
+    assert len(citations) == 1
+    assert citations[0].startswith("https://")
+
+
+def test_answer_gen_meds_onset_falls_back_to_english(monkeypatch):
+    med_facts.clear_cache()
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+
+    def fail_generate(provider: str, prompt: str):  # pragma: no cover - should not run
+        raise AssertionError("LLM provider should not be called for meds onset")
+
+    monkeypatch.setattr(answer_gen, "_generate_with_provider", fail_generate)
+
+    state = BodyState(
+        user_query="When will ibuprofen start working?",
+        intent="meds",
+        sub_intent="onset",
+        language="fr",
+        debug={"normalized_query_meds": ["ibuprofen"]},
+        messages=[],
+    )
+
+    out = answer_gen.run(state)
+    message = out["messages"][-1]
+    content = message["content"]
+
+    assert "Ibuprofen" in content
+    assert answer_gen.DISCLAIMER in content
+    citations = out.get("citations", [])
+    assert len(citations) == 1
 
 
 def test_answer_gen_uses_provider(monkeypatch):
