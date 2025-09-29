@@ -1,12 +1,83 @@
 from __future__ import annotations
 import os
 import logging
-from typing import List, Dict, Tuple, cast
+import re
+from functools import lru_cache
+from typing import List, Dict, Tuple, Pattern, cast
 from app.graph.state import BodyState
 
 logger = logging.getLogger(__name__)
 
 _PIPE = None
+
+
+MEDS_INTENT = "meds"
+SUB_INTENT_ONSET = "onset"
+_DEFAULT_ONSET_RED_FLAG_TERMS = (
+    "chest pain",
+    "chest pains",
+    "bleed",
+    "bleeding",
+    "hemorrhage",
+    "hemorrhaging",
+)
+
+
+def _normalize_term(term: str) -> str:
+    return " ".join(term.lower().split())
+
+
+@lru_cache(maxsize=1)
+def _onset_red_flag_terms() -> Tuple[str, ...]:
+    spec = os.getenv("RISK_ONSET_RED_FLAGS", "")
+    terms = tuple(_normalize_term(t) for t in spec.split(",") if t and t.strip())
+    cleaned = terms or tuple(_normalize_term(t) for t in _DEFAULT_ONSET_RED_FLAG_TERMS)
+    return cleaned
+
+
+@lru_cache(maxsize=1)
+def _onset_red_flag_patterns() -> Tuple[Pattern[str], ...]:
+    patterns: List[Pattern[str]] = []
+    for term in _onset_red_flag_terms():
+        if not term:
+            continue
+        tokens = term.split()
+        if len(tokens) == 1:
+            expr = rf"\b{re.escape(tokens[0])}\b"
+        else:
+            expr = (
+                rf"\b{re.escape(tokens[0])}"
+                + "".join(rf"\s+{re.escape(tok)}" for tok in tokens[1:])
+                + r"\b"
+            )
+        patterns.append(re.compile(expr, re.IGNORECASE))
+    return tuple(patterns)
+
+
+def _has_hard_red_flags(text: str) -> bool:
+    for pattern in _onset_red_flag_patterns():
+        if pattern.search(text):
+            return True
+    return False
+
+
+def _should_suppress_meds_onset(state: BodyState) -> bool:
+    if (
+        state.get("intent") != MEDS_INTENT
+        or state.get("sub_intent") != SUB_INTENT_ONSET
+    ):
+        return False
+
+    text_sources = [
+        state.get("user_query_pivot"),
+        state.get("user_query_redacted"),
+        state.get("user_query"),
+    ]
+    combined = " ".join(filter(None, text_sources)).strip()
+    if not combined:
+        return True
+
+    return not _has_hard_red_flags(combined)
 
 
 def _get_pipe():
@@ -76,6 +147,13 @@ def run(state: BodyState) -> BodyState:
     Outputs: appends alerts/messages with an ML-backed label and confidence.
     """
     logger.info("Starting risk classification")
+
+    if _should_suppress_meds_onset(state):
+        logger.info("Risk gating: suppressing ML for meds onset without red flags")
+        risk_debug = state.setdefault("debug", {}).setdefault("risk", {})
+        risk_debug["suppressed"] = "meds_onset"
+        risk_debug.setdefault("red_flag_terms", list(_onset_red_flag_terms()))
+        return state
 
     pipe = _get_pipe()
     if pipe is None:

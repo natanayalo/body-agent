@@ -191,6 +191,8 @@ EMBEDDINGS_MODEL=__stub__
 
 When stubbing is active, the risk classification will return deterministic, default scores, allowing for predictable test outcomes.
 
+To tweak the meds-onset gating, set `RISK_ONSET_RED_FLAGS` to a comma-separated list of phrases, listing each variant you care about (e.g., `RISK_ONSET_RED_FLAGS=chest pain,chest pains,bleed,bleeding`). Any query containing one of the phrases will always run through the ML risk model instead of being suppressed.
+
 
 ### Security & Tenancy (PR 8)
 
