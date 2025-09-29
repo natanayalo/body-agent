@@ -1,10 +1,11 @@
 from __future__ import annotations
 import json
 import os
+import re
 from typing import Dict, List, Literal, Optional
 import numpy as np
 import logging
-from app.graph.state import BodyState
+from app.graph.state import BodyState, SubIntent
 from app.tools.embeddings import embed
 from app.tools.med_normalize import find_medications_in_text
 
@@ -186,6 +187,136 @@ def detect_intent(
     return "other"
 
 
+_SUB_INTENT_KEYWORDS: Dict[SubIntent, List[str]] = {
+    "onset": [
+        "when will it start",
+        "when does it start",
+        "how long until it",
+        "how long until it works",
+        "how long before it works",
+        "how long before it starts",
+        "start working",
+        "kick in",
+        "מתי זה מתחיל להשפיע",
+        "מתי זה אמור להשפיע",
+        "מתי התרופה אמורה להשפיע",
+        "מתי זה משפיע",
+        "מתי יתחיל להשפיע",
+        "תוך כמה זמן",
+        "תוך כמה זמן זה",
+        "תוך כמה זמן זה משפיע",
+        "תוך כמה זמן מתחיל להשפיע",
+        "תוך כמה",
+    ],
+    "interaction": [
+        "can i take with",
+        "interaction with",
+        "interaction",
+        "interact with",
+        "mix with",
+        "take together",
+        "take together with",
+        "combine with",
+        "אפשר לקחת עם",
+        "מותר לקחת עם",
+        "מותר עם",
+        "בניגוד",
+        "יחד עם",
+        "אפשר לשלב",
+        "מותר לשלב",
+        "אפשר לקחת ביחד",
+        "מותר לקחת ביחד",
+        "לשלב עם",
+    ],
+    "schedule": [
+        "remind me to take",
+        "reminder to take",
+        "schedule my meds",
+        "schedule my medication",
+        "schedule my medicine",
+        "medication schedule",
+        "meds schedule",
+        "pill schedule",
+        "dose schedule",
+        "when should i take",
+        "what time should i take",
+        "how often should i take",
+        "מתי לקחת",
+        "איך לקחת",
+        "תזכיר לי לקחת",
+        "תזכורת לקחת",
+        "להזכיר לי לקחת",
+        "לוח זמנים לתרופות",
+        "שעות לקיחה",
+        "כמה פעמים ביום",
+    ],
+    "side_effects": [
+        "side effect",
+        "side effects",
+        "adverse effect",
+        "adverse effects",
+        "reaction",
+        "תופעת לוואי",
+        "תופעות לוואי",
+        "השפעות לוואי",
+    ],
+    "refill": [
+        "refill",
+        "refill my",
+        "prescription renewal",
+        "renew my prescription",
+        "renew the prescription",
+        "get a new prescription",
+        "חדש מרשם",
+        "רענן מרשם",
+        "מרשם חוזר",
+        "חידוש מרשם",
+    ],
+}
+
+_MED_CONTEXT_TOKENS = {
+    "meds",
+    "medication",
+    "medications",
+    "medicine",
+    "medicines",
+    "pill",
+    "pills",
+    "tablet",
+    "tablets",
+    "dose",
+    "doses",
+    "dosing",
+    "capsule",
+    "capsules",
+    "prescription",
+    "prescriptions",
+    "rx",
+    "תרופה",
+    "תרופות",
+    "כדור",
+    "כדורים",
+}
+
+
+def _has_med_context(text: str) -> bool:
+    tokens = set(re.findall(r"\w+", text.lower()))
+    return any(token in _MED_CONTEXT_TOKENS for token in tokens)
+
+
+def detect_med_sub_intent(text: str) -> Optional[SubIntent]:
+    lowered = text.lower()
+    for sub_intent, keywords in _SUB_INTENT_KEYWORDS.items():
+        for keyword in keywords:
+            if keyword in lowered:
+                return sub_intent
+    if " עם" in lowered and (
+        "אפשר לקחת" in lowered or "מותר לקחת" in lowered or "לשלב" in lowered
+    ):
+        return "interaction"
+    return None
+
+
 def run(state: BodyState) -> BodyState:
     query_text = state.get("user_query_redacted", state.get("user_query", ""))
     detected_intent = detect_intent(query_text)
@@ -196,4 +327,14 @@ def run(state: BodyState) -> BodyState:
     if normalized_meds:
         debug = state.setdefault("debug", {})
         debug["normalized_query_meds"] = normalized_meds
+
+    sub_intent = detect_med_sub_intent(query_text)
+    if sub_intent:
+        has_context = bool(normalized_meds) or _has_med_context(query_text)
+
+        if detected_intent == "meds":
+            state["sub_intent"] = sub_intent
+        elif has_context:
+            state["intent"] = "meds"
+            state["sub_intent"] = sub_intent
     return state

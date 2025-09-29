@@ -54,6 +54,7 @@ Scope: These instructions apply to the whole repository. They are for AI coding 
 - Keep diffs minimal and aligned with `project/roadmap/pr-stack.md` acceptance criteria.
 - If scope/milestones changed, update `project/roadmap.md` and ensure `project/roadmap/pr-stack.md` reflects the current slices.
 - Verify the shipping checklist in `project/SHIPPING.md` (demo steps, tests, docs) and ensure the PR template is complete.
+- As soon as a PR is opened, replace the placeholders in `.github/PULL_REQUEST_TEMPLATE.md` (Outcome, Demo ≤90s, Acceptance) with real content before requesting review—delete the `<!-- … -->` helper text and remove the `# TODO` block. The `pr-nudges` workflow fails the build if any placeholders remain in the PR body. From the CLI you can sync a filled markdown file with `gh pr edit <num> --body-file path/to/pr.md`.
 
 ## Key Env/Feature Flags
 
