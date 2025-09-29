@@ -3,6 +3,7 @@ from unittest.mock import patch, MagicMock
 import pytest
 from app.graph.state import BodyState
 from app.config import settings
+from elasticsearch import TransportError
 
 
 @pytest.fixture(autouse=True)
@@ -50,6 +51,18 @@ def test_health_knn_then_bm25_fallback(sample_docs, monkeypatch):
         "public_snippets"
     ), "BM25 fallback should supply docs when kNN is empty"
     assert out.get("citations") == ["file://fever.md"]
+
+    # Second search call corresponds to BM25 body
+    assert mock_es_instance.search.call_count == 2
+    bm25_call = mock_es_instance.search.call_args_list[1]
+    bm25_body = bm25_call.kwargs["body"]
+    should = bm25_body["query"]["bool"]["should"]
+    assert any(
+        clause.get("match", {}).get("text", {}).get("query")
+        == "I have a fever of 38.5C"
+        for clause in should
+        if isinstance(clause, dict)
+    )
 
 
 def test_interaction_alert_requires_two_user_meds(sample_docs, monkeypatch, fake_es):
@@ -408,3 +421,36 @@ def test_prioritize_language_moves_preferred_docs_first():
         "English Guidance",
         "Second English",
     }
+
+
+def test_norm_med_terms_extracts_from_name_only():
+    mem = [
+        {"entity": "medication", "name": "Optalgin 500mg"},
+        {"entity": "medication", "normalized": {"ingredient": "dipyrone"}},
+    ]
+    assert health._norm_med_terms(mem) == ["optalgin", "dipyrone"]
+
+
+def test_doc_identity_without_source_url():
+    doc = {"title": "Optalgin", "section": "general", "language": "he"}
+    identity = health._doc_identity(doc)
+    assert identity.startswith("title::Optalgin::general")
+
+
+def test_merge_docs_skips_duplicate_identity():
+    doc = {"title": "Doc", "section": "general", "language": "en"}
+    merged = health._merge_docs([doc], [doc])
+    assert merged == [doc]
+
+
+def test_fetch_registry_docs_handles_transport_error():
+    es = MagicMock()
+    es.msearch.side_effect = TransportError(500, "boom")
+    docs = health._fetch_registry_docs(es, [{"source_url": "http://example.com"}])
+    assert docs == []
+
+
+def test_fetch_registry_docs_ignores_non_dict_refs():
+    es = MagicMock()
+    docs = health._fetch_registry_docs(es, ["bad_ref", None])
+    assert docs == []
