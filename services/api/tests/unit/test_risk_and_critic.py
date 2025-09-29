@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 import os
+import pytest
 from app.graph.nodes import risk_ml, critic
 from app.graph.state import BodyState
 
@@ -225,3 +226,65 @@ def test_risk_ml_no_gentle_guidance_if_no_pairs(monkeypatch):
     state = BodyState(user_query="Some query", messages=[])
     out = risk_ml.run(state)
     assert "messages" not in out or not out["messages"]
+
+
+@pytest.mark.parametrize(
+    "user_query,pivot,expect_alert",
+    [
+        ("When will it start working?", "", False),
+        ("When will it start working?", "Chest pain after taking it", True),
+        ("I have bleeding after the dose", "", True),
+    ],
+)
+def test_meds_onset_risk_gating(fake_pipe, user_query, pivot, expect_alert):
+    fake_pipe.run(urgent_care=0.8, see_doctor=0.6, self_care=0.2, info_only=0.1)
+    state = BodyState(
+        intent=risk_ml.MEDS_INTENT,
+        sub_intent=risk_ml.SUB_INTENT_ONSET,
+        user_query=user_query,
+    )
+    if pivot:
+        state["user_query_pivot"] = pivot
+
+    out = risk_ml.run(state)
+
+    alerts = [a for a in out.get("alerts", []) if "ML risk" in a]
+    assert bool(alerts) == expect_alert
+
+    if not expect_alert:
+        assert out.get("debug", {}).get("risk", {}).get("suppressed") == "meds_onset"
+        assert "alerts" not in out or not alerts
+
+
+def test_meds_onset_safe_skips_pipeline(monkeypatch):
+    sentinel = MagicMock(side_effect=AssertionError("Should not call pipeline"))
+    monkeypatch.setattr(risk_ml, "_get_pipe", sentinel)
+
+    state = BodyState(
+        intent=risk_ml.MEDS_INTENT,
+        sub_intent=risk_ml.SUB_INTENT_ONSET,
+        user_query="When does it start working?",
+    )
+
+    out = risk_ml.run(state)
+
+    sentinel.assert_not_called()
+    assert out.get("debug", {}).get("risk", {}).get("suppressed") == "meds_onset"
+
+
+def test_meds_onset_red_flag_env_override(fake_pipe, monkeypatch):
+    monkeypatch.setenv("RISK_ONSET_RED_FLAGS", "rash")
+    risk_ml._onset_red_flag_terms.cache_clear()
+    risk_ml._onset_red_flag_patterns.cache_clear()
+    fake_pipe.run(urgent_care=0.7, see_doctor=0.1, self_care=0.1, info_only=0.1)
+
+    state = BodyState(
+        intent=risk_ml.MEDS_INTENT,
+        sub_intent=risk_ml.SUB_INTENT_ONSET,
+        user_query="Experiencing rash after dose",
+    )
+
+    out = risk_ml.run(state)
+
+    alerts = [a for a in out.get("alerts", []) if "ML risk" in a]
+    assert alerts, "override red flag should allow ML pipeline to run"

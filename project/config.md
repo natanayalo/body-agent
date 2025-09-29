@@ -30,6 +30,7 @@ This page lists the key environment variables, defaults, and how to run in CI (s
 - `RISK_LABELS` (`urgent_care,see_doctor,self_care,info_only`)
 - `RISK_THRESHOLDS` (e.g., `urgent_care:0.55,see_doctor:0.50`)
 - `RISK_HYPOTHESIS` (template used for NLI predictions)
+- `RISK_ONSET_RED_FLAGS` (comma-separated phrases—list each variant explicitly—that must always trigger ML checks for meds onset)
 
 ## Intent routing (exemplars)
 
