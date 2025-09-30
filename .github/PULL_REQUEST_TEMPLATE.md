@@ -6,11 +6,15 @@ Example: “Meds onset questions now return a sourced fact sheet instead of a ge
 
 ## Demo
 <!--
-Provide runnable steps that take ≤90 seconds. Prefer a CLI snippet (curl, pytest, make)
-that someone can paste to verify the change end-to-end.
+Provide runnable steps that take ≤90 seconds and exercise the change end-to-end. Prefer
+an API/CLI snippet (e.g., curl, make) that shows the user-facing behaviour. If tests are
+the only option, note that in the steps.
 Example:
 ```bash
-venv/bin/pytest --no-cov services/api/tests/integration/test_api_integration.py::test_meds_onset_hebrew_uses_med_facts
+curl -s http://localhost:8000/api/graph/run \
+  -H 'content-type: application/json' \
+  -d '{"user_id":"demo","query":"אקמול מתי משפיע?"}' \
+  | jq '.state | {language, messages: .messages[-1].content}'
 ```
 -->
 
