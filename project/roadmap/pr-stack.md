@@ -159,37 +159,22 @@ Acceptance
 
 # Milestone 2 — Retrieval quality & cleanliness
 
-## PR 24 — Health BM25 fallback with med boosts
+## PR 24–26 — Med interaction recall, citation hygiene, language-aware answers
 
-Why: When kNN misses, ensure BM25 still surfaces interaction docs tied to the user’s meds.
+Why: Ensure meds interactions surface even when kNN misses, clean up citation spam, and keep deterministic/template answers aligned with the user’s language.
 
 Scope
 
-- In BM25 fallback, include boosted `match` clauses for each med’s title/text plus the primary query/pivot; keep `minimum_should_match = 1`.
-- Add integration coverage for the dual-med interaction flow.
+- BM25 fallback adds boosted clauses for each memory med combined with the primary/pivot query so interaction docs still appear when embeddings miss.
+- Normalize/dedupe citations (`url_normalize` strips fragments + UTM params) to avoid duplicate or noisy links.
+- `answer_gen` system prompts/templates explicitly follow `state.language` (fallback EN) so Hebrew users get Hebrew output end-to-end.
+- Expand unit/integration coverage for the dual-med interaction flow, citation hygiene, and language-aware prompts.
 
 Acceptance
 
-- Interaction documents retrieved when user memory has two interacting meds.
-- `tests/integration/test_api_integration.py::test_e2e_medication_interaction_flow` updated.
-
-## PR 25 — Citation dedupe & URL normalization
-
-Why: Avoid duplicate citations when docs arrive via registry + search.
-
-Scope
-
-- Introduce `url_normalize` (strip fragments + UTM params) and dedupe citations while preserving order.
-- Unit tests for normalization + dedupe behaviour.
-
-## PR 26 — Language-aware answer rendering
-
-Why: Answers should default to the user’s language, not always English.
-
-Scope
-
-- `answer_gen` chooses templates/prompts using `state.language` (fallback EN).
-- Tests ensure HE queries yield HE answers while EN remains unchanged.
+- Interaction documents retrieved whenever memory contains both meds; integration test validates boosted combo clauses.
+- Citations emitted without fragments/`utm_` tracking params and remain unique while preserving order.
+- Hebrew answer paths (LLM fallback + deterministic meds onset) render in Hebrew; English flows unchanged.
 
 ## PR 32 — Paraphrase onset facts via Ollama (flagged)
 

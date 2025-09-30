@@ -1,6 +1,7 @@
 import re
 import logging
 from typing import Iterable
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from app.graph.state import BodyState
 from app.tools.es_client import get_es_client
@@ -11,6 +12,42 @@ from app.tools import symptom_registry
 from elasticsearch import TransportError, RequestError
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_url(url: str) -> str:
+    if not isinstance(url, str):
+        return ""
+    candidate = url.strip()
+    if not candidate:
+        return ""
+    try:
+        parts = urlsplit(candidate)
+    except ValueError:
+        return candidate
+
+    if parts.scheme not in {"http", "https", "file"}:
+        return candidate
+
+    query_pairs = [
+        (key, value)
+        for key, value in parse_qsl(parts.query, keep_blank_values=True)
+        if key.lower()[:4] != "utm_"
+    ]
+    normalized_query = urlencode(query_pairs, doseq=True)
+    return urlunsplit(
+        (parts.scheme, parts.netloc, parts.path or "", normalized_query, "")
+    )
+
+
+def _dedupe_citations(urls: Iterable[str]) -> list[str]:
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for url in urls or []:
+        normalized = _normalize_url(url)
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            deduped.append(normalized)
+    return deduped
 
 
 def _norm_med_terms(mem_facts: list[dict]) -> list[str]:
@@ -203,9 +240,30 @@ def run(state: BodyState, es_client=None) -> BodyState:
                 should.append({"match": {"title": {"query": term, "boost": 1.6}}})
                 should.append({"match": {"text": {"query": term, "boost": 1.4}}})
 
+            med_base_queries = [search_query]
+            for candidate in deduped_parts[1:]:
+                if candidate and candidate not in med_base_queries:
+                    med_base_queries.append(candidate)
+
             for t in med_terms:
-                should.append({"match": {"title": {"query": t, "boost": 1.2}}})
-                should.append({"match": {"text": {"query": t, "boost": 1.1}}})
+                term = t.strip()
+                if not term:
+                    continue
+                seen_med_queries: set[str] = set()
+                for base_query in med_base_queries:
+                    combo = f"{term} {base_query}".strip()
+                    if combo and combo not in seen_med_queries:
+                        seen_med_queries.add(combo)
+                        should.append(
+                            {"match": {"title": {"query": combo, "boost": 1.8}}}
+                        )
+                        should.append(
+                            {"match": {"text": {"query": combo, "boost": 1.6}}}
+                        )
+
+                if term not in seen_med_queries:
+                    should.append({"match": {"title": {"query": term, "boost": 1.3}}})
+                    should.append({"match": {"text": {"query": term, "boost": 1.2}}})
 
             for section, boost in (("general", 1.5), ("warnings", 1.3)):
                 should.append(
@@ -231,7 +289,7 @@ def run(state: BodyState, es_client=None) -> BodyState:
 
     # Build alerts & citations
     alerts = state.get("alerts", [])
-    citations = state.get("citations", [])
+    citations = _dedupe_citations(state.get("citations", []) or [])
     messages = state.get("messages", [])
 
     alerts_before = len(alerts)
@@ -249,8 +307,12 @@ def run(state: BodyState, es_client=None) -> BodyState:
             if mentioned_meds >= 2:
                 alerts.append(alert_msg)
 
-        if (src := d.get("source_url")) and src not in citations:
-            citations.append(src)
+        if src := d.get("source_url"):
+            normalized_src = _normalize_url(src)
+            if normalized_src and normalized_src not in citations:
+                citations.append(normalized_src)
+
+    state["citations"] = citations
 
     new_info_found = len(alerts) > alerts_before or len(citations) > citations_before
     if new_info_found or not state.get("messages"):  # if new info or no messages yet
