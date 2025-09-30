@@ -20,11 +20,19 @@ jobs:
           script: |
             const body = context.payload.pull_request?.body ?? '';
             const placeholders = [
-              'One sentence focused on the user impact.',
-              'Provide runnable steps that take ≤90 seconds.',
-              'Tests: <!-- List updated/added tests',
-              'Docs: <!-- Link to updated docs or say “N/A”',
-              'Not demoable: <!-- If you cannot demo'
+              'Describe the user-facing impact (1–2 sentences).',
+              'Provide ≤90s runnable steps that exercise the change end-to-end.',
+              'Replace the guidance below with the checks you actually ran.',
+              'e.g. `services/api/tests/unit/test_answer_gen.py::test_answer_gen_meds_onset_uses_memory_fact`',
+              'What multilingual behaviour did you validate?',
+              'Log/metric/debug signal showing the path is used.',
+              'Confirm risk messaging, disclaimers, or red-flag behaviour.',
+              'Bullet the work shipped in this PR.',
+              'Call out intentionally deferred items.',
+              'Note datasets/files touched, sources/licenses, and how to refresh/extend them.',
+              'Explain how to disable or revert the change (env flag, config toggle, etc.).',
+              'Highlight key risks and how you’re mitigating or monitoring them.',
+              'Link to updated docs or “N/A”. Add follow-up tasks if needed.'
             ];
             const hits = placeholders.filter(text => body.includes(text));
             if (hits.length) {
