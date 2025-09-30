@@ -47,13 +47,16 @@ Scope: These instructions apply to the whole repository. They are for AI coding 
 - Run pre-commit on all files:
   - `pre-commit install` (first time only)
   - `pre-commit run --all-files`
-- Run tests locally and meet coverage ≥ 95%:
-  - `venv/bin/pytest` (unit + integration)
+- Run tests locally and meet coverage ≥ 95% overall **and ≥ 90% per file**:
+  - `venv/bin/pytest --cov --cov-report=term-missing` (unit + integration)
+  - Fail the run if anything drops below the thresholds (they match CI).
   - Optionally: `make eval` and `make e2e-local` if your change touches retrieval/routing/graph wiring.
 - If you added config/env vars, update `.env.example`, `README.md`, and `project/config.md`.
 - Keep diffs minimal and aligned with `project/roadmap/pr-stack.md` acceptance criteria.
 - If scope/milestones changed, update `project/roadmap.md` and ensure `project/roadmap/pr-stack.md` reflects the current slices.
 - Verify the shipping checklist in `project/SHIPPING.md` (demo steps, tests, docs) and ensure the PR template is complete.
+- Never run `git commit` without a meaningful message (use `-m "…"` or a commit template) and do not use `git commit --amend --no-edit`.
+- Use every section of the PR template: concise Outcome, ≤90s Demo steps (prefer user-facing commands; call out if tests are the only surface), explicit Acceptance checks (unit/i18n/observability/safety), Scope (included/excluded), Data provenance, Rollback/flags, Risks, and Docs/follow-ups.
 - As soon as a PR is opened, replace the placeholders in `.github/PULL_REQUEST_TEMPLATE.md` (Outcome, Demo ≤90s, Acceptance) with real content before requesting review—delete the `<!-- … -->` helper text and remove the `# TODO` block. The `pr-nudges` workflow fails the build if any placeholders remain in the PR body. From the CLI you can sync a filled markdown file with `gh pr edit <num> --body-file path/to/pr.md`.
 
 ## Key Env/Feature Flags
@@ -80,6 +83,7 @@ Scope: These instructions apply to the whole repository. They are for AI coding 
 - Otherwise:
   - Propose an entry under “Scheduled” in `project/roadmap/ideas.md`.
   - If ready to execute, add a new PR block in `project/roadmap/pr-stack.md` with Why/Scope/Acceptance/Pointers.
+- When a PR is finished, remove its block from `project/roadmap/pr-stack.md` and mark the corresponding idea as completed in `project/roadmap/ideas.md`.
 
 ## Communication (for agents)
 

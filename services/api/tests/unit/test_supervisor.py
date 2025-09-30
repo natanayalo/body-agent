@@ -218,6 +218,18 @@ def test_run_sets_sub_intent_onset_hebrew_without_med_name():
     assert out.get("sub_intent") == "onset"
 
 
+def test_run_sets_sub_intent_onset_hebrew_short_phrase():
+    state = BodyState(
+        user_query="אקמול מתי משפיע?",
+        user_query_redacted="אקמול מתי משפיע?",
+        language="he",
+    )
+
+    out = supervisor.run(state)
+    assert out.get("intent") == "meds"
+    assert out.get("sub_intent") == "onset"
+
+
 def test_run_sets_sub_intent_interaction_with_phrase():
     state = BodyState(
         user_query="Interaction with ibuprofen?",

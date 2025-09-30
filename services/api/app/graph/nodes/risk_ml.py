@@ -111,7 +111,7 @@ def _get_pipe():
         return _PIPE
 
     try:
-        from transformers import pipeline
+        from transformers import pipeline  # type: ignore[import-untyped]
 
         logger.info(f"Loading ML model: {model_id}")
         _PIPE = pipeline("zero-shot-classification", model=model_id, device=-1)

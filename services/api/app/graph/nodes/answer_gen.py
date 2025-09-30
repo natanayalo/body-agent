@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from app.config import settings
 from app.graph.state import BodyState
 from app.tools.language import DEFAULT_LANGUAGE
+from app.tools import med_facts
 
 logger = logging.getLogger(__name__)
 
@@ -278,6 +279,54 @@ def _should_skip(state: BodyState) -> bool:
     return provider in {"", "none", "disabled"}
 
 
+def _candidate_ingredients(state: BodyState) -> List[str]:
+    candidates: List[str] = []
+    seen = set()
+    debug = state.get("debug") or {}
+    for ingredient in debug.get("normalized_query_meds", []) or []:
+        if isinstance(ingredient, str):
+            key = ingredient.lower().strip()
+            if key and key not in seen:
+                seen.add(key)
+                candidates.append(ingredient)
+    for fact in state.get("memory_facts", []) or []:
+        if isinstance(fact, dict):
+            normalized = fact.get("normalized")
+            if isinstance(normalized, dict):
+                ingredient = normalized.get("ingredient")
+                if isinstance(ingredient, str):
+                    key = ingredient.lower().strip()
+                    if key and key not in seen:
+                        seen.add(key)
+                        candidates.append(ingredient)
+    return candidates
+
+
+def _meds_onset_message(state: BodyState) -> Optional[Tuple[str, List[str]]]:
+    if state.get("intent") != "meds" or state.get("sub_intent") != "onset":
+        return None
+
+    lang, _ = _language_config(state)
+    for ingredient in _candidate_ingredients(state):
+        fact = med_facts.onset_for(ingredient, lang)
+        if not fact:
+            continue
+
+        lines = [fact["summary"]]
+        follow_up = fact.get("follow_up")
+        if follow_up:
+            lines.append(follow_up)
+        source_label = str(fact.get("source_label", "")).strip()
+        source_url = str(fact.get("source_url", "")).strip()
+        if source_label:
+            lines.append(f"Source: {source_label}")
+
+        citations = [source_url] if source_url else []
+        return "\n\n".join(line for line in lines if line), citations
+
+    return None
+
+
 def _risk_triggers(state: BodyState) -> List[str]:
     debug = state.get("debug") or {}
     risk = debug.get("risk") or {}
@@ -430,12 +479,28 @@ def _generate_with_provider(provider: str, prompt: str) -> str | None:
 
 
 def run(state: BodyState) -> BodyState:
+    onset_message = _meds_onset_message(state)
+    if onset_message:
+        onset_content, citations = onset_message
+        if citations:
+            state["citations"] = citations
+        else:
+            state.pop("citations", None)
+        reply = _build_reply(onset_content, state)
+        message = {
+            "role": "assistant",
+            "content": reply,
+            "citations": state.get("citations", []),
+        }
+        state.setdefault("messages", []).append(message)
+        return state
+
     if _should_skip(state):
         return state
 
     provider = _resolve_provider()
     prompt = _build_prompt(state)
-    content = _generate_with_provider(provider, prompt)
+    content: Optional[str] = _generate_with_provider(provider, prompt)
     if not content:
         snippets = state.get("public_snippets", []) or []
         if snippets:

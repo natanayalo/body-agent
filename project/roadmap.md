@@ -12,6 +12,9 @@
 - BM25 fallback with medication boosts when kNN misses (PR 24)
 - Citation dedupe with URL normalization (PR 25)
 - Language-aware answer rendering in `answer_gen` (PR 26)
+- Optional, safe LLM polish behind flags:
+  - Paraphrase deterministic onset facts (no new numbers) via Ollama (PR 32)
+  - Neutral LLM fallback when no onset fact exists (no timings/doses) (PR 33)
 
 ## Later — Milestones 3 & 4 (Stability + privacy)
 

@@ -143,6 +143,16 @@ Notes:
 ## Development
 
 
+### Tests & Coverage
+
+Run the test suite locally before committing. CI enforces an overall coverage floor of **95%** and at least **90% per file**.
+
+```bash
+venv/bin/pytest --cov --cov-report=term-missing
+```
+
+If any file drops below the threshold, pytest will exit non‑zero—fix the coverage locally so the CI job stays green.
+
 ### Pre-commit Hooks
 
 This project uses pre-commit to enforce code style and quality. To use it, you need to have pre-commit installed on your system.

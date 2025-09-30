@@ -1,4 +1,7 @@
 name: PR Nudges
+permissions:
+  contents: write
+  pull-requests: write
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -11,20 +14,46 @@ jobs:
         with:
           fetch-depth: 0
       - name: Ensure PR body populated
+        id: body_check
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const body = context.payload.pull_request?.body ?? '';
             const placeholders = [
-              'Replace this comment with a one-sentence user outcome',
-              'Replace this comment with runnable steps',
-              '# TODO: add runnable demo commands'
+              'Describe the user-facing impact (1–2 sentences).',
+              'Provide ≤90s runnable steps that exercise the change end-to-end.',
+              'Replace the guidance below with the checks you actually ran.',
+              'e.g. `services/api/tests/unit/test_answer_gen.py::test_answer_gen_meds_onset_uses_memory_fact`',
+              'What multilingual behaviour did you validate?',
+              'Log/metric/debug signal showing the path is used.',
+              'Confirm risk messaging, disclaimers, or red-flag behaviour.',
+              'Bullet the work shipped in this PR.',
+              'Call out intentionally deferred items.',
+              'Note datasets/files touched, sources/licenses, and how to refresh/extend them.',
+              'Explain how to disable or revert the change (env flag, config toggle, etc.).',
+              'Highlight key risks and how you’re mitigating or monitoring them.',
+              'Link to updated docs or “N/A”. Add follow-up tasks if needed.'
             ];
             const hits = placeholders.filter(text => body.includes(text));
             if (hits.length) {
               core.setFailed(`PR description still contains template placeholders: ${hits.join(', ')}`);
             }
+
+            const demoSection = (() => {
+              const match = body.split(/## Demo/i)[1];
+              if (!match) {
+                return '';
+              }
+              const nextSectionIndex = match.search(/\n## /);
+              return nextSectionIndex === -1 ? match : match.slice(0, nextSectionIndex);
+            })();
+
+            const hasCodeBlock = /```[\s\S]*?```/.test(demoSection);
+            const hasRunnableCommand = /(curl\s|make\s|pytest\s|venv\/bin\/pytest|gh\spr|npm\srun|uvicorn|docker\scompose)/i.test(demoSection);
+            const demoComplete = demoSection.trim().length > 0 && hasCodeBlock && hasRunnableCommand;
+
+            core.setOutput('has_demo', demoComplete ? 'true' : 'false');
       - name: Collect diff stats
         id: diff
         run: |
@@ -41,8 +70,11 @@ jobs:
           NEEDS_DEMO="false"
           NEEDS_TESTS="false"
           LOC=${{ steps.diff.outputs.loc }}
+          HAS_DEMO=${{ steps.body_check.outputs.has_demo }}
           if [ "$LOC" -gt 400 ]; then
-            NEEDS_DEMO="true"
+            if [ "$HAS_DEMO" != "true" ]; then
+              NEEDS_DEMO="true"
+            fi
           fi
           if echo "$CHANGED_FILES" | grep -q '^services/api/app/graph/nodes/'; then
             if ! echo "$CHANGED_FILES" | grep -q '^services/api/tests/'; then
@@ -61,10 +93,10 @@ jobs:
             const needsTests = ${{ steps.nudges.outputs.needs_tests == 'true' }};
             let body = [];
             if (needsDemo) {
-              body.push('⚠️  LOC > 400 — please ensure the PR description includes runnable demo steps.');
+              body.push('⚠️  LOC > 400 — fill the Demo section with runnable steps that take 90 seconds or less.');
             }
             if (needsTests) {
-              body.push('⚠️  Changes touch `app/graph/nodes/*` but no tests were modified. Add or update coverage before merging.');
+              body.push('⚠️  `services/api/app/graph/nodes/*` changed but no tests were updated. Add or extend coverage before merging.');
             }
             if (body.length) {
               await github.rest.issues.createComment({

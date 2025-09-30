@@ -158,6 +158,47 @@ def test_hebrew_query_prefers_hebrew_snippets(
     assert "נקודות עיקריות" in message
 
 
+def test_meds_onset_hebrew_uses_med_facts(monkeypatch, client, fake_es, fake_pipe):
+    fake_es.handlers.clear()
+
+    fake_pipe.run(urgent_care=0.1, see_doctor=0.1, self_care=0.8, info_only=0.1)
+
+    import app.graph.nodes.answer_gen as ag
+    from app.tools import med_facts
+
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+    monkeypatch.setattr(ag, "_generate_with_provider", lambda provider, prompt: None)
+    monkeypatch.setattr(
+        med_facts,
+        "onset_for",
+        lambda ingredient, lang: {
+            "ingredient": ingredient,
+            "display_name": "אקמול",
+            "summary": "אקמול מתחיל להשפיע תוך 30 דקות",
+            "follow_up": "בדקו עם רופא אם אין הקלה",
+            "source_label": "NHS",
+            "source_url": "https://www.nhs.uk/medicines/paracetamol-for-adults/about-paracetamol/",
+        },
+    )
+
+    payload = {"user_id": "med-onset", "query": "אקמול תוך כמה זמן משפיע"}
+    response = client.post("/api/graph/run", params={"lang": "he"}, json=payload)
+
+    assert response.status_code == 200
+    state = response.json()["state"]
+
+    assert state.get("intent") == "meds"
+    assert state.get("sub_intent") == "onset"
+    message = state.get("messages", [])[-1]["content"]
+    assert "אקמול" in message
+    citations = state.get("citations", [])
+    assert citations, "Expected at least one citation"
+    assert any(
+        c.startswith("https://www.nhs.uk/medicines/paracetamol-for-adults")
+        for c in citations
+    )
+
+
 def test_debug_endpoints_after_run(client, fake_es, fake_pipe, sample_docs):
     hits, fever_doc, _, _, _ = sample_docs
     fake_es.add_handler(
@@ -223,6 +264,14 @@ def test_e2e_medication_interaction_flow(
                 return True
         return False
 
+    # Cover predicate branches (positive/negative) for coverage
+    assert memory_search_predicate(
+        "private_user_memory", {"query": {"term": {"user_id": user_id}}}
+    )
+    assert not memory_search_predicate(
+        "private_user_memory", {"query": {"term": {"user_id": "other"}}}
+    )
+
     fake_es.add_handler(
         memory_search_predicate,
         hits([mock_memory_fact_ibuprofen, mock_memory_fact_warfarin]),
@@ -247,6 +296,24 @@ def test_e2e_medication_interaction_flow(
             if has_ibuprofen and has_warfarin:
                 return True
         return False
+
+    assert interaction_search_predicate(
+        "public_medical_kb",
+        {
+            "query": {
+                "bool": {
+                    "should": [
+                        {"match": {"title": "ibuprofen"}},
+                        {"match": {"title": "warfarin"}},
+                    ]
+                }
+            }
+        },
+    )
+    assert not interaction_search_predicate(
+        "public_medical_kb",
+        {"query": {"bool": {"should": [{"match": {"title": "ibuprofen"}}]}}},
+    )
 
     fake_es.add_handler(interaction_search_predicate, hits([ibu_warn, warf_inter]))
 

@@ -1,7 +1,12 @@
+import os
+import builtins
+import sys
+
 import pytest
 
 from app.graph.nodes import answer_gen
 from app.graph.state import BodyState
+from app.tools import med_facts
 
 
 def test_answer_gen_skips_when_provider_none(monkeypatch):
@@ -9,6 +14,103 @@ def test_answer_gen_skips_when_provider_none(monkeypatch):
     state = BodyState(user_query="Help", messages=[])
     out = answer_gen.run(state)
     assert out.get("messages", []) == []
+
+
+def test_answer_gen_meds_onset_uses_med_facts(monkeypatch):
+    med_facts.clear_cache()
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+
+    def fail_generate(provider: str, prompt: str):  # pragma: no cover - should not run
+        raise AssertionError("LLM provider should not be called for meds onset")
+
+    monkeypatch.setattr(answer_gen, "_generate_with_provider", fail_generate)
+
+    state = BodyState(
+        user_query="אקמול מתי משפיע",
+        user_query_redacted="אקמול מתי משפיע",
+        intent="meds",
+        sub_intent="onset",
+        language="he",
+        debug={"normalized_query_meds": ["acetaminophen"]},
+        messages=[],
+    )
+
+    out = answer_gen.run(state)
+    message = out["messages"][-1]
+    content = message["content"]
+
+    assert "אקמול" in content
+    assert "מקור" in content or "Source" in content
+    assert answer_gen.LANG_CONFIG["he"]["disclaimer"] in content
+    citations = out.get("citations", [])
+    assert len(citations) == 1
+    assert citations[0].startswith("https://")
+
+
+def test_answer_gen_meds_onset_falls_back_to_english(monkeypatch):
+    med_facts.clear_cache()
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+
+    def fail_generate(provider: str, prompt: str):  # pragma: no cover - should not run
+        raise AssertionError("LLM provider should not be called for meds onset")
+
+    monkeypatch.setattr(answer_gen, "_generate_with_provider", fail_generate)
+
+    state = BodyState(
+        user_query="When will ibuprofen start working?",
+        intent="meds",
+        sub_intent="onset",
+        language="fr",
+        debug={"normalized_query_meds": ["ibuprofen"]},
+        messages=[],
+    )
+
+    out = answer_gen.run(state)
+    message = out["messages"][-1]
+    content = message["content"]
+
+    assert "Ibuprofen" in content
+    assert answer_gen.DISCLAIMER in content
+    citations = out.get("citations", [])
+    assert len(citations) == 1
+
+
+def test_answer_gen_meds_onset_uses_memory_fact(monkeypatch):
+    med_facts.clear_cache()
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+
+    def fail_generate(provider: str, prompt: str):  # pragma: no cover - should not run
+        raise AssertionError("LLM provider should not be called for meds onset")
+
+    monkeypatch.setattr(answer_gen, "_generate_with_provider", fail_generate)
+
+    state = BodyState(
+        user_query="אקמול מתי משפיע",
+        user_query_redacted="אקמול מתי משפיע",
+        intent="meds",
+        sub_intent="onset",
+        language="he",
+        memory_facts=[
+            {
+                "entity": "medication",
+                "name": "אקמול",
+                "normalized": {"ingredient": "ACETAMINOPHEN"},
+            }
+        ],
+        debug={},
+        messages=[],
+    )
+
+    out = answer_gen.run(state)
+    content = out["messages"][-1]["content"]
+
+    assert "אקמול" in content
+    assert "אם אין שיפור" in content
+    assert "Source: NHS" in content
+    assert out["citations"] == [
+        "https://www.nhs.uk/medicines/paracetamol-for-adults/about-paracetamol/"
+    ]
+    assert answer_gen.LANG_CONFIG["he"]["disclaimer"] in content
 
 
 def test_answer_gen_uses_provider(monkeypatch):
@@ -89,7 +191,6 @@ def test_call_helpers_handle_missing_backends():
 
 
 def test_call_ollama_success(monkeypatch):
-    import sys
     import types
 
     messages_seen = {}
@@ -112,7 +213,6 @@ def test_call_ollama_success(monkeypatch):
 
 
 def test_call_openai_success(monkeypatch):
-    import sys
     import types
 
     class FakeCompletions:
@@ -142,7 +242,6 @@ def test_call_openai_success(monkeypatch):
 
 
 def test_call_openai_handles_empty_choices(monkeypatch):
-    import sys
     import types
 
     class FakeCompletions:
@@ -165,6 +264,75 @@ def test_call_openai_handles_empty_choices(monkeypatch):
     finally:
         sys.modules.pop("openai", None)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+
+def test_load_templates_unknown_extension_plain(tmp_path):
+    path = tmp_path / "templates.txt"
+    path.write_text("irrelevant", encoding="utf-8")
+    assert answer_gen._load_templates_from_file(str(path)) is None
+
+
+def test_load_templates_missing_yaml(monkeypatch, tmp_path):
+    path = tmp_path / "templates.yaml"
+    path.write_text("gi:\n  en: text", encoding="utf-8")
+
+    original_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "yaml":
+            raise ModuleNotFoundError("No module named 'yaml'")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    assert answer_gen._load_templates_from_file(str(path)) is None
+
+
+def test_load_templates_handles_exception(monkeypatch):
+    def raise_ioerror(
+        *args, **kwargs
+    ):  # pragma: no cover - used to trigger except path
+        raise IOError("boom")
+
+    monkeypatch.setattr(builtins, "open", raise_ioerror)
+    assert answer_gen._load_templates_from_file("/tmp/missing.json") is None
+
+
+def test_init_templates_map_invalid_file(tmp_path, monkeypatch):
+    path = tmp_path / "bad.json"
+    path.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(answer_gen, "_TEMPLATES_PATH", str(path))
+    monkeypatch.setattr(answer_gen, "_TEMPLATES_MAP", {})
+    monkeypatch.setattr(answer_gen, "_TEMPLATES_MTIME", None)
+    answer_gen._init_templates_map()
+    assert answer_gen._TEMPLATES_MAP == {}
+
+
+def test_init_templates_map_getmtime_failure(tmp_path, monkeypatch):
+    path = tmp_path / "ok.json"
+    path.write_text('{"general": {"en": "text"}}', encoding="utf-8")
+    monkeypatch.setattr(answer_gen, "_TEMPLATES_PATH", str(path))
+    monkeypatch.setattr(answer_gen, "_TEMPLATES_MAP", {})
+
+    def fake_getmtime(_):
+        raise OSError("boom")
+
+    monkeypatch.setattr(os.path, "getmtime", fake_getmtime)
+    answer_gen._init_templates_map()
+    assert answer_gen._TEMPLATES_MTIME is None
+
+
+def test_maybe_reload_templates_watch_true(tmp_path, monkeypatch):
+    path = tmp_path / "templates.json"
+    path.write_text('{"general": {"en": "text"}}', encoding="utf-8")
+
+    monkeypatch.setattr(answer_gen, "_TEMPLATES_PATH", str(path))
+    monkeypatch.setattr(answer_gen, "_TEMPLATES_WATCH", True)
+    monkeypatch.setattr(answer_gen, "_TEMPLATES_MAP", {})
+    monkeypatch.setattr(answer_gen, "_TEMPLATES_MTIME", 0)
+
+    answer_gen._maybe_reload_templates()
+    assert answer_gen._TEMPLATES_MTIME > 0
 
 
 def test_fallback_highlights_include_ellipsis_when_truncated():
@@ -284,6 +452,27 @@ def test_pattern_fallback_hebrew_gi_when_no_snippets(monkeypatch):
     assert answer_gen.LANG_CONFIG["he"]["disclaimer"] in msg
 
 
+def test_candidate_ingredients_dedupes_sources():
+    state = BodyState(
+        user_query="",
+        debug={
+            "normalized_query_meds": [
+                " acetaminophen ",
+                "Ibuprofen",
+                None,
+                "acetaminophen",
+            ]
+        },
+        memory_facts=[
+            {"normalized": {"ingredient": "ACETAMINOPHEN"}},
+            {"normalized": {"ingredient": "ibuprofen"}},
+        ],
+    )
+
+    ingredients = answer_gen._candidate_ingredients(state)
+    assert ingredients == [" acetaminophen ", "Ibuprofen"]
+
+
 def test_bucketize_symptom_variants_en():
     assert answer_gen._bucketize_symptom("Stomach cramps and nausea", "en") == "gi"
     assert answer_gen._bucketize_symptom("Bad cough and sore throat", "en") == "resp"
@@ -324,7 +513,7 @@ def test_load_templates_from_file(monkeypatch, tmp_path):
     assert "FILE GI TEMPLATE" in content
 
 
-def test_load_templates_unknown_extension(monkeypatch, tmp_path):
+def test_load_templates_unknown_extension_watch(monkeypatch, tmp_path):
     p = tmp_path / "safety_templates.txt"
     p.write_text('{"gi": {"en": "X"}}', encoding="utf-8")
     assert answer_gen._load_templates_from_file(str(p)) is None
