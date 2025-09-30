@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import logging
 from functools import lru_cache
 from typing import Dict, Optional, Tuple
 
@@ -16,6 +17,9 @@ _DEFAULT_FACTS_PATH = os.path.abspath(
 )
 
 
+logger = logging.getLogger(__name__)
+
+
 def _resolve_path() -> str:
     return os.getenv("MED_FACTS_PATH", _DEFAULT_FACTS_PATH)
 
@@ -26,7 +30,8 @@ def _load_facts() -> Dict[str, dict]:
     try:
         with open(path, "r", encoding="utf-8") as handle:
             raw = json.load(handle)
-    except Exception:
+    except (FileNotFoundError, json.JSONDecodeError, OSError) as exc:
+        logger.warning("Failed loading med facts from %s: %s", path, exc)
         return {}
 
     facts: Dict[str, dict] = {}
