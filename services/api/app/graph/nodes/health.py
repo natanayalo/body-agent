@@ -240,20 +240,15 @@ def run(state: BodyState, es_client=None) -> BodyState:
                 should.append({"match": {"title": {"query": term, "boost": 1.6}}})
                 should.append({"match": {"text": {"query": term, "boost": 1.4}}})
 
-            med_base_queries = [search_query]
-            for candidate in deduped_parts[1:]:
-                if candidate and candidate not in med_base_queries:
-                    med_base_queries.append(candidate)
-
             for t in med_terms:
                 term = t.strip()
                 if not term:
                     continue
-                seen_med_queries: set[str] = set()
-                for base_query in med_base_queries:
+                for base_query in deduped_parts or [search_query]:
+                    if not base_query:
+                        continue
                     combo = f"{term} {base_query}".strip()
-                    if combo and combo not in seen_med_queries:
-                        seen_med_queries.add(combo)
+                    if combo and combo != term:
                         should.append(
                             {"match": {"title": {"query": combo, "boost": 1.8}}}
                         )
@@ -261,9 +256,8 @@ def run(state: BodyState, es_client=None) -> BodyState:
                             {"match": {"text": {"query": combo, "boost": 1.6}}}
                         )
 
-                if term not in seen_med_queries:
-                    should.append({"match": {"title": {"query": term, "boost": 1.3}}})
-                    should.append({"match": {"text": {"query": term, "boost": 1.2}}})
+                should.append({"match": {"title": {"query": term, "boost": 1.3}}})
+                should.append({"match": {"text": {"query": term, "boost": 1.2}}})
 
             for section, boost in (("general", 1.5), ("warnings", 1.3)):
                 should.append(
@@ -311,8 +305,6 @@ def run(state: BodyState, es_client=None) -> BodyState:
             normalized_src = _normalize_url(src)
             if normalized_src and normalized_src not in citations:
                 citations.append(normalized_src)
-
-    state["citations"] = citations
 
     new_info_found = len(alerts) > alerts_before or len(citations) > citations_before
     if new_info_found or not state.get("messages"):  # if new info or no messages yet
