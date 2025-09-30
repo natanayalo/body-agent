@@ -1,4 +1,7 @@
 name: PR Nudges
+permissions:
+  contents: write
+  pull-requests: write
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -17,9 +20,11 @@ jobs:
           script: |
             const body = context.payload.pull_request?.body ?? '';
             const placeholders = [
-              'Replace this comment with a one-sentence user outcome',
-              'Replace this comment with runnable steps',
-              '# TODO: add runnable demo commands'
+              'One sentence focused on the user impact.',
+              'Provide runnable steps that take ≤90 seconds.',
+              'Tests: <!-- List updated/added tests',
+              'Docs: <!-- Link to updated docs or say “N/A”',
+              'Not demoable: <!-- If you cannot demo'
             ];
             const hits = placeholders.filter(text => body.includes(text));
             if (hits.length) {
@@ -61,10 +66,10 @@ jobs:
             const needsTests = ${{ steps.nudges.outputs.needs_tests == 'true' }};
             let body = [];
             if (needsDemo) {
-              body.push('⚠️  LOC > 400 — please ensure the PR description includes runnable demo steps.');
+              body.push('⚠️  LOC > 400 — fill the Demo section with runnable steps that take 90 seconds or less.');
             }
             if (needsTests) {
-              body.push('⚠️  Changes touch `app/graph/nodes/*` but no tests were modified. Add or update coverage before merging.');
+              body.push('⚠️  `services/api/app/graph/nodes/*` changed but no tests were updated. Add or extend coverage before merging.');
             }
             if (body.length) {
               await github.rest.issues.createComment({
