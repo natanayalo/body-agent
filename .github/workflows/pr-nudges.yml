@@ -14,6 +14,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Ensure PR body populated
+        id: body_check
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -38,6 +39,21 @@ jobs:
             if (hits.length) {
               core.setFailed(`PR description still contains template placeholders: ${hits.join(', ')}`);
             }
+
+            const demoSection = (() => {
+              const match = body.split(/## Demo/i)[1];
+              if (!match) {
+                return '';
+              }
+              const nextSectionIndex = match.search(/\n## /);
+              return nextSectionIndex === -1 ? match : match.slice(0, nextSectionIndex);
+            })();
+
+            const hasCodeBlock = /```[\s\S]*?```/.test(demoSection);
+            const hasRunnableCommand = /(curl\s|make\s|pytest\s|venv\/bin\/pytest|gh\spr|npm\srun|uvicorn|docker\scompose)/i.test(demoSection);
+            const demoComplete = demoSection.trim().length > 0 && hasCodeBlock && hasRunnableCommand;
+
+            core.setOutput('has_demo', demoComplete ? 'true' : 'false');
       - name: Collect diff stats
         id: diff
         run: |
@@ -54,8 +70,11 @@ jobs:
           NEEDS_DEMO="false"
           NEEDS_TESTS="false"
           LOC=${{ steps.diff.outputs.loc }}
+          HAS_DEMO=${{ steps.body_check.outputs.has_demo }}
           if [ "$LOC" -gt 400 ]; then
-            NEEDS_DEMO="true"
+            if [ "$HAS_DEMO" != "true" ]; then
+              NEEDS_DEMO="true"
+            fi
           fi
           if echo "$CHANGED_FILES" | grep -q '^services/api/app/graph/nodes/'; then
             if ! echo "$CHANGED_FILES" | grep -q '^services/api/tests/'; then
