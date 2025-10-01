@@ -619,20 +619,22 @@ def _paraphrase_onset_fact(
         logger.warning("Paraphrase response was not valid JSON")
         return None
 
-    summary_value = data.get("summary", "")
-    follow_value = data.get("follow_up", "")
+    summary_value = data.get("summary")
+    follow_value = data.get("follow_up")
 
-    if isinstance(summary_value, str):
-        new_summary = summary_value.strip()
-    else:
-        new_summary = str(summary_value or "").strip()
+    if not isinstance(summary_value, str):
+        logger.warning("Paraphrase summary was not a string; ignoring response")
+        return None
+
+    new_summary = summary_value.strip()
 
     if follow_value is None:
         new_follow_up = ""
     elif isinstance(follow_value, str):
         new_follow_up = follow_value.strip()
     else:
-        new_follow_up = str(follow_value).strip()
+        logger.warning("Paraphrase follow_up was not a string; dropping it")
+        new_follow_up = ""
 
     if not new_summary:
         logger.warning("Paraphrase missing summary text")
