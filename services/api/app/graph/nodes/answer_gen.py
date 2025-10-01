@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 LANG_CONFIG = {
     "en": {
+        "system_prompt": "You produce concise, safety-first health summaries in English.",
         "prompt_intro": [
             "You are a cautious health assistant. Summarise guidance based strictly on the provided data.",
             "Avoid diagnoses; cite numbered sources when available.",
@@ -30,6 +31,7 @@ LANG_CONFIG = {
         "urgent_line": "If you develop concerning or worsening symptoms, seek urgent evaluation.",
     },
     "he": {
+        "system_prompt": "אתה מפיק סיכומים בריאותיים תמציתיים וזהירים בעברית.",
         "prompt_intro": [
             "אתה עוזר בריאות זהיר. סכם הנחיות על בסיס המידע שסופק בלבד.",
             "הימנע מאבחנות; ציין מקורות ממוספרים כשאפשר.",
@@ -469,10 +471,15 @@ def _build_reply(content: str, state: BodyState) -> str:
     return "\n\n".join(section for section in sections if section)
 
 
+DEFAULT_SYSTEM_PROMPT = "You produce concise, safety-first health summaries in English."
+
+
 def _system_prompt(language: str) -> str:
-    if language == "he":
-        return "You produce concise, safety-first health summaries in Hebrew."
-    return "You produce concise, safety-first health summaries in English."
+    lang_config = LANG_CONFIG.get(language) or LANG_CONFIG.get(DEFAULT_LANGUAGE, {})
+    prompt = lang_config.get("system_prompt")
+    if isinstance(prompt, str) and prompt.strip():
+        return prompt
+    return DEFAULT_SYSTEM_PROMPT
 
 
 def _generate_with_provider(provider: str, prompt: str, language: str) -> str | None:
