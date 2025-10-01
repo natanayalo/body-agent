@@ -203,6 +203,8 @@ When stubbing is active, the risk classification will return deterministic, defa
 
 To tweak the meds-onset gating, set `RISK_ONSET_RED_FLAGS` to a comma-separated list of phrases, listing each variant you care about (e.g., `RISK_ONSET_RED_FLAGS=chest pain,chest pains,bleed,bleeding`). Any query containing one of the phrases will always run through the ML risk model instead of being suppressed.
 
+Deterministic onset answers can be lightly localized by enabling `PARAPHRASE_ONSET=true` (defaults to `false`). When enabled, the node calls the configured Ollama model to rewrite the fact copy while preserving every numeric value; if validation fails or Ollama is unreachable, the canonical wording is used.
+
 
 ### Security & Tenancy (PR 8)
 

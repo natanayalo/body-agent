@@ -1,6 +1,7 @@
 import os
 import builtins
 import sys
+import json
 
 import pytest
 
@@ -47,6 +48,237 @@ def test_answer_gen_meds_onset_uses_med_facts(monkeypatch):
     citations = out.get("citations", [])
     assert len(citations) == 1
     assert citations[0].startswith("https://")
+
+
+def test_answer_gen_meds_onset_paraphrases_when_enabled(monkeypatch):
+    med_facts.clear_cache()
+    monkeypatch.setenv("PARAPHRASE_ONSET", "true")
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+
+    def fake_call(prompt: str, language: str):
+        assert "JSON" in prompt
+        payload = {
+            "summary": "אקמול מתחיל להקל לרוב בתוך 30–60 דקות.",
+            "follow_up": "עקבו אחר ההרגשה; אם אין שיפור תוך כשעה, פנו לרופא.",
+        }
+        return json.dumps(payload)
+
+    monkeypatch.setattr(answer_gen, "_call_ollama", fake_call)
+
+    state = BodyState(
+        user_query="אקמול מתי משפיע",
+        user_query_redacted="אקמול מתי משפיע",
+        intent="meds",
+        sub_intent="onset",
+        language="he",
+        debug={"normalized_query_meds": ["acetaminophen"]},
+        messages=[],
+    )
+
+    out = answer_gen.run(state)
+    content = out["messages"][-1]["content"]
+
+    assert "עקבו אחר ההרגשה" in content
+    assert "30" in content
+    assert "Source: NHS" in content
+    assert answer_gen.LANG_CONFIG["he"]["disclaimer"] in content
+
+
+def test_answer_gen_meds_onset_paraphrase_rejects_new_numbers(monkeypatch):
+    med_facts.clear_cache()
+    monkeypatch.setenv("PARAPHRASE_ONSET", "true")
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+
+    def bad_call(prompt: str, language: str):
+        payload = {
+            "summary": "אקמול מתחיל לפעול אחרי 45 דקות בדיוק.",
+            "follow_up": "אם אין שיפור תוך שעתיים, פנו לרופא.",
+        }
+        return json.dumps(payload)
+
+    monkeypatch.setattr(answer_gen, "_call_ollama", bad_call)
+
+    state = BodyState(
+        user_query="אקמול מתי משפיע",
+        user_query_redacted="אקמול מתי משפיע",
+        intent="meds",
+        sub_intent="onset",
+        language="he",
+        debug={"normalized_query_meds": ["acetaminophen"]},
+        messages=[],
+    )
+
+    out = answer_gen.run(state)
+    content = out["messages"][-1]["content"]
+
+    # Falls back to canonical wording when validation fails
+    assert "45" not in content
+    assert "אקמול בדרך כלל" in content
+
+
+def test_paraphrase_helper_handles_code_fence(monkeypatch):
+    monkeypatch.setenv("PARAPHRASE_ONSET", "true")
+
+    def fenced_call(prompt: str, language: str):
+        return '```json\n{"summary": "איבופרופן מפחית כאב תוך 20–30 דקות.", "follow_up": ""}\n```'
+
+    monkeypatch.setattr(answer_gen, "_call_ollama", fenced_call)
+    fact = {
+        "summary": "איבופרופן לרוב מתחיל להקל על כאב או חום תוך 20–30 דקות מהנטילה.",
+        "follow_up": "",
+    }
+
+    summary, follow_up = answer_gen._paraphrase_onset_fact(fact, "he")
+    assert "20" in summary and "30" in summary
+    assert follow_up is None
+
+
+def test_paraphrase_helper_rejects_invalid_json(monkeypatch):
+    monkeypatch.setenv("PARAPHRASE_ONSET", "true")
+
+    monkeypatch.setattr(answer_gen, "_call_ollama", lambda prompt, language: "not-json")
+
+    fact = {
+        "summary": "אקמול בדרך כלל מתחיל להשפיע תוך 30–60 דקות.",
+        "follow_up": "אם אין שיפור תוך כשעה, פנו לרופא.",
+    }
+
+    assert answer_gen._paraphrase_onset_fact(fact, "he") is None
+
+
+def test_paraphrase_helper_blocks_new_numbers_when_none_present(monkeypatch):
+    monkeypatch.setenv("PARAPHRASE_ONSET", "true")
+
+    def introduce_number(prompt: str, language: str):
+        return json.dumps({"summary": "התרופה פועלת תוך 5 דקות.", "follow_up": ""})
+
+    monkeypatch.setattr(answer_gen, "_call_ollama", introduce_number)
+
+    fact = {"summary": "התרופה פועלת במהירות.", "follow_up": ""}
+
+    assert answer_gen._paraphrase_onset_fact(fact, "he") is None
+
+
+def test_paraphrase_helper_parses_embedded_json(monkeypatch):
+    monkeypatch.setenv("PARAPHRASE_ONSET", "true")
+
+    def embedded(prompt: str, language: str):
+        return 'prefix {"summary": "Ibuprofen eases symptoms within 20–30 minutes.", "follow_up": "Follow up if symptoms persist."} suffix'
+
+    monkeypatch.setattr(answer_gen, "_call_ollama", embedded)
+
+    fact = {
+        "summary": "Ibuprofen usually begins easing pain or fever within 20–30 minutes after a dose.",
+        "follow_up": "If there is no improvement after about an hour or symptoms worsen, speak with a clinician.",
+    }
+
+    summary, follow_up = answer_gen._paraphrase_onset_fact(fact, "en")
+    assert "20" in summary and "30" in summary
+    assert "Follow up" in follow_up
+
+
+def test_paraphrase_helper_handles_invalid_embedded_json(monkeypatch):
+    monkeypatch.setenv("PARAPHRASE_ONSET", "true")
+
+    def invalid(prompt: str, language: str):
+        return 'prefix {"summary": } suffix'
+
+    monkeypatch.setattr(answer_gen, "_call_ollama", invalid)
+
+    fact = {
+        "summary": "Ibuprofen usually begins easing pain or fever within 20–30 minutes after a dose.",
+        "follow_up": "If there is no improvement after about an hour or symptoms worsen, speak with a clinician.",
+    }
+
+    assert answer_gen._paraphrase_onset_fact(fact, "en") is None
+
+
+def test_paraphrase_helper_requires_summary(monkeypatch):
+    monkeypatch.setenv("PARAPHRASE_ONSET", "true")
+
+    def fail(prompt: str, language: str):  # pragma: no cover
+        raise AssertionError("_call_ollama should not run when summary missing")
+
+    monkeypatch.setattr(answer_gen, "_call_ollama", fail)
+
+    fact = {"summary": "", "follow_up": ""}
+
+    assert answer_gen._paraphrase_onset_fact(fact, "he") is None
+
+
+def test_paraphrase_helper_returns_none_when_call_fails(monkeypatch):
+    monkeypatch.setenv("PARAPHRASE_ONSET", "true")
+
+    monkeypatch.setattr(answer_gen, "_call_ollama", lambda prompt, language: None)
+
+    fact = {
+        "summary": "אקמול בדרך כלל מתחיל להשפיע תוך 30–60 דקות.",
+        "follow_up": "אם אין שיפור תוך כשעה, פנו לרופא.",
+    }
+
+    assert answer_gen._paraphrase_onset_fact(fact, "he") is None
+
+
+def test_paraphrase_helper_handles_null_follow_up(monkeypatch):
+    monkeypatch.setenv("PARAPHRASE_ONSET", "true")
+
+    def null_follow(prompt: str, language: str):
+        return json.dumps(
+            {
+                "summary": "Acetaminophen usually eases symptoms within 30–60 minutes.",
+                "follow_up": None,
+            }
+        )
+
+    monkeypatch.setattr(answer_gen, "_call_ollama", null_follow)
+
+    fact = {
+        "summary": "Acetaminophen typically starts to relieve pain or fever within 30–60 minutes.",
+        "follow_up": "If you do not feel better after about an hour or symptoms worsen, contact a clinician.",
+    }
+
+    summary, follow_up = answer_gen._paraphrase_onset_fact(fact, "en")
+    assert "30" in summary and "60" in summary
+    assert follow_up is None
+
+
+def test_paraphrase_helper_rejects_non_string_summary(monkeypatch):
+    monkeypatch.setenv("PARAPHRASE_ONSET", "true")
+
+    def bad_summary(prompt: str, language: str):
+        return json.dumps({"summary": 123, "follow_up": "test"})
+
+    monkeypatch.setattr(answer_gen, "_call_ollama", bad_summary)
+
+    fact = {
+        "summary": "Acetaminophen typically starts to relieve pain or fever within 30–60 minutes.",
+        "follow_up": "If you do not feel better after about an hour or symptoms worsen, contact a clinician.",
+    }
+
+    assert answer_gen._paraphrase_onset_fact(fact, "en") is None
+
+
+def test_paraphrase_helper_drops_non_string_follow_up(monkeypatch):
+    monkeypatch.setenv("PARAPHRASE_ONSET", "true")
+
+    def bad_follow(prompt: str, language: str):
+        return json.dumps(
+            {
+                "summary": "Acetaminophen usually eases symptoms within 30–60 minutes.",
+                "follow_up": ["call doctor"],
+            }
+        )
+
+    monkeypatch.setattr(answer_gen, "_call_ollama", bad_follow)
+
+    fact = {
+        "summary": "Acetaminophen typically starts to relieve pain or fever within 30–60 minutes.",
+        "follow_up": "If you do not feel better after about an hour or symptoms worsen, contact a clinician.",
+    }
+
+    summary, follow_up = answer_gen._paraphrase_onset_fact(fact, "en")
+    assert "30" in summary and "60" in summary
+    assert follow_up is None
 
 
 def test_answer_gen_meds_onset_falls_back_to_english(monkeypatch):

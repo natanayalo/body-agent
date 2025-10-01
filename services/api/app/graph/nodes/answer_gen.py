@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.config import settings
@@ -314,8 +315,14 @@ def _meds_onset_message(state: BodyState) -> Optional[Tuple[str, List[str]]]:
         if not fact:
             continue
 
-        lines = [fact["summary"]]
+        summary = fact["summary"]
         follow_up = fact.get("follow_up")
+
+        paraphrased = _paraphrase_onset_fact(fact, lang)
+        if paraphrased:
+            summary, follow_up = paraphrased
+
+        lines = [summary]
         if follow_up:
             lines.append(follow_up)
         source_label = str(fact.get("source_label", "")).strip()
@@ -535,3 +542,115 @@ def run(state: BodyState) -> BodyState:
     }
     state.setdefault("messages", []).append(message)
     return state
+
+
+def _paraphrase_enabled() -> bool:
+    return os.getenv("PARAPHRASE_ONSET", "false").strip().lower() == "true"
+
+
+_JSON_FENCE_PATTERN = re.compile(r"```(?:json)?(.*?)```", re.DOTALL | re.IGNORECASE)
+
+
+def _strip_code_fence(text: str) -> str:
+    match = _JSON_FENCE_PATTERN.search(text)
+    if match:
+        return match.group(1).strip()
+    return text.strip()
+
+
+def _parse_json_object(text: str) -> Optional[dict]:
+    candidate = _strip_code_fence(text)
+    try:
+        return json.loads(candidate)
+    except json.JSONDecodeError:
+        pass
+    brace_match = re.search(r"\{.*\}", candidate, re.DOTALL)
+    if brace_match:
+        snippet = brace_match.group(0)
+        try:
+            return json.loads(snippet)
+        except json.JSONDecodeError:
+            return None
+    return None
+
+
+_NUMERIC_PATTERN = re.compile(r"\d+(?:[.,]\d+)?")
+
+
+def _numeric_tokens(*texts: str) -> set[str]:
+    tokens: set[str] = set()
+    for text in texts:
+        for match in _NUMERIC_PATTERN.findall(text or ""):
+            tokens.add(match)
+    return tokens
+
+
+def _paraphrase_onset_fact(
+    fact: Dict[str, Any], language: str
+) -> Optional[Tuple[str, Optional[str]]]:
+    if not _paraphrase_enabled():
+        return None
+
+    summary = str(fact.get("summary", "")).strip()
+    follow_up = str(fact.get("follow_up", "")).strip()
+    if not summary:
+        return None
+
+    original_numbers = _numeric_tokens(summary, follow_up)
+
+    prompt = (
+        "You paraphrase medication onset guidance without changing factual meaning.\n"
+        "Language: {language}.\n"
+        "Rules:\n"
+        "- Preserve every numeric value exactly as provided.\n"
+        "- Do not invent new claims, times, or dosages.\n"
+        '- Respond with valid JSON: {{"summary": <text>, "follow_up": <text>}}.\n'
+        "- Keep follow_up empty string if none supplied.\n"
+        "Original summary: {summary}\n"
+        "Original follow_up: {follow_up}"
+    ).format(language=language, summary=summary, follow_up=follow_up or "<none>")
+
+    rewritten = _call_ollama(prompt, language)
+    if not rewritten:
+        return None
+
+    data = _parse_json_object(rewritten)
+    if not isinstance(data, dict):
+        logger.warning("Paraphrase response was not valid JSON")
+        return None
+
+    summary_value = data.get("summary")
+    follow_value = data.get("follow_up")
+
+    if not isinstance(summary_value, str):
+        logger.warning("Paraphrase summary was not a string; ignoring response")
+        return None
+
+    new_summary = summary_value.strip()
+
+    if follow_value is None:
+        new_follow_up = ""
+    elif isinstance(follow_value, str):
+        new_follow_up = follow_value.strip()
+    else:
+        logger.warning("Paraphrase follow_up was not a string; dropping it")
+        new_follow_up = ""
+
+    if not new_summary:
+        logger.warning("Paraphrase missing summary text")
+        return None
+
+    new_numbers = _numeric_tokens(new_summary, new_follow_up)
+    if original_numbers and new_numbers != original_numbers:
+        logger.warning(
+            "Paraphrase introduced or dropped numeric values: original=%s new=%s",
+            sorted(original_numbers),
+            sorted(new_numbers),
+        )
+        return None
+
+    if not original_numbers and new_numbers:
+        logger.warning("Paraphrase unexpectedly introduced numeric values")
+        return None
+
+    return new_summary, (new_follow_up or None)

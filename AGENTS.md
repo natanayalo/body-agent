@@ -13,7 +13,7 @@ Scope: These instructions apply to the whole repository. They are for AI coding 
 - `services/api/app/graph/nodes/` — pipeline nodes (supervisor, scrub, memory, health, risk_ml, places, planner, answer_gen, critic).
 - `services/api/app/graph/build.py` — LangGraph wiring and routing.
 - `services/api/app/tools/` — shared utilities (embeddings, ES client, crypto, language, etc.).
-- `project/` — product docs: roadmap (`project/roadmap.md`, `project/roadmap/pr-stack.md`, `project/roadmap/ideas.md`), direction (`project/vision.md`, `project/architecture.md`), and runbooks (`project/config.md`, `project/evaluation.md`, `project/privacy.md`, `project/troubleshooting.md`).
+- `project/` — product docs: roadmap (`project/roadmap.md`, `project/roadmap/pr-stack.md`, `project/roadmap/shipped.md`, `project/roadmap/ideas.md`), direction (`project/vision.md`, `project/architecture.md`), and runbooks (`project/config.md`, `project/evaluation.md`, `project/privacy.md`, `project/troubleshooting.md`).
 - `seeds/` — seed KB and providers. E2E tests rely on this content.
 - `docker-compose.yml` — local dev stack; note mounted volumes.
 
@@ -83,7 +83,8 @@ Scope: These instructions apply to the whole repository. They are for AI coding 
 - Otherwise:
   - Propose an entry under “Scheduled” in `project/roadmap/ideas.md`.
   - If ready to execute, add a new PR block in `project/roadmap/pr-stack.md` with Why/Scope/Acceptance/Pointers.
-- When a PR is finished, remove its block from `project/roadmap/pr-stack.md` and mark the corresponding idea as completed in `project/roadmap/ideas.md`.
+- Once the branch is pushed, create a GitHub PR immediately and replace every placeholder in the PR template (Outcome, Demo ≤90s, Acceptance checks, Scope, etc.) before requesting review.
+- When a PR is finished, remove its block from `project/roadmap/pr-stack.md`, add a short summary to `project/roadmap/shipped.md`, and mark the corresponding idea as completed in `project/roadmap/ideas.md`.
 
 ## Communication (for agents)
 
