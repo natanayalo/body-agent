@@ -219,6 +219,29 @@ def test_paraphrase_helper_returns_none_when_call_fails(monkeypatch):
     assert answer_gen._paraphrase_onset_fact(fact, "he") is None
 
 
+def test_paraphrase_helper_handles_null_follow_up(monkeypatch):
+    monkeypatch.setenv("PARAPHRASE_ONSET", "true")
+
+    def null_follow(prompt: str, language: str):
+        return json.dumps(
+            {
+                "summary": "Acetaminophen usually eases symptoms within 30–60 minutes.",
+                "follow_up": None,
+            }
+        )
+
+    monkeypatch.setattr(answer_gen, "_call_ollama", null_follow)
+
+    fact = {
+        "summary": "Acetaminophen typically starts to relieve pain or fever within 30–60 minutes.",
+        "follow_up": "If you do not feel better after about an hour or symptoms worsen, contact a clinician.",
+    }
+
+    summary, follow_up = answer_gen._paraphrase_onset_fact(fact, "en")
+    assert "30" in summary and "60" in summary
+    assert follow_up is None
+
+
 def test_answer_gen_meds_onset_falls_back_to_english(monkeypatch):
     med_facts.clear_cache()
     monkeypatch.setenv("LLM_PROVIDER", "ollama")

@@ -83,6 +83,7 @@ Scope: These instructions apply to the whole repository. They are for AI coding 
 - Otherwise:
   - Propose an entry under “Scheduled” in `project/roadmap/ideas.md`.
   - If ready to execute, add a new PR block in `project/roadmap/pr-stack.md` with Why/Scope/Acceptance/Pointers.
+- Once the branch is pushed, create a GitHub PR immediately and replace every placeholder in the PR template (Outcome, Demo ≤90s, Acceptance checks, Scope, etc.) before requesting review.
 - When a PR is finished, remove its block from `project/roadmap/pr-stack.md`, add a short summary to `project/roadmap/shipped.md`, and mark the corresponding idea as completed in `project/roadmap/ideas.md`.
 
 ## Communication (for agents)
