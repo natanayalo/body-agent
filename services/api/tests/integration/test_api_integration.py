@@ -10,6 +10,15 @@ def test_healthz(client):
 
 def test_graph_run_end_to_end(client, fake_es, fake_pipe, sample_docs):
     hits, fever_doc, ibu_warn, warf_inter, abdomen_doc = sample_docs
+
+    ibu_warn = {
+        **ibu_warn,
+        "source_url": "https://health.example/ibuprofen?utm_source=newsletter&utm_medium=email#risks",
+    }
+    warf_inter = {
+        **warf_inter,
+        "source_url": "https://health.example/warfarin?utm_campaign=spring&utm_source=newsletter",
+    }
     # Return warning + interaction docs from public KB
     fake_es.add_handler(
         lambda i, b: i.endswith("public_medical_kb"), hits([ibu_warn, warf_inter])
@@ -143,7 +152,9 @@ def test_hebrew_query_prefers_hebrew_snippets(
     import app.graph.nodes.answer_gen as ag
 
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
-    monkeypatch.setattr(ag, "_generate_with_provider", lambda provider, prompt: None)
+    monkeypatch.setattr(
+        ag, "_generate_with_provider", lambda provider, prompt, language: None
+    )
 
     payload = {"user_id": "demo-he", "query": "יש לי חום גבוה"}
     response = client.post("/api/graph/run", params={"lang": "he"}, json=payload)
@@ -167,7 +178,9 @@ def test_meds_onset_hebrew_uses_med_facts(monkeypatch, client, fake_es, fake_pip
     from app.tools import med_facts
 
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
-    monkeypatch.setattr(ag, "_generate_with_provider", lambda provider, prompt: None)
+    monkeypatch.setattr(
+        ag, "_generate_with_provider", lambda provider, prompt, language: None
+    )
     monkeypatch.setattr(
         med_facts,
         "onset_for",
@@ -282,18 +295,25 @@ def test_e2e_medication_interaction_flow(
             query_bool = body.get("query", {}).get("bool", {})
             should_clauses = query_bool.get("should", [])
 
-            # Check if any of the should clauses match "title": "ibuprofen" or "title": "warfarin"
-            has_ibuprofen = False
-            has_warfarin = False
+            has_ibuprofen_combo = False
+            has_warfarin_combo = False
             for clause in should_clauses:
-                match_title = clause.get("match", {}).get("title")
-                if match_title:
-                    if "ibuprofen" in match_title:
-                        has_ibuprofen = True
-                    if "warfarin" in match_title:
-                        has_warfarin = True
+                match_mapping = clause.get("match", {})
+                for field in ("title", "text"):
+                    match_value = match_mapping.get(field)
+                    if not match_value:
+                        continue
+                    if isinstance(match_value, dict):
+                        query_val = match_value.get("query", "")
+                    else:
+                        query_val = str(match_value)
+                    lowered = query_val.lower()
+                    if "ibuprofen" in lowered and "interactions" in lowered:
+                        has_ibuprofen_combo = True
+                    if "warfarin" in lowered and "interactions" in lowered:
+                        has_warfarin_combo = True
 
-            if has_ibuprofen and has_warfarin:
+            if has_ibuprofen_combo and has_warfarin_combo:
                 return True
         return False
 
@@ -303,8 +323,22 @@ def test_e2e_medication_interaction_flow(
             "query": {
                 "bool": {
                     "should": [
-                        {"match": {"title": "ibuprofen"}},
-                        {"match": {"title": "warfarin"}},
+                        {
+                            "match": {
+                                "title": {
+                                    "query": "ibuprofen interactions between meds",
+                                    "boost": 1.8,
+                                }
+                            }
+                        },
+                        {
+                            "match": {
+                                "title": {
+                                    "query": "warfarin interactions between meds",
+                                    "boost": 1.8,
+                                }
+                            }
+                        },
                     ]
                 }
             }
@@ -312,7 +346,22 @@ def test_e2e_medication_interaction_flow(
     )
     assert not interaction_search_predicate(
         "public_medical_kb",
-        {"query": {"bool": {"should": [{"match": {"title": "ibuprofen"}}]}}},
+        {
+            "query": {
+                "bool": {
+                    "should": [
+                        {
+                            "match": {
+                                "title": {
+                                    "query": "ibuprofen general guidance",
+                                    "boost": 1.2,
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        },
     )
 
     fake_es.add_handler(interaction_search_predicate, hits([ibu_warn, warf_inter]))
@@ -349,6 +398,6 @@ def test_e2e_medication_interaction_flow(
     citations = data["state"].get("citations", [])
     assert len(citations) > 0
     assert all(c.startswith("http") or c.startswith("file") for c in citations)
-    # Check for deduplication and normalization (e.g., no utm_ params, consistent slashes)
-    # This is a basic check, more robust checks would involve parsing URLs
     assert len(set(citations)) == len(citations), "Citations should be deduplicated"
+    assert "utm_" not in "".join(citations)
+    assert all("#" not in c for c in citations)

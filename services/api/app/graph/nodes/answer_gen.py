@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 LANG_CONFIG = {
     "en": {
+        "system_prompt": "You produce concise, safety-first health summaries in English.",
         "prompt_intro": [
             "You are a cautious health assistant. Summarise guidance based strictly on the provided data.",
             "Avoid diagnoses; cite numbered sources when available.",
@@ -30,6 +31,7 @@ LANG_CONFIG = {
         "urgent_line": "If you develop concerning or worsening symptoms, seek urgent evaluation.",
     },
     "he": {
+        "system_prompt": "אתה מפיק סיכומים בריאותיים תמציתיים וזהירים בעברית.",
         "prompt_intro": [
             "אתה עוזר בריאות זהיר. סכם הנחיות על בסיס המידע שסופק בלבד.",
             "הימנע מאבחנות; ציין מקורות ממוספרים כשאפשר.",
@@ -378,7 +380,7 @@ def _build_prompt(state: BodyState) -> str:
     return "\n\n".join(parts)
 
 
-def _call_ollama(prompt: str) -> str | None:
+def _call_ollama(prompt: str, language: str) -> str | None:
     model = os.getenv("OLLAMA_MODEL", "llama3")
     try:
         import ollama  # type: ignore
@@ -389,7 +391,7 @@ def _call_ollama(prompt: str) -> str | None:
             messages=[
                 {
                     "role": "system",
-                    "content": "You produce concise, safety-first health summaries.",
+                    "content": _system_prompt(language),
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -400,7 +402,7 @@ def _call_ollama(prompt: str) -> str | None:
         return None
 
 
-def _call_openai(prompt: str) -> str | None:
+def _call_openai(prompt: str, language: str) -> str | None:
     model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -416,7 +418,7 @@ def _call_openai(prompt: str) -> str | None:
             messages=[
                 {
                     "role": "system",
-                    "content": "You produce concise, safety-first health summaries.",
+                    "content": _system_prompt(language),
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -469,11 +471,22 @@ def _build_reply(content: str, state: BodyState) -> str:
     return "\n\n".join(section for section in sections if section)
 
 
-def _generate_with_provider(provider: str, prompt: str) -> str | None:
+DEFAULT_SYSTEM_PROMPT = "You produce concise, safety-first health summaries in English."
+
+
+def _system_prompt(language: str) -> str:
+    lang_config = LANG_CONFIG.get(language) or LANG_CONFIG.get(DEFAULT_LANGUAGE, {})
+    prompt = lang_config.get("system_prompt")
+    if isinstance(prompt, str) and prompt.strip():
+        return prompt
+    return DEFAULT_SYSTEM_PROMPT
+
+
+def _generate_with_provider(provider: str, prompt: str, language: str) -> str | None:
     if provider == "ollama":
-        return _call_ollama(prompt)
+        return _call_ollama(prompt, language)
     if provider == "openai":
-        return _call_openai(prompt)
+        return _call_openai(prompt, language)
     logger.warning("Unknown LLM provider '%s'; falling back to template", provider)
     return None
 
@@ -500,7 +513,8 @@ def run(state: BodyState) -> BodyState:
 
     provider = _resolve_provider()
     prompt = _build_prompt(state)
-    content: Optional[str] = _generate_with_provider(provider, prompt)
+    lang_choice, _ = _language_config(state)
+    content: Optional[str] = _generate_with_provider(provider, prompt, lang_choice)
     if not content:
         snippets = state.get("public_snippets", []) or []
         if snippets:

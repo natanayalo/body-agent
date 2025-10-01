@@ -20,7 +20,9 @@ def test_answer_gen_meds_onset_uses_med_facts(monkeypatch):
     med_facts.clear_cache()
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
 
-    def fail_generate(provider: str, prompt: str):  # pragma: no cover - should not run
+    def fail_generate(
+        provider: str, prompt: str, language: str
+    ):  # pragma: no cover - should not run
         raise AssertionError("LLM provider should not be called for meds onset")
 
     monkeypatch.setattr(answer_gen, "_generate_with_provider", fail_generate)
@@ -51,7 +53,9 @@ def test_answer_gen_meds_onset_falls_back_to_english(monkeypatch):
     med_facts.clear_cache()
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
 
-    def fail_generate(provider: str, prompt: str):  # pragma: no cover - should not run
+    def fail_generate(
+        provider: str, prompt: str, language: str
+    ):  # pragma: no cover - should not run
         raise AssertionError("LLM provider should not be called for meds onset")
 
     monkeypatch.setattr(answer_gen, "_generate_with_provider", fail_generate)
@@ -79,7 +83,9 @@ def test_answer_gen_meds_onset_uses_memory_fact(monkeypatch):
     med_facts.clear_cache()
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
 
-    def fail_generate(provider: str, prompt: str):  # pragma: no cover - should not run
+    def fail_generate(
+        provider: str, prompt: str, language: str
+    ):  # pragma: no cover - should not run
         raise AssertionError("LLM provider should not be called for meds onset")
 
     monkeypatch.setattr(answer_gen, "_generate_with_provider", fail_generate)
@@ -118,9 +124,10 @@ def test_answer_gen_uses_provider(monkeypatch):
 
     captured = {}
 
-    def fake_generate(provider: str, prompt: str):
+    def fake_generate(provider: str, prompt: str, language: str):
         captured["provider"] = provider
         captured["prompt"] = prompt
+        captured["language"] = language
         return "Here is a helpful summary with citations [1]."
 
     monkeypatch.setattr(answer_gen, "_generate_with_provider", fake_generate)
@@ -134,6 +141,7 @@ def test_answer_gen_uses_provider(monkeypatch):
     out = answer_gen.run(state)
 
     assert captured["provider"] == "ollama"
+    assert captured["language"] == "en"
     assert out["messages"]
     message = out["messages"][-1]
     assert "helpful summary" in message["content"].lower()
@@ -143,7 +151,7 @@ def test_answer_gen_uses_provider(monkeypatch):
 def test_answer_gen_fallback_adds_urgent_warning(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
 
-    def no_generation(provider: str, prompt: str):
+    def no_generation(provider: str, prompt: str, language: str):
         return None
 
     monkeypatch.setattr(answer_gen, "_generate_with_provider", no_generation)
@@ -184,10 +192,10 @@ def test_generate_with_unknown_provider(monkeypatch):
 
 def test_call_helpers_handle_missing_backends():
     # No ollama module installed
-    assert answer_gen._call_ollama("prompt") is None
+    assert answer_gen._call_ollama("prompt", "en") is None
 
     # Missing API key means early exit
-    assert answer_gen._call_openai("prompt") is None
+    assert answer_gen._call_openai("prompt", "en") is None
 
 
 def test_call_ollama_success(monkeypatch):
@@ -195,9 +203,13 @@ def test_call_ollama_success(monkeypatch):
 
     messages_seen = {}
 
+    system_prompts = []
+
     def fake_chat(model: str, messages):  # type: ignore[override]
         messages_seen["model"] = model
         messages_seen["messages"] = messages
+        if messages:
+            system_prompts.append(messages[0]["content"])
         return {"message": {"content": "Generated"}}
 
     module = types.SimpleNamespace(chat=fake_chat)
@@ -205,9 +217,10 @@ def test_call_ollama_success(monkeypatch):
     monkeypatch.setenv("OLLAMA_MODEL", "mini")
 
     try:
-        content = answer_gen._call_ollama("prompt text")
+        content = answer_gen._call_ollama("prompt text", "he")
         assert content == "Generated"
         assert messages_seen["model"] == "mini"
+        assert system_prompts == [answer_gen._system_prompt("he")]
     finally:
         sys.modules.pop("ollama", None)
 
@@ -215,9 +228,12 @@ def test_call_ollama_success(monkeypatch):
 def test_call_openai_success(monkeypatch):
     import types
 
+    captured_messages = {}
+
     class FakeCompletions:
         def create(self, model, messages):  # type: ignore[override]
             assert model == "gpt-4o-mini"
+            captured_messages["messages"] = messages
 
             class Choice:
                 message = types.SimpleNamespace(content="OpenAI response")
@@ -234,8 +250,11 @@ def test_call_openai_success(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "secret")
 
     try:
-        content = answer_gen._call_openai("Tell me")
+        content = answer_gen._call_openai("Tell me", "he")
         assert content == "OpenAI response"
+        assert captured_messages["messages"][0]["content"] == answer_gen._system_prompt(
+            "he"
+        )
     finally:
         sys.modules.pop("openai", None)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
@@ -259,7 +278,7 @@ def test_call_openai_handles_empty_choices(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "secret")
 
     try:
-        content = answer_gen._call_openai("Summarise")
+        content = answer_gen._call_openai("Summarise", "en")
         assert content is None
     finally:
         sys.modules.pop("openai", None)
@@ -349,8 +368,9 @@ def test_fallback_highlights_include_ellipsis_when_truncated():
 def test_answer_gen_hebrew_fallback(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
 
-    def no_generation(provider: str, prompt: str):
+    def no_generation(provider: str, prompt: str, language: str):
         assert provider == "ollama"
+        assert language == "he"
         return None
 
     monkeypatch.setattr(answer_gen, "_generate_with_provider", no_generation)
@@ -379,7 +399,7 @@ def test_answer_gen_hebrew_fallback(monkeypatch):
 def test_answer_gen_hebrew_fallback_uses_english_when_needed(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
 
-    def no_generation(provider: str, prompt: str):
+    def no_generation(provider: str, prompt: str, language: str):
         return None
 
     monkeypatch.setattr(answer_gen, "_generate_with_provider", no_generation)
@@ -408,7 +428,7 @@ def test_pattern_fallback_gi_when_no_snippets(monkeypatch):
     # Force provider to return None so fallback path is taken
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
 
-    def no_generation(provider: str, prompt: str):
+    def no_generation(provider: str, prompt: str, language: str):
         return None
 
     monkeypatch.setattr(answer_gen, "_generate_with_provider", no_generation)
@@ -434,7 +454,7 @@ def test_pattern_fallback_gi_when_no_snippets(monkeypatch):
 def test_pattern_fallback_hebrew_gi_when_no_snippets(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "openai")
 
-    def no_generation(provider: str, prompt: str):
+    def no_generation(provider: str, prompt: str, language: str):
         return None
 
     monkeypatch.setattr(answer_gen, "_generate_with_provider", no_generation)

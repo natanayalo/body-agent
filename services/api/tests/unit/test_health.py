@@ -198,6 +198,45 @@ def test_health_default_guidance_message(fake_es, sample_docs):
     )
 
 
+def test_normalize_url_strips_fragment_and_utm():
+    url = "https://example.com/path?utm_source=newsletter&utm_medium=email&foo=bar#section"
+    assert health._normalize_url(url) == "https://example.com/path?foo=bar"
+
+
+def test_dedupe_citations_preserves_order():
+    urls = [
+        "https://example.com/path?utm_source=a",
+        "https://example.com/path",
+        "https://example.com/other#fragment",
+        "https://example.com/other",
+    ]
+    assert health._dedupe_citations(urls) == [
+        "https://example.com/path",
+        "https://example.com/other",
+    ]
+
+
+def test_normalize_url_handles_non_string_and_blank():
+    assert health._normalize_url(None) == ""
+    assert health._normalize_url(123) == ""
+    assert health._normalize_url("   ") == ""
+
+
+def test_normalize_url_handles_unexpected_scheme():
+    raw = "mailto:user@example.com"
+    assert health._normalize_url(raw) == raw
+
+
+def test_normalize_url_handles_split_error(monkeypatch):
+    def boom(_):
+        raise ValueError("bad url")
+
+    monkeypatch.setattr(health, "urlsplit", boom)
+    assert (
+        health._normalize_url("https://example.com/boom") == "https://example.com/boom"
+    )
+
+
 def test_health_raises_error_if_no_user_query(fake_es):
     state: BodyState = BodyState({"messages": []})  # type: ignore[typeddict-item]
     with pytest.raises(KeyError):
