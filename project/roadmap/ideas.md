@@ -19,18 +19,21 @@ Use the status column to see whether an idea is already shipped, queued up in th
 | ✅ | Pattern-based fallback templates | Provide localized symptom templates when retrieval is empty; include disclaimers and risk notices. | Shipped in PR 15; templates now keep safety messaging when providers fail. |
 | ✅ | Retrieval expansion | Synonym/translation boosts and section boosting for health retrieval (e.g., "כאבי בטן" → "abdominal pain"). | Shipped in PR 14; tuned boosts while respecting doc language. |
 | ✅ | Structured symptom registry | Map symptom slugs → vetted doc refs and language variants; inject before ES search. | Shipped in PR 16; deduping preserves localized snippets. |
+| ✅ | Docs & roadmap refresh | Added architecture/config/privacy/evaluation docs and aligned README streaming guidance. | Shipped in PR 17; terminology stays consistent across guides. |
+| ✅ | Language detect & EN pivot | Detect Hebrew queries and expose `user_query_pivot` so downstream retrieval stays stable. | Shipped in PR 18; health/risk nodes reuse the pivot text. |
+| ✅ | Med normalization | Normalize common brands → ingredients during ingest and supervisor flows. | Shipped in PR 19; table-driven alias coverage. |
+| ✅ | Meds sub-intent classification | Classify meds queries into onset/interaction/schedule/etc. for deterministic routing. | Shipped in PR 20; bilingual keyword rules + tests. |
+| ✅ | Planner suppression for meds | Skip schedule plans unless `sub_intent == "schedule"`. | Shipped in PR 21; planner tests assert gating. |
+| ✅ | Risk gating for meds onset | Relax risk thresholds for benign onset questions while keeping red-flag escalations. | Shipped in PR 22; parametrized risk tests. |
+| ✅ | Deterministic meds onset answers | Serve onset guidance from vetted facts with localized copy and single citation. | Shipped in PR 23; med_facts helper + integration coverage. |
+| ✅ | Med interaction recall & language-aware answers | Boost BM25 combos, dedupe citations, and follow `state.language` in answers. | Shipped in PR 24; interaction flow integration updated. |
 
 ## Scheduled (see `pr-stack.md`)
 
 | Status | Idea | Summary | Notes |
 | --- | --- | --- | --- |
-| 🔄 | KB seeding & translation pipeline | Extend ingestion scripts to seed HE symptom guidance so fallback rarely fires. | Current PR 17. See project/roadmap/pr-stack.md. |
-| 🔄 | Language detect & EN pivot | Detect HE and pivot query text to EN for stable retrieval; thread `user_query_pivot`. | Planned as PR 18. See pr-stack. |
-| 🔄 | Med normalization | Minimal lexicon to normalize brands → ingredients; enrich memory facts. | Planned as PR 19. See pr-stack. |
-| 🔄 | Meds sub-intent | Classify meds sub-intent (onset, interaction, schedule, etc.) for flow gating. | Planned as PR 20. See pr-stack. |
-| 🔄 | Planner suppression (meds) | Do not emit schedule for meds flows unless sub-intent is `schedule`. | Planned as PR 21. See pr-stack. |
-| 🔄 | Risk gating for onset | Raise thresholds/short-circuit risk for benign meds onset flows. | Planned as PR 22. See pr-stack. |
-| 🔄 | Med facts micro-KB | Deterministic onset metadata and citations for common meds; render localized answers. | Planned as PR 23. See pr-stack. |
+| 🔄 | Paraphrase onset facts (flagged) | Optional Ollama paraphrase for deterministic onset answers; no new numbers. | Planned as PR 25. See pr-stack. |
+| 🔄 | Neutral onset fallback (flagged) | Safe LLM blurb when no med fact exists (no timings/doses). | Planned as PR 26. See pr-stack. |
 
 ## Backlog / To Evaluate
 
@@ -71,8 +74,7 @@ Use the status column to see whether an idea is already shipped, queued up in th
 | --- | --- | --- | --- |
 | 🧭 | Preference-aware provider scoring | Blend semantic score with distance, hours fit, insurance match using configurable weights. | Requires more provider metadata + tests. |
 | 🧭 | Lightweight meds registry | Small YAML of common OTC classes (uses, avoid_if, interactions) to supplement answers without dosing. | Consider after Milestone 2; overlap with med facts work. |
-| 🧭 | LLM paraphrase for onset facts | When a deterministic med fact exists, paraphrase it into the user’s language via Ollama (no new numbers/claims) behind a feature flag. | Enforce validators to reject added numbers; always include “Source: …”. |
-| 🧭 | LLM neutral fallback (no fact) | If no onset fact is found, generate a neutral, non‑timed guidance blurb (no dosing/times) behind a feature flag. | Safer than guessing; reject outputs with numbers/time words; include disclaimer.
+| 🧭 | KB seeding & translation pipeline | Extend ingestion scripts to translate vetted symptom docs into Hebrew and store provenance. | Requires `scripts/ingest_public_kb.py` updates + seeding automation. |
 
 When you pick up an idea:
 

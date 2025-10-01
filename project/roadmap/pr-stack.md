@@ -2,181 +2,13 @@ Here’s a crisp next-step plan you can ship as a sequence of small PRs, each wi
 
 ---
 
-# Current PR — PR 17 — KB seeding & translation pipeline
+Refer to `project/roadmap/shipped.md` for completed slices.
 
-Why: Ensure coverage for core symptoms in Hebrew.
+# Next PR Stack — Milestone 2 (optional onset polish)
 
-Scope
+With the meds onset core shipped, focus now shifts to the opt-in polish flags for deterministic answers.
 
-- Extend `scripts/ingest_public_kb.py` to accept a symptom list and fetch/translate selected pages to HE (store provenance).
-- Add a make target (`make seed-he`) to populate fresh bilingual docs.
-
-Acceptance
-
-- CI/dev “seed HE” flow creates HE docs; retrieval prioritizes them; integration tests updated.
-
-Pointers
-
-- `scripts/ingest_public_kb.py`, `docker-compose.yml` volumes; README instructions.
-
----
-
-## Review Follow‑Up (High‑ROI docs + copy tweaks)
-
-- Architecture & sequences: added `project/architecture.md` (block diagram; med‑interaction and appointment sequences; ES hits; SSE order; run/stream envelope).
-- Config reference & modes: added `project/config.md` (env table; CI stub vs. local mode guidance).
-- Data seeding clarity: README now states the seed container auto‑populates indices on `docker compose up` (single source of truth).
-- Privacy & safety: added `project/privacy.md` (scrubbed fields, encryption at rest, disclaimers, risk gating).
-- Evaluation & quality: added `project/evaluation.md` (test matrix; RAG recall; thresholds; SSE contract; fixtures).
-- Troubleshooting / Ops: added `project/troubleshooting.md` (vector dims, permissions, health checks/logs).
-- Roadmap page: added `project/roadmap.md` (Now / Next / Later milestones).
-- Template fallback preserves risk notice formatting even when only pattern templates fire (PR 15 follow-up).
-
-Copy/structure tweaks in README:
-
-- Streaming example uses `curl --no-buffer` and notes that the `final` event is last.
-- Intent exemplars section surfaces the default location + hot‑reload knob early (points to `/app/data/intent_exemplars.jsonl`).
-- Noted that `/api/graph/run` returns a stable `{ "state": ... }` envelope.
-
-# Shipped — PR 16 — Structured symptom registry (doc routing)
-
-- Added `services/api/app/registry/symptoms.yml` with canonical symptom phrases, risk flags, and doc references.
-- Introduced loader `app/tools/symptom_registry.py` (cached, env override) and wired `health.run` to inject registry docs ahead of ES search.
-- Ensured registry docs dedupe with kNN/BM25 results while preserving language prioritization.
-- Seeded abdominal-pain markdown and unit tests verifying registry lookups and ordering.
-
-# Shipped — PR 15 — Pattern-based fallback (safety templates)
-
-- Added symptom-bucket templates (GI, respiratory, neuro, general) with EN/HE copies to cover no-retrieval cases.
-- Template fallback now mirrors recap format: summary, template body, and risk notices before disclaimer/urgent lines.
-- Tests cover GI fallback, Hebrew variants, YAML overrides, and risk notice preservation when providers fail.
-
-# Shipped — PR 14 — Retrieval expansion (query expansion + scoring)
-
-- `health.run` now expands symptom queries via the registry, appending EN synonyms/HE variants before embedding.
-- BM25 fallback includes boosted `section:general|warnings` matches and still respects medication-derived terms.
-- Added targeted unit coverage for Hebrew stomach-pain flows, ensuring abdominal-pain snippets rise to the top.
-- Updated seeds/tests so abdominal-pain guidance is consistently surfaced when available.
-
-# Next PR Stack — Milestone 1: Meds “onset” relevance & safety
-
-The next wave targets language-aware retrieval, meds normalization, and deterministic onset guidance so Hebrew users get the right information without unnecessary risk notices.
-
-<!-- PR 13 shipped: Intent exemplars registry (+ multilingual) -->
-
-## PR 18 — Language detect & pivot to EN for retrieval
-
-Why: Hebrew queries currently pull noisy EN snippets; we need a stable signal for downstream nodes.
-
-Scope
-
-- `services/api/app/graph/nodes/scrub.py` — detect language (fast heuristic now; MT later) and store `state["language"]`.
-- If `language != "en"`, populate `state["user_query_pivot"]` with a placeholder HE→EN translation helper.
-- Thread the pivoted text through health/risk retrieval (default to original text when EN).
-
-Acceptance
-
-- HE query yields `state.language == "he"` and non-empty `state.user_query_pivot`.
-- Health retrieval for HE symptom no longer surfaces irrelevant ibuprofen/warfarin when absent from query/memory.
-- Unit coverage for HE/EN detection + pivot wiring.
-
-Pointers
-
-- `services/api/app/graph/nodes/scrub.py`, `services/api/app/graph/nodes/health.py`, `services/api/tests/unit/test_scrub.py`.
-
-## PR 19 — Med normalization (brand → ingredient, multilingual)
-
-Why: We need consistent ingredient matching (e.g., אקמול → acetaminophen) for lookup, risk, and KB joins.
-
-Scope
-
-- New helper `services/api/app/tools/med_normalize.py` with a minimal lexicon + API.
-- Use during memory ingest/supervisor to populate `memory_facts[].normalized.ingredient` and inline detections.
-
-Acceptance
-
-- Common IL brands resolve to their ingredients (אקמול → acetaminophen, נורופן → ibuprofen).
-- Memory facts include `normalized.ingredient` when appropriate; supervisor uses the normalized value for comparisons.
-- Table-driven tests in `services/api/tests/unit/test_med_normalize.py`.
-
-## PR 20 — Meds sub-intent classification
-
-Why: Separate onset/schedule/interaction flows so planner + risk respond appropriately.
-
-Scope
-
-- Extend supervisor to derive `state["sub_intent"]` via light keyword rules in EN/HE.
-- Cover onset, interaction, schedule, side_effects, refill buckets (fallback `None`).
-
-Acceptance
-
-- “מתי זה אמור להשפיע” and “when will it start working” → `sub_intent="onset"`.
-- “אפשר לקחת עם …” / “interaction with …” → `sub_intent="interaction"`.
-- Unit expectations in `services/api/tests/unit/test_supervisor.py`.
-
-## PR 21 — Planner suppression for non-schedule meds flows
-
-Why: Prevent auto-generated schedules when user only wants onset guidance.
-
-Scope
-
-- In planner node, when `intent == "meds"` and `sub_intent != "schedule"`, force `plan = {"type": "none"}`.
-
-Acceptance
-
-- Meds onset queries return no plan.
-- Planner tests extended to cover gating logic.
-
-## PR 22 — Risk gating for meds:onset
-
-Why: Reduce false urgency where onset guidance is benign while keeping true red flags.
-
-Scope
-
-- In `risk_ml`, short-circuit or raise thresholds when `intent == "meds"` and `sub_intent == "onset"` unless hard red-flag terms are present.
-
-Acceptance
-
-- Safe onset queries produce no ML alerts; “chest pain” / “bleeding” still trigger.
-- Parametrised coverage in `services/api/tests/unit/test_risk_and_critic.py`.
-
-## PR 23 — Deterministic med facts micro-KB (onset/dose metadata)
-
-Why: Provide clear, localized onset guidance with citations instead of LLM guesswork.
-
-Scope
-
-- Seed `seeds/med_facts.json` with onset windows + sources for acetaminophen/ibuprofen (expandable).
-- New helper `services/api/app/tools/med_facts.py` exposing `onset_for(ingredient)`.
-- In `answer_gen`, when `intent == "meds"` and `sub_intent == "onset"`, compose an answer from the facts in the user’s language; include a citation.
-
-Acceptance
-
-- “אקמול מתי משפיע” returns 30–60 minute onset (in HE), no planner, no risk alert, exactly one citation.
-- Unit tests for helper + answer path; integration happy-path covering HE.
-
----
-
-# Milestone 2 — Retrieval quality & cleanliness
-
-## PR 24–26 — Med interaction recall, citation hygiene, language-aware answers
-
-Why: Ensure meds interactions surface even when kNN misses, clean up citation spam, and keep deterministic/template answers aligned with the user’s language.
-
-Scope
-
-- BM25 fallback adds boosted clauses for each memory med combined with the primary/pivot query so interaction docs still appear when embeddings miss.
-- Normalize/dedupe citations (`url_normalize` strips fragments + UTM params) to avoid duplicate or noisy links.
-- `answer_gen` system prompts/templates explicitly follow `state.language` (fallback EN) so Hebrew users get Hebrew output end-to-end.
-- Expand unit/integration coverage for the dual-med interaction flow, citation hygiene, and language-aware prompts.
-
-Acceptance
-
-- Interaction documents retrieved whenever memory contains both meds; integration test validates boosted combo clauses.
-- Citations emitted without fragments/`utm_` tracking params and remain unique while preserving order.
-- Hebrew answer paths (LLM fallback + deterministic meds onset) render in Hebrew; English flows unchanged.
-
-## PR 32 — Paraphrase onset facts via Ollama (flagged)
+## PR 25 — Paraphrase onset facts via Ollama (flagged)
 
 Why: Improve readability/localization of deterministic onset answers without altering facts.
 
@@ -196,7 +28,7 @@ Pointers
 
 - `services/api/app/graph/nodes/answer_gen.py`, `.env.example` entries, new tests under `services/api/tests/unit/test_answer_gen.py`.
 
-## PR 33 — LLM neutral fallback for onset (no fact; flagged)
+## PR 26 — LLM neutral fallback for onset (no fact; flagged)
 
 Why: Provide helpful guidance when no onset fact exists without guessing timings or dosing.
 

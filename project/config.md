@@ -49,6 +49,11 @@ This page lists the key environment variables, defaults, and how to run in CI (s
 - `FALLBACK_TEMPLATES_PATH` (optional; default unset; example `/app/data/safety_templates.json`)
 - `FALLBACK_TEMPLATES_WATCH` (`true|false`)
 
+## Deterministic meds onset
+
+- `MED_FACTS_PATH` (default `/app/seeds/med_facts.json`)
+- `PARAPHRASE_ONSET` (`true|false`, default `false`; paraphrase deterministic onset copy via Ollama with numeric validation)
+
 ## Modes
 
 ### CI mode (deterministic)

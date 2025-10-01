@@ -1,25 +1,20 @@
 # Roadmap (MVP → v1)
 
-## Now — Milestone 1 (Meds “onset” relevance)
+## Now — Milestone 2 (Optional meds onset polish)
 
-- Language detection + HE→EN pivot for retrieval (PR 18)
-- Med normalization lexicon + sub-intent classification (PR 19–20)
-- Planner/risk gating updates for onset flows (PR 21–22)
-- Deterministic med-facts micro-KB powering onset answers (PR 23)
+- Paraphrase deterministic onset facts without changing numbers (PR 25, flagged)
+- Neutral LLM fallback when no onset fact exists (PR 26, flagged)
 
-## Next — Milestone 2 (Retrieval quality & cleanliness)
+## Next — Milestone 3 (Stability & CI polish)
 
-- BM25 fallback with medication boosts when kNN misses (PR 24)
-- Citation dedupe with URL normalization (PR 25)
-- Language-aware answer rendering in `answer_gen` (PR 26)
-- Optional, safe LLM polish behind flags:
-  - Paraphrase deterministic onset facts (no new numbers) via Ollama (PR 32)
-  - Neutral LLM fallback when no onset fact exists (no timings/doses) (PR 33)
+- Idempotent seed job for ingest scripts (PR 27)
+- SSE contract regression test (PR 28)
+- Docs roll-up linking architecture/config/evaluation references (PR 29)
 
-## Later — Milestones 3 & 4 (Stability + privacy)
+## Later — Milestone 4 (Intent + privacy hardening)
 
-- Idempotent seed job, SSE contract test, docs polish (PR 27–29)
-- Intent exemplar hot-reload refinements + expanded PII scrub rules (PR 30–31)
+- Intent exemplar hot-reload refinements (PR 30)
+- Expanded PII scrub rules for gov IDs and addresses (PR 31)
 -- Longer-term: client-side field encryption, calendar integration, vetted MCP adapters
 
-See `project/roadmap/pr-stack.md` for current PR slices and acceptance criteria.
+See `project/roadmap/pr-stack.md` for current PR slices and acceptance criteria. Completed work is archived in `project/roadmap/shipped.md`.
