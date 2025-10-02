@@ -281,6 +281,109 @@ def test_paraphrase_helper_drops_non_string_follow_up(monkeypatch):
     assert follow_up is None
 
 
+def test_onset_llm_fallback_generates_neutral_text(monkeypatch):
+    med_facts.clear_cache()
+    monkeypatch.setenv("ONSET_LLM_FALLBACK", "true")
+    monkeypatch.setenv("PARAPHRASE_ONSET", "false")
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+
+    monkeypatch.setattr(med_facts, "onset_for", lambda ingredient, lang: None)
+
+    captured = {}
+
+    def fake_generate(provider: str, prompt: str, language: str) -> str:
+        captured["provider"] = provider
+        captured["prompt"] = prompt
+        captured["language"] = language
+        return "Keep track of how you feel and consult a clinician if symptoms do not improve."
+
+    monkeypatch.setattr(answer_gen, "_generate_with_provider", fake_generate)
+
+    state = BodyState(
+        user_query="When will ibuprofen start working?",
+        intent="meds",
+        sub_intent="onset",
+        language="en",
+        debug={"normalized_query_meds": ["ibuprofen"]},
+        messages=[],
+    )
+
+    out = answer_gen.run(state)
+    message = out["messages"][-1]
+
+    assert "Keep track of how you feel" in message["content"]
+    assert answer_gen.LANG_CONFIG["en"]["disclaimer"] in message["content"]
+    assert out.get("citations") in (None, [])
+    assert captured["provider"] == "ollama"
+
+
+def test_onset_llm_fallback_rejects_numeric_output(monkeypatch):
+    med_facts.clear_cache()
+    monkeypatch.setenv("ONSET_LLM_FALLBACK", "true")
+    monkeypatch.setenv("PARAPHRASE_ONSET", "false")
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+
+    monkeypatch.setattr(med_facts, "onset_for", lambda ingredient, lang: None)
+
+    calls = {"count": 0}
+
+    def numeric_generate(provider: str, prompt: str, language: str) -> str:
+        calls["count"] += 1
+        return (
+            "It should help within 30 minutes, but talk to a doctor if symptoms linger."
+        )
+
+    monkeypatch.setattr(answer_gen, "_generate_with_provider", numeric_generate)
+
+    state = BodyState(
+        user_query="When will ibuprofen start working?",
+        intent="meds",
+        sub_intent="onset",
+        language="en",
+        messages=[],
+    )
+
+    out = answer_gen.run(state)
+    message = out["messages"][-1]
+
+    assert "30 minutes" not in message["content"]
+    assert "Summary for" in message["content"]
+    assert calls["count"] == 1
+
+
+def test_onset_llm_fallback_respects_disabled_flag(monkeypatch):
+    med_facts.clear_cache()
+    monkeypatch.setenv("ONSET_LLM_FALLBACK", "false")
+    monkeypatch.setenv("PARAPHRASE_ONSET", "false")
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+
+    monkeypatch.setattr(med_facts, "onset_for", lambda ingredient, lang: None)
+
+    captured = {}
+
+    def fake_generate(provider: str, prompt: str, language: str) -> str:
+        captured["provider"] = provider
+        captured["prompt"] = prompt
+        captured["language"] = language
+        return "Routing to general guidance; discuss specifics with your clinician."
+
+    monkeypatch.setattr(answer_gen, "_generate_with_provider", fake_generate)
+
+    state = BodyState(
+        user_query="When will ibuprofen start working?",
+        intent="meds",
+        sub_intent="onset",
+        language="en",
+        messages=[],
+    )
+
+    out = answer_gen.run(state)
+    message = out["messages"][-1]
+
+    assert "Routing to general guidance" in message["content"]
+    assert captured["provider"] == "ollama"
+
+
 def test_answer_gen_meds_onset_falls_back_to_english(monkeypatch):
     med_facts.clear_cache()
     monkeypatch.setenv("LLM_PROVIDER", "ollama")

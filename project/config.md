@@ -53,6 +53,7 @@ This page lists the key environment variables, defaults, and how to run in CI (s
 
 - `MED_FACTS_PATH` (default `/app/seeds/med_facts.json`)
 - `PARAPHRASE_ONSET` (`true|false`, default `false`; paraphrase deterministic onset copy via Ollama with numeric validation)
+- `ONSET_LLM_FALLBACK` (`true|false`, default `false`; LLM fallback that emits neutral, number-free guidance when no fact exists)
 
 ## Modes
 
