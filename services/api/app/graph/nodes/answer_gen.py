@@ -515,16 +515,18 @@ def run(state: BodyState) -> BodyState:
         state.setdefault("messages", []).append(message)
         return state
 
-    fallback_failed = False
-    if (
+    is_onset_case = (
         state.get("intent") == "meds"
         and state.get("sub_intent") == "onset"
         and _onset_llm_fallback_enabled()
-    ):
-        neutral_content = _onset_llm_fallback(state)
-        if neutral_content:
+    )
+
+    content: Optional[str]
+    if is_onset_case:
+        content = _onset_llm_fallback(state)
+        if content:
             state.pop("citations", None)
-            reply = _build_reply(neutral_content, state)
+            reply = _build_reply(content, state)
             message = {
                 "role": "assistant",
                 "content": reply,
@@ -532,11 +534,6 @@ def run(state: BodyState) -> BodyState:
             }
             state.setdefault("messages", []).append(message)
             return state
-        fallback_failed = True
-
-    content: Optional[str]
-    if fallback_failed:
-        content = None
     else:
         if _should_skip(state):
             return state
@@ -615,11 +612,7 @@ def _numeric_tokens(*texts: str) -> set[str]:
 def _contains_time_or_number(text: str) -> bool:
     if not text:
         return False
-    if _NUMERIC_PATTERN.search(text):
-        return True
-    if _TIME_TOKEN_PATTERN.search(text):
-        return True
-    return False
+    return bool(_NUMERIC_PATTERN.search(text) or _TIME_TOKEN_PATTERN.search(text))
 
 
 def _paraphrase_onset_fact(
