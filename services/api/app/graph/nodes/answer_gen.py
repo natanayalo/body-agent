@@ -356,6 +356,16 @@ def _risk_notice(state: BodyState, config: dict) -> str:
     return ""
 
 
+def _finalize_response(state: BodyState, content: str) -> None:
+    reply = _build_reply(content, state)
+    message = {
+        "role": "assistant",
+        "content": reply,
+        "citations": state.get("citations", []),
+    }
+    state.setdefault("messages", []).append(message)
+
+
 def _build_prompt(state: BodyState) -> str:
     user_query = state.get("user_query_redacted", state.get("user_query", ""))
     snippets = state.get("public_snippets", []) or []
@@ -506,22 +516,30 @@ def run(state: BodyState) -> BodyState:
             state["citations"] = citations
         else:
             state.pop("citations", None)
-        reply = _build_reply(onset_content, state)
-        message = {
-            "role": "assistant",
-            "content": reply,
-            "citations": state.get("citations", []),
-        }
-        state.setdefault("messages", []).append(message)
+        _finalize_response(state, onset_content)
         return state
 
-    if _should_skip(state):
-        return state
+    is_onset_case = (
+        state.get("intent") == "meds"
+        and state.get("sub_intent") == "onset"
+        and _onset_llm_fallback_enabled()
+    )
 
-    provider = _resolve_provider()
-    prompt = _build_prompt(state)
-    lang_choice, _ = _language_config(state)
-    content: Optional[str] = _generate_with_provider(provider, prompt, lang_choice)
+    content: Optional[str]
+    if is_onset_case:
+        content = _onset_llm_fallback(state)
+        if content:
+            state.pop("citations", None)
+            _finalize_response(state, content)
+            return state
+    else:
+        if _should_skip(state):
+            return state
+
+        provider = _resolve_provider()
+        prompt = _build_prompt(state)
+        lang_choice, _ = _language_config(state)
+        content = _generate_with_provider(provider, prompt, lang_choice)
     if not content:
         snippets = state.get("public_snippets", []) or []
         if snippets:
@@ -534,13 +552,7 @@ def run(state: BodyState) -> BodyState:
             parts = [part for part in (summary_line, template, risk_notice) if part]
             content = "\n\n".join(parts) if parts else config["fallback_empty"]
 
-    reply = _build_reply(content, state)
-    message = {
-        "role": "assistant",
-        "content": reply,
-        "citations": state.get("citations", []),
-    }
-    state.setdefault("messages", []).append(message)
+    _finalize_response(state, content)
     return state
 
 
@@ -575,6 +587,10 @@ def _parse_json_object(text: str) -> Optional[dict]:
 
 
 _NUMERIC_PATTERN = re.compile(r"\d+(?:[.,]\d+)?")
+_TIME_TOKEN_PATTERN = re.compile(
+    r"\b(minutes?|minute|mins?|hours?|hour|hrs?|days?|day|weeks?|week|seconds?|second|secs?)\b",
+    re.IGNORECASE,
+)
 
 
 def _numeric_tokens(*texts: str) -> set[str]:
@@ -583,6 +599,12 @@ def _numeric_tokens(*texts: str) -> set[str]:
         for match in _NUMERIC_PATTERN.findall(text or ""):
             tokens.add(match)
     return tokens
+
+
+def _contains_time_or_number(text: str) -> bool:
+    if not text:
+        return False
+    return bool(_NUMERIC_PATTERN.search(text) or _TIME_TOKEN_PATTERN.search(text))
 
 
 def _paraphrase_onset_fact(
@@ -654,3 +676,49 @@ def _paraphrase_onset_fact(
         return None
 
     return new_summary, (new_follow_up or None)
+
+
+def _onset_llm_fallback_enabled() -> bool:
+    return os.getenv("ONSET_LLM_FALLBACK", "false").strip().lower() == "true"
+
+
+def _onset_llm_fallback(state: BodyState) -> Optional[str]:
+    if not _onset_llm_fallback_enabled():
+        return None
+
+    provider = _resolve_provider()
+    if provider in {"", "none", "disabled"}:
+        return None
+
+    lang, config = _language_config(state)
+    user_query = state.get("user_query_redacted", state.get("user_query", ""))
+
+    prompt = (
+        "You are a cautious medical assistant. The knowledge base does not contain a vetted onset fact for this medication.\n"
+        "Provide a short, neutral response in {language} that:\n"
+        "- Avoids any specific times, durations, numbers, or dosing guidance.\n"
+        "- Encourages the user to monitor symptoms and consult a clinician.\n"
+        "- Stays factual without speculating.\n"
+        "Keep it to 2-3 sentences. No markdown or bullet points.\n"
+        "User question: {question}"
+    ).format(language=lang, question=user_query)
+
+    content = _generate_with_provider(provider, prompt, lang)
+    if not content:
+        return None
+
+    content = content.strip()
+    if not content:
+        return None
+
+    if _contains_time_or_number(content):
+        logger.warning(
+            "Onset LLM fallback produced disallowed numeric/time tokens; ignoring output"
+        )
+        return None
+
+    disclaimer_text = config.get("disclaimer")
+    if isinstance(disclaimer_text, str) and disclaimer_text in content:
+        content = content.replace(disclaimer_text, "").strip()
+
+    return content or None

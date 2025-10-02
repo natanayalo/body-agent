@@ -205,6 +205,8 @@ To tweak the meds-onset gating, set `RISK_ONSET_RED_FLAGS` to a comma-separated 
 
 Deterministic onset answers can be lightly localized by enabling `PARAPHRASE_ONSET=true` (defaults to `false`). When enabled, the node calls the configured Ollama model to rewrite the fact copy while preserving every numeric value; if validation fails or Ollama is unreachable, the canonical wording is used.
 
+If no vetted onset fact exists, turning on `ONSET_LLM_FALLBACK=true` (defaults to `false`) will ask the configured LLM for a short, neutral blurb that contains no numbers or dosing guidance. The validator rejects any output that introduces timings and falls back to the deterministic templates instead.
+
 
 ### Security & Tenancy (PR 8)
 
