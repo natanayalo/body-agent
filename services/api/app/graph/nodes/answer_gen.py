@@ -356,6 +356,16 @@ def _risk_notice(state: BodyState, config: dict) -> str:
     return ""
 
 
+def _finalize_response(state: BodyState, content: str) -> None:
+    reply = _build_reply(content, state)
+    message = {
+        "role": "assistant",
+        "content": reply,
+        "citations": state.get("citations", []),
+    }
+    state.setdefault("messages", []).append(message)
+
+
 def _build_prompt(state: BodyState) -> str:
     user_query = state.get("user_query_redacted", state.get("user_query", ""))
     snippets = state.get("public_snippets", []) or []
@@ -506,13 +516,7 @@ def run(state: BodyState) -> BodyState:
             state["citations"] = citations
         else:
             state.pop("citations", None)
-        reply = _build_reply(onset_content, state)
-        message = {
-            "role": "assistant",
-            "content": reply,
-            "citations": state.get("citations", []),
-        }
-        state.setdefault("messages", []).append(message)
+        _finalize_response(state, onset_content)
         return state
 
     is_onset_case = (
@@ -526,13 +530,7 @@ def run(state: BodyState) -> BodyState:
         content = _onset_llm_fallback(state)
         if content:
             state.pop("citations", None)
-            reply = _build_reply(content, state)
-            message = {
-                "role": "assistant",
-                "content": reply,
-                "citations": state.get("citations", []),
-            }
-            state.setdefault("messages", []).append(message)
+            _finalize_response(state, content)
             return state
     else:
         if _should_skip(state):
@@ -554,13 +552,7 @@ def run(state: BodyState) -> BodyState:
             parts = [part for part in (summary_line, template, risk_notice) if part]
             content = "\n\n".join(parts) if parts else config["fallback_empty"]
 
-    reply = _build_reply(content, state)
-    message = {
-        "role": "assistant",
-        "content": reply,
-        "citations": state.get("citations", []),
-    }
-    state.setdefault("messages", []).append(message)
+    _finalize_response(state, content)
     return state
 
 
