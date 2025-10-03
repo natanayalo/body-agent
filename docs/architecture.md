@@ -43,7 +43,7 @@ The graph is strictly ordered for streaming. Nodes that are not part of the acti
 | `providers_places`       | Providers, labs, and scheduling metadata  | Geo filters + preference weighting. |
 | Seed JSON/YAML files     | Med facts, templates, symptom registry    | Mounted into containers; hot-reload supported where flagged. |
 
-All indices are seeded via the `seed` container. CI runs in stub mode so ingest scripts can be executed repeatedly without leaving dangling data (see `docs/config.md#ci-mode`).
+All indices are seeded via the `seed` container. CI runs in stub mode so ingest scripts can be executed repeatedly without leaving dangling data (see `docs/config.md#ci-mode-deterministic`).
 
 ## External Services & Models
 

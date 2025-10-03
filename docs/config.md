@@ -28,7 +28,7 @@ This guide centralises runtime knobs, defaults, and recommended settings for loc
 | `EMBEDDINGS_MODEL`    | `__stub__` | Sentence-transformer identifier or stub. Use a real model locally (e.g., `sentence-transformers/all-MiniLM-L6-v2`). |
 | `EMBEDDINGS_DEVICE`   | `cpu`      | Set to `cuda` to leverage GPU acceleration. |
 | `LLM_PROVIDER`        | `none`     | `none`, `ollama`, or `openai`. Controls whether answer generation invokes an LLM. |
-| `OLLAMA_MODEL`        | `nomic-embed-text` | Model served by the local Ollama instance. Only read when `LLM_PROVIDER=ollama`. |
+| `OLLAMA_MODEL`        | `llama3` | Model served by the local Ollama instance. Only read when `LLM_PROVIDER=ollama`. |
 | `OLLAMA_HOST`         | `http://localhost:11434` | Target Ollama endpoint. |
 | `OPENAI_API_KEY`      | _unset_    | Required when `LLM_PROVIDER=openai`. Keep it out of version control. |
 
