@@ -5,7 +5,7 @@ import hashlib
 from datetime import datetime
 from typing import Any, List
 
-from elasticsearch import Elasticsearch
+from elasticsearch import Elasticsearch, helpers
 from sentence_transformers import SentenceTransformer
 from app.config import settings
 
@@ -34,11 +34,16 @@ def embed_one(text: str) -> List[float]:
     return _model.encode([text], normalize_embeddings=True)[0].tolist()
 
 
+paths = sorted(glob.glob("seeds/public_medical_kb/*.md"))
 logging.info(
-    f"Indexing public medical knowledge base into {INDEX} using model {MODEL}."
+    "Indexing %d public medical KB docs into %s using model %s.",
+    len(paths),
+    INDEX,
+    MODEL,
 )
 
-for path in glob.glob("seeds/public_medical_kb/*.md"):
+actions = []
+for path in paths:
     with open(path, "r", encoding="utf-8") as f:
         text = f.read()
 
@@ -65,7 +70,6 @@ for path in glob.glob("seeds/public_medical_kb/*.md"):
     }
 
     vec = embed_one(doc["title"] + "\n" + doc["text"])  # <-- FLAT LIST
-    # Guardrail to fail fast if shape is wrong
     assert (
         isinstance(vec, list)
         and len(vec) == VEC_DIMS
@@ -74,7 +78,15 @@ for path in glob.glob("seeds/public_medical_kb/*.md"):
 
     doc["embedding"] = vec
     doc_id = hashlib.sha1((source_url + "|" + section).encode("utf-8")).hexdigest()
-    es.index(index=INDEX, id=doc_id, document=doc)
-    logging.info(f"Indexed {path}")
 
-logging.info("Done indexing public medical knowledge base.")
+    actions.append(
+        {
+            "_op_type": "index",
+            "_index": INDEX,
+            "_id": doc_id,
+            "_source": doc,
+        }
+    )
+
+helpers.bulk(es, actions)
+logging.info("Indexed %d KB docs into %s", len(actions), INDEX)

@@ -3,7 +3,7 @@ import logging
 import json
 import re
 import hashlib
-from elasticsearch import Elasticsearch
+from elasticsearch import Elasticsearch, helpers
 from sentence_transformers import SentenceTransformer
 from app.config import settings
 
@@ -35,18 +35,31 @@ def embed_one(text: str) -> list[float]:
 with open("seeds/providers/tel_aviv_providers.json", "r", encoding="utf-8") as f:
     data = json.load(f)
 
-logging.info(f"Indexing {len(data)} providers into {INDEX} using model {MODEL}.")
+logging.info("Indexing %d providers into %s using model %s.", len(data), INDEX, MODEL)
+
+actions = []
 for p in data:
     text = f"{p['name']} {p.get('kind','')} {' '.join(p.get('services', []))} {p.get('hours','')}"
     vec = embed_one(text)  # <-- FLAT VECTOR
-    # Optional sanity check:
-    assert isinstance(vec, list) and all(
-        isinstance(x, (int, float)) for x in vec
-    ), f"Bad embedding shape: {type(vec)}"
-    # Write document
+    assert (
+        isinstance(vec, list)
+        and len(vec) == VEC_DIMS
+        and all(isinstance(x, (int, float)) for x in vec)
+    ), f"Bad embedding shape or dimensions: type={type(vec)}, len={len(vec)}"
+
     doc = p | {"embedding": vec}
     slug = re.sub(r"[^a-z0-9]+", "-", p["name"].lower()).strip("-")
     geokey = f"{p.get('geo',{}).get('lat','')},{p.get('geo',{}).get('lon','')}"
     doc_id = hashlib.sha1(f"{slug}|{geokey}".encode("utf-8")).hexdigest()
-    es.index(index=INDEX, id=doc_id, document=doc)
-logging.info("Done indexing providers.")
+
+    actions.append(
+        {
+            "_op_type": "index",
+            "_index": INDEX,
+            "_id": doc_id,
+            "_source": doc,
+        }
+    )
+
+helpers.bulk(es, actions)
+logging.info("Indexed %d providers into %s", len(actions), INDEX)
