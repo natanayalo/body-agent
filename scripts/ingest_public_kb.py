@@ -81,13 +81,12 @@ for path in paths:
 
     actions.append(
         {
-            "_op_type": "update",
+            "_op_type": "index",
             "_index": INDEX,
             "_id": doc_id,
-            "doc": doc,
-            "doc_as_upsert": True,
+            "_source": doc,
         }
     )
 
 helpers.bulk(es, actions)
-logging.info("Upserted %d KB docs into %s", len(actions), INDEX)
+logging.info("Indexed %d KB docs into %s", len(actions), INDEX)
