@@ -2,6 +2,30 @@
 
 Chronicles of recently completed work. Each entry mirrors the acceptance criteria that were previously tracked in `pr-stack.md`.
 
+## PR 28 — SSE contract test
+
+- Strengthened `/api/graph/stream` integration test to assert `text/event-stream` headers, at least one streaming `delta`, and a terminal `final` event.
+- Ensured the SSE test reuses parsed payloads instead of re-reading the raw stream, avoiding duplicate parsing logic.
+- Verified error-path coverage still emits an `error` event when streaming fails.
+
+## PR 27 — Seed container idempotent + stub-aware
+
+- Updated `scripts/ingest_public_kb.py` and `scripts/ingest_providers.py` to upsert on `_id`, skip redundant writes, and fill stub vectors so reruns leave ES ready for tests.
+- Added guardrails to fail fast when embeddings stay zero-length and to respect stub mode toggles in CI/local flows.
+- Refresh docs to describe deterministic reruns and how to reset stub data without manual cleanup.
+
+## PR 26 — LLM neutral fallback for onset (flagged)
+
+- Added `ONSET_LLM_FALLBACK` flag and language-aware neutral blurb generation when no deterministic onset fact exists.
+- Validator rejects numeric/time tokens so the fallback never introduces dosing or timing claims; falls back to templates on violations.
+- Unit coverage exercises enabled/disabled flows plus regression tests for Hebrew/English copies.
+
+## PR 25 — Paraphrase onset facts via Ollama (flagged)
+
+- Introduced `PARAPHRASE_ONSET` flag that calls the configured Ollama model to rewrite deterministic onset snippets while preserving numeric facts.
+- Added strict diffing to ensure paraphrased summaries retain all numbers and citations; gracefully degrades to canonical copy on failure.
+- Documented the new flag across README/config and added unit tests for validator edge cases and multilingual paraphrases.
+
 ## PR 24 — Improve meds interaction recall and language-aware answers
 
 - Boosted BM25 fallback with combined medication clauses so interaction docs surface even when embeddings miss.
