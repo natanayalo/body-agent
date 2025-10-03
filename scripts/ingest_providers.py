@@ -41,9 +41,11 @@ actions = []
 for p in data:
     text = f"{p['name']} {p.get('kind','')} {' '.join(p.get('services', []))} {p.get('hours','')}"
     vec = embed_one(text)  # <-- FLAT VECTOR
-    assert isinstance(vec, list) and all(
-        isinstance(x, (int, float)) for x in vec
-    ), f"Bad embedding shape: {type(vec)}"
+    assert (
+        isinstance(vec, list)
+        and len(vec) == VEC_DIMS
+        and all(isinstance(x, (int, float)) for x in vec)
+    ), f"Bad embedding shape or dimensions: type={type(vec)}, len={len(vec)}"
 
     doc = p | {"embedding": vec}
     slug = re.sub(r"[^a-z0-9]+", "-", p["name"].lower()).strip("-")
