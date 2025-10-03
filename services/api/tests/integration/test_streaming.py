@@ -26,14 +26,6 @@ def test_graph_stream_basic_query(client: TestClient):
     assert (
         events.index(final_events[0]) == len(events) - 1
     ), "final event must arrive last"
-    # Collect all streamed data
-    # Parse the stream to ensure the fallback logic still succeeds
-    events = [
-        json.loads(line.replace("data:", "").strip())
-        for line in response.text.strip().split("\n\n")
-        if line
-    ]
-    assert any("final" in event for event in events)
 
 
 def test_graph_stream_pii_redaction(client: TestClient):
