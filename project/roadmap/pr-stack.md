@@ -6,10 +6,6 @@ Refer to `project/roadmap/shipped.md` for completed slices.
 
 # Milestone 3 — Stability & CI polish
 
-## PR 29 — Docs: architecture/config/evaluation roll-up
-
-- Publish the drafted docs (`docs/architecture.md`, `docs/config.md`, `docs/evaluation.md`) and link from README.
-
 ---
 
 # Milestone 4 — Intent + privacy hardening

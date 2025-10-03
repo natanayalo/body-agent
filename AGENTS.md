@@ -13,6 +13,7 @@ Scope: These instructions apply to the whole repository. They are for AI coding 
 - `services/api/app/graph/nodes/` — pipeline nodes (supervisor, scrub, memory, health, risk_ml, places, planner, answer_gen, critic).
 - `services/api/app/graph/build.py` — LangGraph wiring and routing.
 - `services/api/app/tools/` — shared utilities (embeddings, ES client, crypto, language, etc.).
+- `docs/` — stable contributor references (architecture, configuration, evaluation guides).
 - `project/` — product docs: roadmap (`project/roadmap.md`, `project/roadmap/pr-stack.md`, `project/roadmap/shipped.md`, `project/roadmap/ideas.md`), direction (`project/vision.md`, `project/architecture.md`), and runbooks (`project/config.md`, `project/evaluation.md`, `project/privacy.md`, `project/troubleshooting.md`).
 - `seeds/` — seed KB and providers. E2E tests rely on this content.
 - `docker-compose.yml` — local dev stack; note mounted volumes.
