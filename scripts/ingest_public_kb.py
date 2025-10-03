@@ -3,7 +3,7 @@ import logging
 import glob
 import hashlib
 from datetime import datetime
-from typing import Any, List
+from typing import Any, Iterable, List
 
 from elasticsearch import Elasticsearch, helpers
 from sentence_transformers import SentenceTransformer
@@ -42,51 +42,51 @@ logging.info(
     MODEL,
 )
 
-actions = []
-for path in paths:
-    with open(path, "r", encoding="utf-8") as f:
-        text = f.read()
 
-    title = os.path.basename(path).replace(".md", "").replace("_", " ")
-    section = (
-        "general"
-        if "home" in path
-        else (
-            "interactions"
-            if "warfarin" in path
-            else "warnings" if "ibuprofen" in path else "general"
+def iter_actions() -> Iterable[dict[str, Any]]:
+    for path in paths:
+        with open(path, "r", encoding="utf-8") as f:
+            text = f.read()
+
+        title = os.path.basename(path).replace(".md", "").replace("_", " ")
+        section = (
+            "general"
+            if "home" in path
+            else (
+                "interactions"
+                if "warfarin" in path
+                else "warnings" if "ibuprofen" in path else "general"
+            )
         )
-    )
-    source_url = f"file://{path}"
+        source_url = f"file://{path}"
 
-    doc: dict[str, Any] = {
-        "title": title.title(),
-        "section": section,
-        "language": "en",
-        "jurisdiction": "generic",
-        "source_url": source_url,
-        "updated_on": datetime.utcnow().isoformat(),
-        "text": text,
-    }
+        doc: dict[str, Any] = {
+            "title": title.title(),
+            "section": section,
+            "language": "en",
+            "jurisdiction": "generic",
+            "source_url": source_url,
+            "updated_on": datetime.utcnow().isoformat(),
+            "text": text,
+        }
 
-    vec = embed_one(doc["title"] + "\n" + doc["text"])  # <-- FLAT LIST
-    assert (
-        isinstance(vec, list)
-        and len(vec) == VEC_DIMS
-        and isinstance(vec[0], (int, float))
-    ), f"Bad embedding shape/type: {type(vec)} len={getattr(vec, '__len__', None)}"
+        vec = embed_one(doc["title"] + "\n" + doc["text"])  # <-- FLAT LIST
+        assert (
+            isinstance(vec, list)
+            and len(vec) == VEC_DIMS
+            and isinstance(vec[0], (int, float))
+        ), f"Bad embedding shape/type: {type(vec)} len={getattr(vec, '__len__', None)}"
 
-    doc["embedding"] = vec
-    doc_id = hashlib.sha1((source_url + "|" + section).encode("utf-8")).hexdigest()
+        doc["embedding"] = vec
+        doc_id = hashlib.sha1((source_url + "|" + section).encode("utf-8")).hexdigest()
 
-    actions.append(
-        {
+        yield {
             "_op_type": "index",
             "_index": INDEX,
             "_id": doc_id,
             "_source": doc,
         }
-    )
 
-helpers.bulk(es, actions)
-logging.info("Indexed %d KB docs into %s", len(actions), INDEX)
+
+helpers.bulk(es, iter_actions())
+logging.info("Indexed %d KB docs into %s", len(paths), INDEX)

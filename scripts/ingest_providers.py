@@ -3,6 +3,7 @@ import logging
 import json
 import re
 import hashlib
+from typing import Any, Iterable
 from elasticsearch import Elasticsearch, helpers
 from sentence_transformers import SentenceTransformer
 from app.config import settings
@@ -37,29 +38,29 @@ with open("seeds/providers/tel_aviv_providers.json", "r", encoding="utf-8") as f
 
 logging.info("Indexing %d providers into %s using model %s.", len(data), INDEX, MODEL)
 
-actions = []
-for p in data:
-    text = f"{p['name']} {p.get('kind','')} {' '.join(p.get('services', []))} {p.get('hours','')}"
-    vec = embed_one(text)  # <-- FLAT VECTOR
-    assert (
-        isinstance(vec, list)
-        and len(vec) == VEC_DIMS
-        and all(isinstance(x, (int, float)) for x in vec)
-    ), f"Bad embedding shape or dimensions: type={type(vec)}, len={len(vec)}"
 
-    doc = p | {"embedding": vec}
-    slug = re.sub(r"[^a-z0-9]+", "-", p["name"].lower()).strip("-")
-    geokey = f"{p.get('geo',{}).get('lat','')},{p.get('geo',{}).get('lon','')}"
-    doc_id = hashlib.sha1(f"{slug}|{geokey}".encode("utf-8")).hexdigest()
+def iter_actions() -> Iterable[dict[str, Any]]:
+    for p in data:
+        text = f"{p['name']} {p.get('kind','')} {' '.join(p.get('services', []))} {p.get('hours','')}"
+        vec = embed_one(text)  # <-- FLAT VECTOR
+        assert (
+            isinstance(vec, list)
+            and len(vec) == VEC_DIMS
+            and all(isinstance(x, (int, float)) for x in vec)
+        ), f"Bad embedding shape or dimensions: type={type(vec)}, len={len(vec)}"
 
-    actions.append(
-        {
+        doc = p | {"embedding": vec}
+        slug = re.sub(r"[^a-z0-9]+", "-", p["name"].lower()).strip("-")
+        geokey = f"{p.get('geo',{}).get('lat','')},{p.get('geo',{}).get('lon','')}"
+        doc_id = hashlib.sha1(f"{slug}|{geokey}".encode("utf-8")).hexdigest()
+
+        yield {
             "_op_type": "index",
             "_index": INDEX,
             "_id": doc_id,
             "_source": doc,
         }
-    )
 
-helpers.bulk(es, actions)
-logging.info("Indexed %d providers into %s", len(actions), INDEX)
+
+helpers.bulk(es, iter_actions())
+logging.info("Indexed %d providers into %s", len(data), INDEX)
