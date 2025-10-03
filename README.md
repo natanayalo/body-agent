@@ -24,6 +24,12 @@ The Body Agent is a multi-agent system orchestrated by LangGraph. It uses a loca
 - **Streaming API**: Real-time, node-by-node event streaming for a responsive UX.
 - **Encryption at Rest**: Per-user key encryption for private memory values.
 
+## Documentation
+
+- [Architecture](docs/architecture.md) — Graph topology, node responsibilities, and streaming contract.
+- [Configuration](docs/config.md) — Environment variables and mode profiles for dev, CI, and prod.
+- [Evaluation](docs/evaluation.md) — Test matrix, coverage gates, and QA checklist.
+
 ## Getting Started
 
 1.  **Prerequisites:**

@@ -8,6 +8,12 @@ Chronicles of recently completed work. Each entry mirrors the acceptance criteri
 - Ensured the SSE test reuses parsed payloads instead of re-reading the raw stream, avoiding duplicate parsing logic.
 - Verified error-path coverage still emits an `error` event when streaming fails.
 
+## PR 29 — Docs: architecture/config/evaluation roll-up
+
+- Published durable contributor docs under `docs/`: architecture overview, configuration matrix, and evaluation guide.
+- Linked the new documentation from `README.md` so newcomers can find architecture, config, and quality guardrails.
+- Clarified seed idempotency and testing expectations to keep deterministic workflows aligned with CI.
+
 ## PR 27 — Seed container idempotent + stub-aware
 
 - Updated `scripts/ingest_public_kb.py` and `scripts/ingest_providers.py` to upsert on `_id`, skip redundant writes, and fill stub vectors so reruns leave ES ready for tests.
