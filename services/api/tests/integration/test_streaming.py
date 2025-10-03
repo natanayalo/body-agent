@@ -8,19 +8,24 @@ def test_graph_stream_basic_query(client: TestClient):
         json={"user_id": "test-user", "query": "I have a fever of 38.8C"},
     )
     assert response.status_code == 200
-    assert "text/event-stream" in response.headers["content-type"]
-    # Collect all streamed data
-    streamed_data = response.text
-    # Split the streamed data into individual JSON objects
-    json_objects = [
-        line.replace("data: ", "")
-        for line in streamed_data.strip().split("\n\n")
-        if line
-    ]
-    # Parse each JSON object
-    events = [json.loads(obj) for obj in json_objects]
-    # Check for the final state
-    assert any("final" in event for event in events)
+    assert response.headers["content-type"].startswith("text/event-stream")
+    raw_events = [line.strip() for line in response.text.split("\n\n") if line.strip()]
+    assert raw_events, "expected at least one SSE event"
+
+    # Every event should contain a data field and well-formed JSON payload
+    events = []
+    for raw in raw_events:
+        assert raw.startswith("data:"), f"malformed SSE chunk: {raw!r}"
+        payload = raw[len("data:") :].strip()
+        events.append(json.loads(payload))
+
+    # Contract checks: at least one non-final delta and a terminal final event
+    assert any("delta" in ev for ev in events), "expected streaming deltas"
+    final_events = [ev for ev in events if "final" in ev]
+    assert final_events, "expected final event"
+    assert (
+        events.index(final_events[0]) == len(events) - 1
+    ), "final event must arrive last"
 
 
 def test_graph_stream_pii_redaction(client: TestClient):
