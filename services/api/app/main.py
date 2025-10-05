@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query as QueryParam
+from fastapi import FastAPI, Query as QueryParam, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from starlette.routing import Route
 from pydantic import BaseModel, Field
@@ -8,6 +8,7 @@ import os
 import re
 import json
 from datetime import datetime, timezone
+import uuid
 
 from app.config import settings
 from app.config.logging import configure_logging
@@ -64,11 +65,17 @@ class Query(BaseModel):
     lang: str | None = Field(default=None, min_length=2, max_length=5)
 
 
-def _initial_state(q: Query, lang_override: str | None) -> BodyState:
+def _initial_state(
+    q: Query, lang_override: str | None, request_id: str | None = None
+) -> BodyState:
     state: BodyState = {"user_id": q.user_id, "user_query": q.query, "messages": []}
     normalized = normalize_language_code(lang_override or q.lang)
     if normalized:
         state["language"] = cast(Literal["en", "he"], normalized)
+    if request_id:
+        dbg = state.get("debug") or {}
+        dbg["request_id"] = request_id
+        state["debug"] = dbg
     return state
 
 
@@ -80,14 +87,32 @@ def _record_run_metadata(final_state: BodyState) -> None:
     app.state.last_run_completed_at = datetime.now(timezone.utc).isoformat()
 
 
+def _request_id_from(request: Request) -> str:
+    incoming = request.headers.get("x-request-id") or request.headers.get(
+        "X-Request-Id"
+    )
+    if incoming:
+        try:
+            return str(uuid.UUID(str(incoming)))
+        except Exception:
+            return str(incoming).strip()
+    return str(uuid.uuid4())
+
+
 @app.post("/api/graph/run")
-async def run_graph(q: Query, lang: str | None = QueryParam(default=None)):
+async def run_graph(
+    request: Request, q: Query, lang: str | None = QueryParam(default=None)
+):
     logger.info(f"Running graph for user {q.user_id}")
     try:
-        state = _initial_state(q, lang)
+        rid = _request_id_from(request)
+        state = _initial_state(q, lang, rid)
         final_state = await app.state.graph.ainvoke(state)
+        dbg = final_state.get("debug") or {}
+        dbg["request_id"] = rid
+        final_state["debug"] = dbg
         logger.debug(f"Query: {final_state.get('user_query_redacted', q.query)}")
-        logger.info(f"Graph run completed for user {q.user_id}")
+        logger.info(f"Graph run completed for user {q.user_id} rid={rid}")
         _record_run_metadata(final_state)
         return {"state": final_state}
     except Exception as e:
@@ -97,10 +122,11 @@ async def run_graph(q: Query, lang: str | None = QueryParam(default=None)):
 
 @app.post("/api/graph/stream")
 async def stream_graph(
-    q: Query, lang: str | None = QueryParam(default=None)
+    request: Request, q: Query, lang: str | None = QueryParam(default=None)
 ) -> StreamingResponse:
     logger.info(f"Streaming graph for user {q.user_id}")
-    state = _initial_state(q, lang)
+    rid = _request_id_from(request)
+    state = _initial_state(q, lang, rid)
 
     async def _stream_chunks() -> AsyncGenerator[str, None]:
         try:
@@ -124,7 +150,7 @@ async def stream_graph(
                         logger.warning(
                             f"Error updating stream state with delta {delta}: {e}"
                         )
-                    yield f"data: {json.dumps({'node': node, 'delta': delta})}\n\n"
+                    yield f"data: {json.dumps({'request_id': rid, 'node': node, 'delta': delta})}\n\n"
 
             # Emit the exact final state. Prefer a fresh ainvoke; fallback to accumulated
             try:
@@ -132,24 +158,29 @@ async def stream_graph(
             except Exception:
                 final_state = cast(BodyState, current_state)
 
-            yield f"data: {json.dumps({'final': {'state': final_state}})}\n\n"
-            logger.info(f"Graph stream completed for user {q.user_id}")
+            dbg = final_state.get("debug") or {}
+            dbg["request_id"] = rid
+            final_state["debug"] = dbg
+            yield f"data: {json.dumps({'request_id': rid, 'final': {'state': final_state}})}\n\n"
+            logger.info(f"Graph stream completed for user {q.user_id} rid={rid}")
             _record_run_metadata(final_state)
         except Exception as e:
             logger.error(
                 f"Graph stream failed for user {q.user_id}: {str(e)}", exc_info=True
             )
             # Yield a final error message to the client if possible
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            yield f"data: {json.dumps({'request_id': rid, 'error': str(e)})}\n\n"
 
     return StreamingResponse(_stream_chunks(), media_type="text/event-stream")
 
 
 @app.post("/api/run")
-async def run_legacy(q: Query, lang: str | None = QueryParam(default=None)):
+async def run_legacy(
+    request: Request, q: Query, lang: str | None = QueryParam(default=None)
+):
     """Legacy endpoint; now routes through the compiled LangGraph graph."""
     logger.info(f"Legacy endpoint called for user {q.user_id}")
-    return await run_graph(q, lang)
+    return await run_graph(request, q, lang)
 
 
 # Simple health and route inspection

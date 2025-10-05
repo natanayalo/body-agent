@@ -108,6 +108,31 @@ def test_graph_stream_final_state_matches_run(client: TestClient):
         assert run_state.get(key) == final_state.get(key)
 
 
+def test_graph_stream_request_id_stability(client: TestClient):
+    payload = {"user_id": "test-user", "query": "weekly check-in"}
+    forced = "123e4567-e89b-12d3-a456-426614174000"
+
+    r1 = client.post("/api/graph/run", headers={"X-Request-ID": forced}, json=payload)
+    assert r1.status_code == 200
+    rid_run = r1.json()["state"].get("debug", {}).get("request_id")
+    assert rid_run == forced
+
+    r2 = client.post(
+        "/api/graph/stream", headers={"X-Request-ID": forced}, json=payload
+    )
+    assert r2.status_code == 200
+    chunks = [
+        json.loads(line.replace("data: ", ""))
+        for line in r2.text.strip().split("\n\n")
+        if line
+    ]
+    assert chunks, "expected SSE chunks"
+    rids = {ev.get("request_id") for ev in chunks}
+    assert rids == {forced}
+    final = next(ev["final"]["state"] for ev in reversed(chunks) if "final" in ev)
+    assert final.get("debug", {}).get("request_id") == forced
+
+
 def test_graph_stream_error_event(client: TestClient, monkeypatch):
     # Force astream to raise to exercise error path
     import app.main as main_mod
