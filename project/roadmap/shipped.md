@@ -20,6 +20,12 @@ Chronicles of recently completed work. Each entry mirrors the acceptance criteri
 - `_load_exemplars` uses real temp files in unit tests to cover JSON/JSONL parsing, malformed content, and dynamic watcher behaviour.
 - Full test suite passes with deterministic reload coverage to support hot-reload workflows.
 
+## PR 31 — PII scrub expansion
+
+- Extended `scrub` to redact government IDs and address fragments with `[gov_id]` and `[address]` tokens alongside existing `[ssn]`, `[phone]`, and `[email]`.
+- Moved all scrubber regexes to module-level compiled patterns for performance; ordered redactions so SSNs are recognized first, then generalized gov-ID phrases.
+- Added EN/HE unit tests, including multi-word Hebrew streets and long English street names, asserting both token presence and removal of the original PII fragments.
+
 ## PR 27 — Seed container idempotent + stub-aware
 
 - Updated `scripts/ingest_public_kb.py` and `scripts/ingest_providers.py` to upsert on `_id`, skip redundant writes, and fill stub vectors so reruns leave ES ready for tests.
