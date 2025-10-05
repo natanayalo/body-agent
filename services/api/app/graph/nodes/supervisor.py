@@ -10,11 +10,11 @@ from app.tools.embeddings import embed
 from app.tools.med_normalize import find_medications_in_text
 
 # ---- Config ----
-_EX_PATH = os.getenv("INTENT_EXEMPLARS_PATH")
 _THRESHOLD = float(os.getenv("INTENT_THRESHOLD", "0.30"))
 _MARGIN = float(os.getenv("INTENT_MARGIN", "0.05"))
 _WATCH = os.getenv("INTENT_EXEMPLARS_WATCH", "false").strip().lower() == "true"
-_EX_MTIME: Optional[float] = None
+_EX_MTIME_NS: Optional[int] = None
+_ACTIVE_PATH: Optional[str] = None
 
 _DEFAULT_EXAMPLES: Dict[str, List[str]] = {
     "symptom": [
@@ -95,10 +95,25 @@ def _parse_jsonl_exemplars(lines: List[str]) -> Dict[str, List[str]]:
     return {k: v for k, v in buckets.items() if v}
 
 
+def _current_path() -> Optional[str]:
+    path = os.getenv("INTENT_EXEMPLARS_PATH", "").strip()
+    return path or None
+
+
+def _stat_mtime_ns(path: str) -> Optional[int]:
+    try:
+        stat_result = os.stat(path)
+    except OSError:
+        return None
+    return getattr(
+        stat_result, "st_mtime_ns", int(stat_result.st_mtime * 1_000_000_000)
+    )
+
+
 def _load_exemplars() -> Dict[str, List[str]]:
     # Load exemplars from file if provided; otherwise defaults
-    global _EX_MTIME
-    path = _EX_PATH
+    global _EX_MTIME_NS, _ACTIVE_PATH
+    path = _current_path()
     if path and os.path.exists(path):
         try:
             with open(path, "r", encoding="utf-8") as f:
@@ -107,25 +122,30 @@ def _load_exemplars() -> Dict[str, List[str]]:
                 else:
                     data = _parse_json_exemplars(json.load(f))
             if data:
-                try:
-                    _EX_MTIME = os.path.getmtime(path)
-                except OSError:
-                    _EX_MTIME = None
+                _ACTIVE_PATH = path
+                _EX_MTIME_NS = _stat_mtime_ns(path)
                 logging.info(f"Loaded intent exemplars from {path}")
                 return data
             logging.warning(
                 f"Exemplars file {path} is empty or malformed, using default exemplars."
             )
+            _ACTIVE_PATH = path
+            _EX_MTIME_NS = _stat_mtime_ns(path)
             return _DEFAULT_EXAMPLES
         except (OSError, json.JSONDecodeError) as e:
             logging.error(
                 f"Failed to load intent exemplars from {path}: {e}", exc_info=True
             )
             logging.info("Using default intent exemplars.")
+            _ACTIVE_PATH = path
+            _EX_MTIME_NS = _stat_mtime_ns(path)
             return _DEFAULT_EXAMPLES
-    logging.info(
-        "INTENT_EXEMPLARS_PATH not set or file not found, using default exemplars."
-    )
+    if path:
+        logging.info(
+            "INTENT_EXEMPLARS_PATH not set or file not found, using default exemplars."
+        )
+    _ACTIVE_PATH = path or None
+    _EX_MTIME_NS = None
     return _DEFAULT_EXAMPLES
 
 
@@ -147,20 +167,27 @@ _rebuild_vectors()
 def _maybe_reload() -> None:
     if not _WATCH:
         return
-    path = _EX_PATH
-    if not path or not os.path.exists(path):
-        return
-    try:
-        mtime = os.path.getmtime(path)
-    except OSError:
-        return
-    global _EX_MTIME, _EXEMPLARS
-    if _EX_MTIME is None or mtime > _EX_MTIME:
+    global _ACTIVE_PATH, _EX_MTIME_NS, _EXEMPLARS
+    path = _current_path()
+    reload_reason: Optional[str] = None
+
+    if path != _ACTIVE_PATH:
+        if path or _ACTIVE_PATH is not None:
+            reload_reason = "path change"
+    elif path:
+        mtime_ns = _stat_mtime_ns(path)
+        if mtime_ns is None:
+            if _EX_MTIME_NS is not None:
+                reload_reason = "file became unavailable"
+        else:
+            if _EX_MTIME_NS is None or mtime_ns > _EX_MTIME_NS:
+                reload_reason = "file change"
+
+    if reload_reason:
         new_map = _load_exemplars()
-        if new_map:
-            _EXEMPLARS = new_map
-            _rebuild_vectors()
-            logging.info("Reloaded intent exemplars after file change")
+        _EXEMPLARS = new_map
+        _rebuild_vectors()
+        logging.info(f"Reloaded intent exemplars after {reload_reason}")
 
 
 def detect_intent(

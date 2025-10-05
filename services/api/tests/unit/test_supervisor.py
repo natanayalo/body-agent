@@ -1,19 +1,8 @@
 import os
 import json
 import pytest
-from unittest.mock import MagicMock
 from app.graph.nodes import supervisor
 from app.graph.state import BodyState
-
-
-# Mock the os.path.exists and json.load for _load_exemplars tests
-@pytest.fixture
-def mock_load_exemplars_deps(monkeypatch):
-    mock_exists = MagicMock()
-    mock_json_load = MagicMock()
-    monkeypatch.setattr(os.path, "exists", mock_exists)
-    monkeypatch.setattr(json, "load", mock_json_load)
-    yield mock_exists, mock_json_load
 
 
 @pytest.fixture(autouse=True)
@@ -24,62 +13,47 @@ def reload_supervisor_module():
     yield
 
 
-def test_load_exemplars_from_file_success(monkeypatch, mock_load_exemplars_deps):
-    mock_exists, mock_json_load = mock_load_exemplars_deps
-    mock_exists.return_value = True
-    mock_json_load.return_value = {
+def test_load_exemplars_from_file_success(monkeypatch, tmp_path):
+    mapping = {
         "symptom": ["test symptom"],
         "meds": ["test meds"],
         "appointment": ["test appointment"],
         "routine": ["test routine"],
-        "unknown": ["unknown intent"],  # Should be filtered out
+        "unknown": ["drop"],
     }
-    monkeypatch.setenv("INTENT_EXEMPLARS_PATH", "/tmp/test_exemplars.json")
+    file_path = tmp_path / "exemplars.json"
+    file_path.write_text(json.dumps(mapping), encoding="utf-8")
 
-    # Mock builtins.open to simulate reading from the file
-    from unittest.mock import mock_open
-
-    mock_file_content = json.dumps(mock_json_load.return_value)
-    mock_file = mock_open(read_data=mock_file_content)
-    monkeypatch.setattr("builtins.open", mock_file)
+    monkeypatch.setenv("INTENT_EXEMPLARS_PATH", str(file_path))
 
     import importlib
 
     importlib.reload(supervisor)
 
-    exemplars = supervisor._EXEMPLARS
-    assert "symptom" in exemplars
-    assert "test symptom" in exemplars["symptom"]
-    assert "unknown" not in exemplars  # Ensure unknown intents are filtered
+    assert supervisor._EXEMPLARS["symptom"] == ["test symptom"]
+    assert "unknown" not in supervisor._EXEMPLARS
 
 
-def test_load_exemplars_from_file_malformed(monkeypatch, mock_load_exemplars_deps):
-    mock_exists, mock_json_load = mock_load_exemplars_deps
-    mock_exists.return_value = True
-    mock_json_load.side_effect = json.JSONDecodeError(
-        "malformed", "doc", 0
-    )  # Simulate malformed JSON
-    monkeypatch.setenv("INTENT_EXEMPLARS_PATH", "/tmp/malformed_exemplars.json")
+def test_load_exemplars_from_file_malformed(monkeypatch, tmp_path):
+    file_path = tmp_path / "malformed.json"
+    file_path.write_text("{not valid json}", encoding="utf-8")
+    monkeypatch.setenv("INTENT_EXEMPLARS_PATH", str(file_path))
 
     import importlib
 
     importlib.reload(supervisor)
 
-    exemplars = supervisor._EXEMPLARS
-    assert exemplars == supervisor._DEFAULT_EXAMPLES  # Should fall back to default
+    assert supervisor._EXEMPLARS == supervisor._DEFAULT_EXAMPLES
 
 
-def test_load_exemplars_from_file_non_existent(monkeypatch, mock_load_exemplars_deps):
-    mock_exists, _ = mock_load_exemplars_deps
-    mock_exists.return_value = False  # Simulate non-existent file
+def test_load_exemplars_from_file_non_existent(monkeypatch):
     monkeypatch.setenv("INTENT_EXEMPLARS_PATH", "/tmp/non_existent_exemplars.json")
 
     import importlib
 
     importlib.reload(supervisor)
 
-    exemplars = supervisor._EXEMPLARS
-    assert exemplars == supervisor._DEFAULT_EXAMPLES  # Should fall back to default
+    assert supervisor._EXEMPLARS == supervisor._DEFAULT_EXAMPLES
 
 
 def test_detect_intent_returns_other_if_no_match(fake_embed):
@@ -101,19 +75,10 @@ def test_detect_intent_returns_other_if_no_match(fake_embed):
     supervisor._MARGIN = original_margin
 
 
-def test_load_exemplars_from_file_empty_or_invalid_content(
-    monkeypatch, mock_load_exemplars_deps
-):
-    mock_exists, mock_json_load = mock_load_exemplars_deps
-    mock_exists.return_value = True
-    mock_json_load.return_value = {"unknown_key": ["some_value"]}  # Invalid content
-    monkeypatch.setenv("INTENT_EXEMPLARS_PATH", "/tmp/empty_exemplars.json")
-
-    from unittest.mock import mock_open
-
-    mock_file_content = json.dumps(mock_json_load.return_value)
-    mock_file = mock_open(read_data=mock_file_content)
-    monkeypatch.setattr("builtins.open", mock_file)
+def test_load_exemplars_from_file_empty_or_invalid_content(monkeypatch, tmp_path):
+    file_path = tmp_path / "invalid.json"
+    file_path.write_text(json.dumps({"unknown_key": ["some_value"]}), encoding="utf-8")
+    monkeypatch.setenv("INTENT_EXEMPLARS_PATH", str(file_path))
 
     import importlib
 
@@ -320,11 +285,24 @@ def test_watches_exemplars_for_changes(monkeypatch, tmp_path):
 
     # Now add appointment exemplars and bump mtime by rewriting the file
     mapping["appointment"] = ["book a lab", "schedule a doctor visit"]
-    import time
-
-    time.sleep(1.1)
+    prev_stat = os.stat(p)
     p.write_text(json.dumps(mapping), encoding="utf-8")
+    os.utime(
+        p,
+        ns=(prev_stat.st_mtime_ns + 1_000_000, prev_stat.st_mtime_ns + 1_000_000),
+    )
 
     # After change, watch should reload and improve routing
     out = sup.detect_intent("book a lab appointment")
     assert out == "appointment"
+
+    # Switching PATH should trigger a reload to the new file
+    second = tmp_path / "second.json"
+    second.write_text(
+        json.dumps({"appointment": ["book a follow-up appointment"]}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("INTENT_EXEMPLARS_PATH", str(second))
+
+    assert sup.detect_intent("book a follow-up appointment") == "appointment"
