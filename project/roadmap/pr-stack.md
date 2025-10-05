@@ -10,10 +10,6 @@ Refer to `project/roadmap/shipped.md` for completed slices.
 
 # Milestone 4 — Intent + privacy hardening
 
-## PR 30 — Intent exemplar refresh + hot reload polish
-
-- Ensure `INTENT_EXEMPLARS_PATH` watcher works end-to-end; add unit coverage for loader.
-
 ## PR 31 — PII scrub expansion
 
 - Extend scrubber regexes for gov IDs and address fragments; redact to `[gov_id]` / `[address]`; cover with unit tests.
