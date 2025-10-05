@@ -14,6 +14,12 @@ Chronicles of recently completed work. Each entry mirrors the acceptance criteri
 - Linked the new documentation from `README.md` so newcomers can find architecture, config, and quality guardrails.
 - Clarified seed idempotency and testing expectations to keep deterministic workflows aligned with CI.
 
+## PR 30 — Intent exemplar refresh + hot reload polish
+
+- Supervisor watcher now tracks both exemplar file path and `st_mtime_ns`, reloading cleanly on edits, deletes, or path changes.
+- `_load_exemplars` uses real temp files in unit tests to cover JSON/JSONL parsing, malformed content, and dynamic watcher behaviour.
+- Full test suite passes with deterministic reload coverage to support hot-reload workflows.
+
 ## PR 27 — Seed container idempotent + stub-aware
 
 - Updated `scripts/ingest_public_kb.py` and `scripts/ingest_providers.py` to upsert on `_id`, skip redundant writes, and fill stub vectors so reruns leave ES ready for tests.
