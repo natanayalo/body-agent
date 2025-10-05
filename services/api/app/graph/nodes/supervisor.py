@@ -144,7 +144,7 @@ def _load_exemplars() -> Dict[str, List[str]]:
         logging.info(
             "INTENT_EXEMPLARS_PATH not set or file not found, using default exemplars."
         )
-    _ACTIVE_PATH = None
+    _ACTIVE_PATH = path or None
     _EX_MTIME_NS = None
     return _DEFAULT_EXAMPLES
 
@@ -167,28 +167,27 @@ _rebuild_vectors()
 def _maybe_reload() -> None:
     if not _WATCH:
         return
-    path = _current_path()
     global _ACTIVE_PATH, _EX_MTIME_NS, _EXEMPLARS
+    path = _current_path()
+    reload_reason: Optional[str] = None
+
     if path != _ACTIVE_PATH:
+        if path or _ACTIVE_PATH is not None:
+            reload_reason = "path change"
+    elif path:
+        mtime_ns = _stat_mtime_ns(path)
+        if mtime_ns is None:
+            if _EX_MTIME_NS is not None:
+                reload_reason = "file became unavailable"
+        else:
+            if _EX_MTIME_NS is None or mtime_ns > _EX_MTIME_NS:
+                reload_reason = "file change"
+
+    if reload_reason:
         new_map = _load_exemplars()
         _EXEMPLARS = new_map
         _rebuild_vectors()
-        logging.info("Reloaded intent exemplars after path change")
-        return
-    if not path:
-        return
-    mtime_ns = _stat_mtime_ns(path)
-    if mtime_ns is None:
-        new_map = _load_exemplars()
-        _EXEMPLARS = new_map
-        _rebuild_vectors()
-        logging.info("Reloaded intent exemplars after file became unavailable")
-        return
-    if _EX_MTIME_NS is None or mtime_ns > _EX_MTIME_NS:
-        new_map = _load_exemplars()
-        _EXEMPLARS = new_map
-        _rebuild_vectors()
-        logging.info("Reloaded intent exemplars after file change")
+        logging.info(f"Reloaded intent exemplars after {reload_reason}")
 
 
 def detect_intent(
