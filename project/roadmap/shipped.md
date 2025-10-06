@@ -26,6 +26,18 @@ Chronicles of recently completed work. Each entry mirrors the acceptance criteri
 - Moved all scrubber regexes to module-level compiled patterns for performance; ordered redactions so SSNs are recognized first, then generalized gov-ID phrases.
 - Added EN/HE unit tests, including multi-word Hebrew streets and long English street names, asserting both token presence and removal of the original PII fragments.
 
+## PR 32 — Request ID propagation (end-to-end)
+
+- `/api/graph/run` and `/api/graph/stream` now accept/emit `request_id`, defaulting to UUIDv4 when the header is absent.
+- SSE deltas/final/error events include the `request_id`; `state.debug.request_id` matches the non-streaming response.
+- Logging pipeline uses a contextvar filter to prefix log lines with `rid=…`; integration tests cover header override and generation.
+
+## PR 33 — Risk eval harness (golden tests)
+
+- Added `seeds/evals/risk/en.jsonl` and `services/api/tests/golden/risk/test_eval_risk.py` to run stubbed classifier cases and print a label summary.
+- `make eval-risk` target runs only the risk golden suite for quick regression checks.
+- Golden runs fail fast on malformed JSONL so seed issues surface immediately.
+
 ## PR 27 — Seed container idempotent + stub-aware
 
 - Updated `scripts/ingest_public_kb.py` and `scripts/ingest_providers.py` to upsert on `_id`, skip redundant writes, and fill stub vectors so reruns leave ES ready for tests.
