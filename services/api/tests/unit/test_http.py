@@ -52,6 +52,8 @@ def test_safe_request_blocks_unlisted_domain(monkeypatch):
     )
     with pytest.raises(http.OutboundDomainError):
         http.safe_get("https://other.com/", allowlist=["example.com"])
+    with pytest.raises(http.OutboundDomainError):
+        http.safe_get("https://foobar.com/", allowlist=["bar.com"])
 
 
 def test_safe_request_no_allowlist_allows_all(monkeypatch):
@@ -63,6 +65,12 @@ def test_safe_request_no_allowlist_allows_all(monkeypatch):
 def test_safe_request_invalid_scheme():
     with pytest.raises(ValueError):
         http.safe_get("ftp://example.com/file")
+
+
+def test_safe_request_allowlist_is_case_insensitive(monkeypatch):
+    monkeypatch.setattr(http.requests, "request", lambda *a, **k: DummyResponse("ok"))
+    resp = http.safe_get("https://example.com", allowlist=["EXAMPLE.COM"])
+    assert isinstance(resp, DummyResponse)
 
 
 def test_safe_request_blocks_redirects(monkeypatch):
@@ -82,9 +90,14 @@ def test_safe_request_allows_ip_explicit(monkeypatch):
 
 
 def test_env_allowlist(monkeypatch):
-    monkeypatch.setenv("OUTBOUND_ALLOWLIST", "example.com, test.org")
+    monkeypatch.setenv(
+        "OUTBOUND_ALLOWLIST",
+        " example.com, ,  TEST.org  ",
+    )
     monkeypatch.setattr(http.requests, "request", lambda *a, **k: DummyResponse("ok"))
     resp = http.safe_get("https://test.org/resource")
+    assert isinstance(resp, DummyResponse)
+    resp = http.safe_get("https://example.com/resource")
     assert isinstance(resp, DummyResponse)
     with pytest.raises(http.OutboundDomainError):
         http.safe_get("https://evil.net")

@@ -46,9 +46,9 @@ def safe_request(
 
     host = parsed.hostname or ""
     allowed_config = (
-        [entry.lower() for entry in allowlist]
+        {item.strip().lower() for item in allowlist if item.strip()}
         if allowlist is not None
-        else list(_parse_allowlist())
+        else _parse_allowlist()
     )
 
     if allowed_config:
@@ -62,12 +62,12 @@ def safe_request(
         if is_ip:
             if host.lower() not in allowed_config:
                 raise OutboundDomainError(
-                    f"IP '{host}' is not permitted (allowed: {', '.join(allowed_config)})"
+                    f"IP '{host}' is not permitted (allowed: {', '.join(sorted(allowed_config))})"
                 )
         else:
             if not _host_matches(host, allowed_config):
                 raise OutboundDomainError(
-                    f"Domain '{host}' is not permitted (allowed: {', '.join(allowed_config)})"
+                    f"Domain '{host}' is not permitted (allowed: {', '.join(sorted(allowed_config))})"
                 )
 
     allow_redirects = kwargs.pop("allow_redirects", False)
