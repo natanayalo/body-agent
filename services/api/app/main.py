@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 import uuid
 
 from app.config import settings
-from app.config.logging import configure_logging
+from app.config.logging import configure_logging, set_request_id, clear_request_id
 
 from app.tools.es_client import ensure_indices, get_es_client
 from app.graph.state import BodyState
@@ -106,6 +106,7 @@ async def run_graph(
     logger.info(f"Running graph for user {q.user_id}")
     try:
         rid = _request_id_from(request)
+        set_request_id(rid)
         state = _initial_state(q, lang, rid)
         final_state = await app.state.graph.ainvoke(state)
         dbg = final_state.get("debug") or {}
@@ -118,6 +119,8 @@ async def run_graph(
     except Exception as e:
         logger.error(f"Graph run failed for user {q.user_id}: {str(e)}", exc_info=True)
         raise
+    finally:
+        clear_request_id()
 
 
 @app.post("/api/graph/stream")
@@ -132,6 +135,7 @@ async def stream_graph(
         try:
             # Keep an accumulated view of the state while streaming deltas
             current_state: Dict[str, Any] = dict(state)
+            set_request_id(rid)
 
             async for chunk in app.state.graph.astream(state):
                 node, delta = next(iter(chunk.items()))
@@ -170,6 +174,8 @@ async def stream_graph(
             )
             # Yield a final error message to the client if possible
             yield f"data: {json.dumps({'request_id': rid, 'error': str(e)})}\n\n"
+        finally:
+            clear_request_id()
 
     return StreamingResponse(_stream_chunks(), media_type="text/event-stream")
 

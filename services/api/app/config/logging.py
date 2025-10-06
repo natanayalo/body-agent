@@ -1,6 +1,7 @@
 from __future__ import annotations
 import os
 import logging
+import contextvars
 import tempfile
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
@@ -15,6 +16,31 @@ def _resolve_log_dir() -> Path:
     if data:
         return Path(data) / "logs"
     return Path(tempfile.gettempdir()) / "body-agent"
+
+
+_rid_var: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "request_id", default="-"
+)
+
+
+class RequestIdFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:  # type: ignore[override]
+        try:
+            record.request_id = _rid_var.get()  # type: ignore[attr-defined]
+        except Exception:  # pragma: no cover - defensive fallback
+            record.request_id = "-"  # type: ignore[attr-defined]
+        return True
+
+
+def set_request_id(rid: str) -> None:
+    try:
+        _rid_var.set(rid)
+    except Exception:  # pragma: no cover - defensive fallback
+        _rid_var.set("-")
+
+
+def clear_request_id() -> None:
+    _rid_var.set("-")
 
 
 def configure_logging() -> Path:
@@ -36,11 +62,15 @@ def configure_logging() -> Path:
     for h in list(root.handlers):
         root.removeHandler(h)
 
-    fmt = logging.Formatter("%(asctime)s | [%(levelname)s] [%(name)s] %(message)s")
+    fmt = logging.Formatter(
+        "%(asctime)s | [%(levelname)s] [%(name)s] rid=%(request_id)s %(message)s"
+    )
     fileh = RotatingFileHandler(logfile, maxBytes=2_000_000, backupCount=2)
     fileh.setFormatter(fmt)
+    fileh.addFilter(RequestIdFilter())
     rooth = logging.StreamHandler()
     rooth.setFormatter(fmt)
+    rooth.addFilter(RequestIdFilter())
 
     root.addHandler(fileh)
     root.addHandler(rooth)

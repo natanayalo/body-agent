@@ -5,7 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from app.config.logging import configure_logging, _resolve_log_dir
+from app.config.logging import (
+    configure_logging,
+    _resolve_log_dir,
+    set_request_id,
+    clear_request_id,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -177,3 +182,50 @@ def test_pii_scrubbing_in_logs(client, caplog):
             assert pii_query not in record.message
             assert "test@example.com" not in record.message
             assert "123-456-7890" not in record.message
+
+
+def test_request_id_in_logs():
+    # Build a dedicated logger with our filter and formatter
+    from io import StringIO
+    from app.config.logging import RequestIdFilter
+
+    buf = StringIO()
+    handler = logging.StreamHandler(buf)
+    fmt = logging.Formatter(
+        "%(asctime)s | [%(levelname)s] [%(name)s] rid=%(request_id)s %(message)s"
+    )
+    handler.setFormatter(fmt)
+    handler.addFilter(RequestIdFilter())
+
+    logger = logging.getLogger("test.requestid")
+    logger.setLevel(logging.INFO)
+    logger.addHandler(handler)
+
+    try:
+        set_request_id("abc-123")
+        logger.info("hello")
+        clear_request_id()
+        logger.info("world")
+    finally:
+        logger.removeHandler(handler)
+
+    output = buf.getvalue()
+    assert "rid=abc-123" in output and "hello" in output
+    assert "rid=-" in output and "world" in output
+
+
+def test_request_id_filter_direct():
+    from app.config.logging import RequestIdFilter
+
+    f = RequestIdFilter()
+    # Default (cleared) should set '-'
+    clear_request_id()
+    rec = logging.LogRecord("x", logging.INFO, __file__, 0, "msg", (), None)
+    assert f.filter(rec) is True
+    assert getattr(rec, "request_id", "") == "-"
+
+    # After setting, filter should copy the value
+    set_request_id("rid-xyz")
+    rec2 = logging.LogRecord("x", logging.INFO, __file__, 0, "msg2", (), None)
+    assert f.filter(rec2) is True
+    assert getattr(rec2, "request_id", "") == "rid-xyz"
