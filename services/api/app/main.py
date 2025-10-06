@@ -88,11 +88,11 @@ def _record_run_metadata(final_state: BodyState) -> None:
 def _request_id_from(request: Request) -> str:
     # Headers mapping is case-insensitive; single lookup suffices
     incoming = request.headers.get("x-request-id")
-    if incoming:
+    if incoming and (stripped := incoming.strip()):
         try:
-            return str(uuid.UUID(incoming))
+            return str(uuid.UUID(stripped))
         except ValueError:
-            return incoming.strip()
+            return stripped
     return str(uuid.uuid4())
 
 
