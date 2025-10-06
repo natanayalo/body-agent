@@ -90,22 +90,23 @@ def _request_id_from(request: Request) -> str:
     incoming = request.headers.get("x-request-id")
     if incoming:
         try:
-            return str(uuid.UUID(str(incoming)))
+            return str(uuid.UUID(incoming))
         except ValueError:
-            return str(incoming).strip()
+            return incoming.strip()
     return str(uuid.uuid4())
 
 
 @app.post("/api/graph/run")
 async def run_graph(
     request: Request, q: Query, lang: str | None = QueryParam(default=None)
-):
+) -> dict:
     logger.info(f"Running graph for user {q.user_id}")
     try:
         rid = _request_id_from(request)
         set_request_id(rid)
         state = _initial_state(q, lang, rid)
         final_state = await app.state.graph.ainvoke(state)
+        # Defensive: ensure request_id remains present even if nodes overwrite debug
         final_state.setdefault("debug", {})["request_id"] = rid
         logger.debug(f"Query: {final_state.get('user_query_redacted', q.query)}")
         logger.info(f"Graph run completed for user {q.user_id} rid={rid}")
@@ -157,6 +158,7 @@ async def stream_graph(
             except Exception:
                 final_state = cast(BodyState, current_state)
 
+            # Defensive: ensure request_id remains in final state
             final_state.setdefault("debug", {})["request_id"] = rid
             yield f"data: {json.dumps({'request_id': rid, 'final': {'state': final_state}})}\n\n"
             logger.info(f"Graph stream completed for user {q.user_id} rid={rid}")
@@ -176,7 +178,7 @@ async def stream_graph(
 @app.post("/api/run")
 async def run_legacy(
     request: Request, q: Query, lang: str | None = QueryParam(default=None)
-):
+) -> dict:
     """Legacy endpoint; now routes through the compiled LangGraph graph."""
     logger.info(f"Legacy endpoint called for user {q.user_id}")
     return await run_graph(request, q, lang)

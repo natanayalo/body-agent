@@ -1,4 +1,5 @@
 import logging
+from io import StringIO
 import os
 import tempfile
 from pathlib import Path
@@ -10,6 +11,7 @@ from app.config.logging import (
     _resolve_log_dir,
     set_request_id,
     clear_request_id,
+    RequestIdFilter,
 )
 
 
@@ -186,8 +188,6 @@ def test_pii_scrubbing_in_logs(client, caplog):
 
 def test_request_id_in_logs():
     # Build a dedicated logger with our filter and formatter
-    from io import StringIO
-    from app.config.logging import RequestIdFilter
 
     buf = StringIO()
     handler = logging.StreamHandler(buf)
@@ -215,8 +215,6 @@ def test_request_id_in_logs():
 
 
 def test_request_id_filter_direct():
-    from app.config.logging import RequestIdFilter
-
     f = RequestIdFilter()
     # Default (cleared) should set '-'
     clear_request_id()
