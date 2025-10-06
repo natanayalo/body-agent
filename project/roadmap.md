@@ -18,3 +18,10 @@
 -- Longer-term: client-side field encryption, calendar integration, vetted MCP adapters
 
 See `project/roadmap/pr-stack.md` for current PR slices and acceptance criteria. Completed work is archived in `project/roadmap/shipped.md`.
+
+## On Deck — Milestone 5 (Observability & Safety connectors)
+
+- Request ID propagation across logs/SSE for easy correlation (PR 32)
+- Risk evaluation harness with golden prompts and CI check (PR 33)
+- Outbound domain allow-list (fail-closed by default) (PR 34)
+- Preference expansion: `max_travel_km` distance filter in planner (PR 35)
