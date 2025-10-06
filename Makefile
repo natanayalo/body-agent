@@ -42,6 +42,7 @@ e2e-local-api:
 		APP_DATA_DIR=$(APP_DATA_DIR) \
 		EMBEDDINGS_MODEL=__stub__ \
 		RISK_MODEL_ID=__stub__ \
+		LLM_PROVIDER=none \
 		nohup $(PY) -m uvicorn app.main:app \
 		  --host $(HOST) --port $(PORT) --log-level $(LOG_LEVEL) \
 		  > /tmp/api.log 2>&1 &

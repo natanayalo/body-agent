@@ -103,3 +103,7 @@ Feel free to tweak embedding/LLM identifiers according to GPU availability. Keep
 - LLM provider credentials fetched from a secret store instead of environment variables committed to disk.
 
 Document any additional production-only knobs alongside runbooks in `project/config.md`.
+
+## Observability
+
+- `X-Request-ID` header: Clients may supply a request identifier per call. The API will normalize UUIDs and propagate the value through `state.debug.request_id` and include it on every SSE event. If omitted, the API generates a UUIDv4. Logs include `rid=<id>` to correlate runs and streams.
