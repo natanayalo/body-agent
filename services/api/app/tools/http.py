@@ -18,9 +18,8 @@ def _parse_allowlist(spec: str | None = None) -> set[str]:
 
 
 def _host_matches(host: str, allowed: Iterable[str]) -> bool:
-    host_lc = host.lower()
     for entry in allowed:
-        if host_lc == entry or host_lc.endswith(f".{entry}"):
+        if host == entry or host.endswith(f".{entry}"):
             return True
     return False
 
@@ -44,7 +43,7 @@ def safe_request(
     if parsed.scheme not in {"http", "https"}:
         raise ValueError(f"Unsupported URL scheme: {parsed.scheme!r}")
 
-    host = parsed.hostname or ""
+    host = (parsed.hostname or "").lower()
     allowed_config = (
         {item.strip().lower() for item in allowlist if item.strip()}
         if allowlist is not None
@@ -52,22 +51,17 @@ def safe_request(
     )
 
     if allowed_config:
-        is_ip = False
         try:
             ipaddress.ip_address(host)
-            is_ip = True
         except ValueError:
-            pass
-
-        if is_ip:
-            if host.lower() not in allowed_config:
-                raise OutboundDomainError(
-                    f"IP '{host}' is not permitted (allowed: {', '.join(sorted(allowed_config))})"
-                )
-        else:
             if not _host_matches(host, allowed_config):
                 raise OutboundDomainError(
                     f"Domain '{host}' is not permitted (allowed: {', '.join(sorted(allowed_config))})"
+                )
+        else:
+            if host not in allowed_config:
+                raise OutboundDomainError(
+                    f"IP '{host}' is not permitted (allowed: {', '.join(sorted(allowed_config))})"
                 )
 
     allow_redirects = kwargs.pop("allow_redirects", False)
