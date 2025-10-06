@@ -133,6 +133,36 @@ def test_graph_stream_request_id_stability(client: TestClient):
     assert final.get("debug", {}).get("request_id") == forced
 
 
+def test_graph_stream_generates_request_id_when_missing(client: TestClient):
+    payload = {"user_id": "test-user", "query": "weekly check-in"}
+
+    # Run without header should generate a UUIDv4
+    r1 = client.post("/api/graph/run", json=payload)
+    assert r1.status_code == 200
+    rid_run = r1.json()["state"].get("debug", {}).get("request_id")
+    import uuid as _uuid
+
+    assert rid_run is not None
+    _ = _uuid.UUID(str(rid_run))  # must parse
+
+    # Stream without header should also generate a UUID and keep it stable across chunks
+    r2 = client.post("/api/graph/stream", json=payload)
+    assert r2.status_code == 200
+    chunks = [
+        json.loads(line.replace("data: ", ""))
+        for line in r2.text.strip().split("\n\n")
+        if line
+    ]
+    assert chunks
+    rids = {ev.get("request_id") for ev in chunks}
+    assert len(rids) == 1
+    # validate uuid format
+    rid_stream = next(iter(rids))
+    _ = _uuid.UUID(str(rid_stream))
+    final = next(ev["final"]["state"] for ev in reversed(chunks) if "final" in ev)
+    assert final.get("debug", {}).get("request_id") == rid_stream
+
+
 def test_graph_stream_error_event(client: TestClient, monkeypatch):
     # Force astream to raise to exercise error path
     import app.main as main_mod

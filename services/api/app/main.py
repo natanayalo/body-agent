@@ -73,9 +73,7 @@ def _initial_state(
     if normalized:
         state["language"] = cast(Literal["en", "he"], normalized)
     if request_id:
-        dbg = state.get("debug") or {}
-        dbg["request_id"] = request_id
-        state["debug"] = dbg
+        state.setdefault("debug", {})["request_id"] = request_id
     return state
 
 
@@ -88,13 +86,12 @@ def _record_run_metadata(final_state: BodyState) -> None:
 
 
 def _request_id_from(request: Request) -> str:
-    incoming = request.headers.get("x-request-id") or request.headers.get(
-        "X-Request-Id"
-    )
+    # Headers mapping is case-insensitive; single lookup suffices
+    incoming = request.headers.get("x-request-id")
     if incoming:
         try:
             return str(uuid.UUID(str(incoming)))
-        except Exception:
+        except ValueError:
             return str(incoming).strip()
     return str(uuid.uuid4())
 
@@ -109,9 +106,7 @@ async def run_graph(
         set_request_id(rid)
         state = _initial_state(q, lang, rid)
         final_state = await app.state.graph.ainvoke(state)
-        dbg = final_state.get("debug") or {}
-        dbg["request_id"] = rid
-        final_state["debug"] = dbg
+        final_state.setdefault("debug", {})["request_id"] = rid
         logger.debug(f"Query: {final_state.get('user_query_redacted', q.query)}")
         logger.info(f"Graph run completed for user {q.user_id} rid={rid}")
         _record_run_metadata(final_state)
@@ -162,9 +157,7 @@ async def stream_graph(
             except Exception:
                 final_state = cast(BodyState, current_state)
 
-            dbg = final_state.get("debug") or {}
-            dbg["request_id"] = rid
-            final_state["debug"] = dbg
+            final_state.setdefault("debug", {})["request_id"] = rid
             yield f"data: {json.dumps({'request_id': rid, 'final': {'state': final_state}})}\n\n"
             logger.info(f"Graph stream completed for user {q.user_id} rid={rid}")
             _record_run_metadata(final_state)
