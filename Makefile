@@ -83,3 +83,8 @@ e2e-local-clean:
 eval:
 	@echo "[eval] Running golden evaluation tests..."
 	PYTHONPATH=services/api $(PYTEST) --no-cov services/api/tests/golden
+
+.PHONY: eval-risk
+eval-risk:
+	@echo "[eval-risk] Running risk golden evaluation..."
+	PYTHONPATH=services/api RISK_MODEL_ID=__stub__ $(PYTEST) --no-cov services/api/tests/golden/risk -q

@@ -1,0 +1,4 @@
+{"text": "I have severe chest pain and shortness of breath.", "note": "should rank urgent_care highest"}
+{"text": "I feel unwell and might need to see a doctor soon.", "note": "see_doctor should be relatively high"}
+{"text": "Just looking for general information about a mild headache.", "note": "info_only/self_care context"}
+{"text": "I have some nose bleeding after an injury.", "note": "bleeding term present"}
