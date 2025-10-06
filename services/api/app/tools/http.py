@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from typing import Iterable, Mapping, Any
 from urllib.parse import urlparse
+import ipaddress
 
 import requests
 
@@ -13,14 +14,13 @@ class OutboundDomainError(RuntimeError):
 
 def _parse_allowlist(spec: str | None = None) -> set[str]:
     raw = spec if spec is not None else os.getenv("OUTBOUND_ALLOWLIST", "")
-    return {item.strip().lower() for item in raw.split(",") if item and item.strip()}
+    return {item.strip().lower() for item in raw.split(",") if item.strip()}
 
 
 def _host_matches(host: str, allowed: Iterable[str]) -> bool:
     host_lc = host.lower()
     for entry in allowed:
-        entry_lc = entry.lower()
-        if host_lc == entry_lc or host_lc.endswith(f".{entry_lc}"):
+        if host_lc == entry or host_lc.endswith(f".{entry}"):
             return True
     return False
 
@@ -45,13 +45,40 @@ def safe_request(
         raise ValueError(f"Unsupported URL scheme: {parsed.scheme!r}")
 
     host = parsed.hostname or ""
-    allowed = list(allowlist) if allowlist is not None else list(_parse_allowlist())
-    if allowed and not _host_matches(host, allowed):
-        raise OutboundDomainError(
-            f"Domain '{host}' is not permitted (allowed: {', '.join(allowed) or 'none'})"
+    allowed_config = (
+        [entry.lower() for entry in allowlist]
+        if allowlist is not None
+        else list(_parse_allowlist())
+    )
+
+    if allowed_config:
+        is_ip = False
+        try:
+            ipaddress.ip_address(host)
+            is_ip = True
+        except ValueError:
+            pass
+
+        if is_ip:
+            if host.lower() not in allowed_config:
+                raise OutboundDomainError(
+                    f"IP '{host}' is not permitted (allowed: {', '.join(allowed_config)})"
+                )
+        else:
+            if not _host_matches(host, allowed_config):
+                raise OutboundDomainError(
+                    f"Domain '{host}' is not permitted (allowed: {', '.join(allowed_config)})"
+                )
+
+    allow_redirects = kwargs.pop("allow_redirects", False)
+    if allow_redirects:
+        raise ValueError(
+            "safe_request does not allow automatic redirects; handle redirects manually."
         )
 
-    return requests.request(method.upper(), url, headers=headers, **kwargs)
+    return requests.request(
+        method.upper(), url, headers=headers, allow_redirects=False, **kwargs
+    )
 
 
 def safe_get(

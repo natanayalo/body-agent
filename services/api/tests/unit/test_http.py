@@ -11,10 +11,11 @@ class DummyResponse:
 def test_safe_request_allows_exact_domain(monkeypatch):
     captured = {}
 
-    def fake_request(method, url, headers=None, **kwargs):
+    def fake_request(method, url, headers=None, allow_redirects=None, **kwargs):
         captured["method"] = method
         captured["url"] = url
         captured["headers"] = headers
+        captured["allow_redirects"] = allow_redirects
         captured["kwargs"] = kwargs
         return DummyResponse(url)
 
@@ -32,6 +33,7 @@ def test_safe_request_allows_exact_domain(monkeypatch):
     assert captured["method"] == "GET"
     assert captured["url"] == "https://example.com/path"
     assert captured["headers"] == {"x": "y"}
+    assert captured["allow_redirects"] is False
     assert captured["kwargs"]["timeout"] == 5
 
 
@@ -61,6 +63,22 @@ def test_safe_request_no_allowlist_allows_all(monkeypatch):
 def test_safe_request_invalid_scheme():
     with pytest.raises(ValueError):
         http.safe_get("ftp://example.com/file")
+
+
+def test_safe_request_blocks_redirects(monkeypatch):
+    monkeypatch.setattr(http.requests, "request", lambda *a, **k: DummyResponse("ok"))
+    with pytest.raises(ValueError):
+        http.safe_get(
+            "https://example.com", allowlist=["example.com"], allow_redirects=True
+        )
+
+
+def test_safe_request_allows_ip_explicit(monkeypatch):
+    monkeypatch.setattr(http.requests, "request", lambda *a, **k: DummyResponse("ok"))
+    resp = http.safe_get("https://127.0.0.1/api", allowlist=["127.0.0.1"])
+    assert isinstance(resp, DummyResponse)
+    with pytest.raises(http.OutboundDomainError):
+        http.safe_get("https://127.0.0.1/api", allowlist=["example.com"])
 
 
 def test_env_allowlist(monkeypatch):
