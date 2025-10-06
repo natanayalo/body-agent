@@ -1,4 +1,5 @@
 import json
+import uuid
 from fastapi.testclient import TestClient
 
 
@@ -140,10 +141,8 @@ def test_graph_stream_generates_request_id_when_missing(client: TestClient):
     r1 = client.post("/api/graph/run", json=payload)
     assert r1.status_code == 200
     rid_run = r1.json()["state"].get("debug", {}).get("request_id")
-    import uuid as _uuid
-
     assert rid_run is not None
-    _ = _uuid.UUID(str(rid_run))  # must parse
+    _ = uuid.UUID(str(rid_run))  # must parse
 
     # Stream without header should also generate a UUID and keep it stable across chunks
     r2 = client.post("/api/graph/stream", json=payload)
@@ -158,7 +157,7 @@ def test_graph_stream_generates_request_id_when_missing(client: TestClient):
     assert len(rids) == 1
     # validate uuid format
     rid_stream = next(iter(rids))
-    _ = _uuid.UUID(str(rid_stream))
+    _ = uuid.UUID(str(rid_stream))
     final = next(ev["final"]["state"] for ev in reversed(chunks) if "final" in ev)
     assert final.get("debug", {}).get("request_id") == rid_stream
 
