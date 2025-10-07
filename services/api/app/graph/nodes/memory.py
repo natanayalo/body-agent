@@ -45,7 +45,7 @@ def extract_preferences(facts: list[Dict[str, Any]]) -> Dict[str, Any]:
                 prefs["hours_window"] = str(next(iter(value))).strip().lower()
             else:
                 prefs["hours_window"] = str(value).strip().lower()
-        elif name == "max_distance_km":
+        elif name in {"max_travel_km", "max_distance_km"}:
             try:
                 numeric = (
                     float(value)
@@ -54,7 +54,7 @@ def extract_preferences(facts: list[Dict[str, Any]]) -> Dict[str, Any]:
                 )
             except (TypeError, ValueError):
                 continue
-            prefs["max_distance_km"] = numeric
+            prefs["max_travel_km"] = numeric
         elif name == "insurance_plan":
             prefs["insurance_plan"] = str(value).strip()
 

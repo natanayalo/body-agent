@@ -47,6 +47,44 @@ def test_places_ranking_respects_preferred_kind(monkeypatch):
     assert candidates[0]["name"] == "Clinic A"
 
 
+def test_places_filters_by_travel_limit(monkeypatch):
+    near = {
+        "name": "Nearby Clinic",
+        "phone": "+972-3-555-0303",
+        "kind": "clinic",
+        "_score": 0.9,
+        "geo": {"lat": 32.09, "lon": 34.78},
+        "hours": "Sun-Thu 09:00-18:00",
+    }
+    far = {
+        "name": "Far Specialist Center",
+        "phone": "+972-4-555-0404",
+        "kind": "clinic",
+        "_score": 1.1,
+        "geo": {"lat": 32.5, "lon": 35.3},
+        "hours": "Sun-Thu 08:00-14:00",
+    }
+
+    monkeypatch.setattr(
+        places,
+        "search_providers",
+        lambda *args, **kwargs: [near, far],
+    )
+
+    state = BodyState(
+        user_query="nearby clinic",
+        user_query_redacted="nearby clinic",
+        preferences={"max_travel_km": 5},
+    )
+
+    ranked_state = places.run(state, es_client=object())
+    candidates = ranked_state["candidates"]
+    assert len(candidates) == 1
+    assert candidates[0]["name"] == "Nearby Clinic"
+    reasons = candidates[0].get("reasons", [])
+    assert any("travel limit" in reason for reason in reasons)
+
+
 def test_hours_windows_variants():
     assert places._hours_windows("") == set()
     assert places._hours_windows("Open all morning and evening") == {

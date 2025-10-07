@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 # Dummy location for demo (Tel Aviv center). Replace with user-permitted geolocation
 TLV = (32.0853, 34.7818)
+DEFAULT_RADIUS_KM = 10.0
 
 WINDOW_RANGES = {
     "morning": range(5, 12),
@@ -66,24 +67,50 @@ def _normalize(values: List[float]) -> List[float]:
     return [v / v_max for v in values]
 
 
+def _get_travel_limit(prefs: Dict[str, Any]) -> float | None:
+    raw = prefs.get("max_travel_km")
+    if raw is None:
+        raw = prefs.get("max_distance_km")
+    if raw is None:
+        return None
+    try:
+        limit = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if limit <= 0:
+        return None
+    return limit
+
+
+def _candidate_distance(candidate: Dict[str, Any]) -> float | None:
+    geo = candidate.get("geo") or {}
+    lat, lon = geo.get("lat"), geo.get("lon")
+    if lat is None or lon is None:
+        return None
+    try:
+        return _haversine_km(TLV[0], TLV[1], float(lat), float(lon))
+    except (TypeError, ValueError):
+        logger.debug("Invalid geo coordinates for candidate %s", candidate.get("name"))
+        return None
+
+
 def _compute_candidate_meta(
     candidate: Dict[str, Any],
     semantic_norm: float,
     prefs: Dict[str, Any],
+    travel_limit_km: float | None,
 ) -> Tuple[float, List[str], float | None]:
     reasons: List[str] = []
     distance_norm = 0.5
     distance_km: float | None = None
 
-    geo = candidate.get("geo") or {}
-    lat, lon = geo.get("lat"), geo.get("lon")
-    if lat is not None and lon is not None:
-        distance_km = _haversine_km(TLV[0], TLV[1], float(lat), float(lon))
-        max_radius = prefs.get("max_distance_km") or 10.0
-        if not isinstance(max_radius, (int, float)) or max_radius <= 0:
-            max_radius = 10.0
+    distance_km = _candidate_distance(candidate)
+    if distance_km is not None:
+        max_radius = travel_limit_km or DEFAULT_RADIUS_KM
         distance_norm = max(0.0, 1.0 - min(distance_km, max_radius) / max_radius)
         reasons.append(f"~{distance_km:.1f} km away")
+        if travel_limit_km is not None and distance_km <= travel_limit_km:
+            reasons.append(f"Within your {travel_limit_km:g} km travel limit")
 
     hours_fit = 0.5
     pref_window = prefs.get("hours_window")
@@ -109,7 +136,7 @@ def run(state: BodyState, es_client=None) -> BodyState:
     es = es_client if es_client else get_es_client()
     q = state.get("user_query_redacted", state.get("user_query", ""))
     logger.debug(f"Searching providers for query: {q}")
-    raw = search_providers(es, q, lat=TLV[0], lon=TLV[1], radius_km=10)
+    raw = search_providers(es, q, lat=TLV[0], lon=TLV[1], radius_km=DEFAULT_RADIUS_KM)
     logger.debug(f"Raw provider search results: {raw}")
     # dedupe by (name, phone) keeping highest score
     best: Dict[Tuple[str, str], Dict[str, Any]] = {}
@@ -124,6 +151,23 @@ def run(state: BodyState, es_client=None) -> BodyState:
 
     candidates = list(best.values())
     prefs: Dict[str, Any] = dict(state.get("preferences") or {})
+    travel_limit_km = _get_travel_limit(prefs)
+
+    if travel_limit_km is not None:
+        filtered: list[Dict[str, Any]] = []
+        for candidate in candidates:
+            distance_km = _candidate_distance(candidate)
+            if distance_km is not None and distance_km > travel_limit_km:
+                logger.debug(
+                    "Filtered provider %s at %.2f km beyond travel limit %.2f km",
+                    candidate.get("name"),
+                    distance_km,
+                    travel_limit_km,
+                )
+                continue
+            filtered.append(candidate)
+        candidates = filtered
+
     semantic_scores = [c.get("_score", 0.0) for c in candidates]
     semantic_norms = _normalize(semantic_scores)
     if not semantic_norms:
@@ -132,7 +176,7 @@ def run(state: BodyState, es_client=None) -> BodyState:
     ranked: list[Dict[str, Any]] = []
     for candidate, sem_norm in zip(candidates, semantic_norms):
         score, reasons, distance_km = _compute_candidate_meta(
-            candidate, sem_norm, prefs
+            candidate, sem_norm, prefs, travel_limit_km
         )
         cand_with_meta = candidate.copy()
         cand_with_meta["score"] = round(score, 4)
