@@ -8,6 +8,7 @@ This page lists the key environment variables, defaults, and how to run in CI (s
 - `HOST`, `PORT` (API bind)
 - `APP_DATA_DIR` (default `/data` inside containers)
 - `APP_LOG_DIR` (default `/logs`)
+- `OUTBOUND_ALLOWLIST` (comma-separated domains or IPs; leave empty to allow all). Requests must use `safe_request`/`safe_get`, which reject destinations outside the allow-list and disable automatic redirects.
 
 ## Elasticsearch
 

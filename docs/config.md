@@ -107,3 +107,4 @@ Document any additional production-only knobs alongside runbooks in `project/con
 ## Observability
 
 - `X-Request-ID` header: Clients may supply a request identifier per call. The API will normalize UUIDs and propagate the value through `state.debug.request_id` and include it on every SSE event. If omitted, the API generates a UUIDv4. Logs include `rid=<id>` to correlate runs and streams.
+- `OUTBOUND_ALLOWLIST`: Comma-separated list of domains that outbound HTTP calls may reach (matches subdomains). Leave empty to allow any domain. The new `safe_request` / `safe_get` helpers in `app.tools.http` enforce this list and raise `OutboundDomainError` when a URL (or IP) is not permitted. Automatic redirects are disabled by default so every hop must be validated explicitly.
