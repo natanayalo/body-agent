@@ -1,4 +1,5 @@
 from app.graph.nodes import places
+from app.graph.nodes.places import _should_replace_candidate
 from app.graph.state import BodyState
 
 
@@ -83,6 +84,146 @@ def test_places_filters_by_travel_limit(monkeypatch):
     assert candidates[0]["name"] == "Nearby Clinic"
     reasons = candidates[0].get("reasons", [])
     assert any("travel limit" in reason for reason in reasons)
+
+
+def test_places_dedupe_prefers_in_range(monkeypatch):
+    far = {
+        "name": "Unified Clinic",
+        "phone": "+972-3-555-0505",
+        "kind": "clinic",
+        "_score": 1.0,
+        "geo": {"lat": 32.2, "lon": 34.9},
+        "hours": "Sun-Thu 09:00-17:00",
+    }
+    near = {
+        "name": "Unified Clinic",
+        "phone": "+972-3-555-0505",
+        "kind": "clinic",
+        "_score": 0.8,
+        "geo": {"lat": 32.089, "lon": 34.781},
+        "hours": "Sun-Thu 09:00-17:00",
+    }
+
+    monkeypatch.setattr(
+        places,
+        "search_providers",
+        lambda *args, **kwargs: [far.copy(), near.copy()],
+    )
+
+    state = BodyState(
+        user_query="clinic",
+        user_query_redacted="clinic",
+        preferences={"max_travel_km": 5},
+    )
+
+    ranked_state = places.run(state, es_client=object())
+    candidates = ranked_state["candidates"]
+    assert len(candidates) == 1
+    assert candidates[0]["phone"] == far["phone"]
+    assert candidates[0]["_score"] == 0.8
+    assert candidates[0]["distance_km"] < 5
+
+
+def test_places_dedupe_prefers_closer_on_tie(monkeypatch):
+    farther = {
+        "name": "Tie Clinic",
+        "phone": "+972-3-555-0606",
+        "kind": "clinic",
+        "_score": 1.0,
+        "geo": {"lat": 32.12, "lon": 34.83},
+        "hours": "Sun-Thu 09:00-17:00",
+    }
+    closer = {
+        "name": "Tie Clinic",
+        "phone": "+972-3-555-0606",
+        "kind": "clinic",
+        "_score": 1.0,
+        "geo": {"lat": 32.09, "lon": 34.79},
+        "hours": "Sun-Thu 09:00-17:00",
+    }
+
+    monkeypatch.setattr(
+        places,
+        "search_providers",
+        lambda *args, **kwargs: [farther.copy(), closer.copy()],
+    )
+
+    state = BodyState(
+        user_query="clinic",
+        user_query_redacted="clinic",
+        preferences={"max_travel_km": 10},
+    )
+
+    ranked_state = places.run(state, es_client=object())
+    candidates = ranked_state["candidates"]
+    assert len(candidates) == 1
+    assert candidates[0]["geo"] == closer["geo"]
+
+
+def test_places_dedupe_prefers_higher_score_when_no_limit(monkeypatch):
+    lower_score = {
+        "name": "Score Clinic",
+        "phone": "+972-3-555-0707",
+        "kind": "clinic",
+        "_score": 0.7,
+        "geo": {"lat": 32.18, "lon": 34.9},
+        "hours": "Sun-Thu 09:00-17:00",
+    }
+    higher_score = {
+        "name": "Score Clinic",
+        "phone": "+972-3-555-0707",
+        "kind": "clinic",
+        "_score": 1.2,
+        "geo": {"lat": 32.25, "lon": 35.1},
+        "hours": "Sun-Thu 09:00-17:00",
+    }
+
+    monkeypatch.setattr(
+        places,
+        "search_providers",
+        lambda *args, **kwargs: [lower_score.copy(), higher_score.copy()],
+    )
+
+    state = BodyState(
+        user_query="clinic",
+        user_query_redacted="clinic",
+        preferences={},
+    )
+
+    ranked_state = places.run(state, es_client=object())
+    candidates = ranked_state["candidates"]
+    assert len(candidates) == 1
+    assert candidates[0]["_score"] == 1.2
+
+
+def test_should_replace_candidate_prefers_in_range():
+    existing = ({"_score": 1.2}, 8.0)
+    candidate = ({"_score": 0.9}, 4.0)
+    assert _should_replace_candidate(existing, candidate, travel_limit_km=5)
+
+
+def test_should_replace_candidate_prefers_closer_same_score():
+    existing = ({"_score": 1.0}, 4.5)
+    candidate = ({"_score": 1.0}, 3.0)
+    assert _should_replace_candidate(existing, candidate, travel_limit_km=10)
+
+
+def test_should_replace_candidate_keeps_closer_when_new_farther():
+    existing = ({"_score": 1.0}, 3.0)
+    candidate = ({"_score": 1.0}, 4.5)
+    assert not _should_replace_candidate(existing, candidate, travel_limit_km=10)
+
+
+def test_should_replace_candidate_prefers_higher_score_no_limit():
+    existing = ({"_score": 0.8}, 6.0)
+    candidate = ({"_score": 1.1}, 7.0)
+    assert _should_replace_candidate(existing, candidate, travel_limit_km=None)
+
+
+def test_should_replace_candidate_defaults_to_existing():
+    existing = ({"_score": 0.9}, None)
+    candidate = ({"_score": 0.9}, None)
+    assert not _should_replace_candidate(existing, candidate, travel_limit_km=None)
 
 
 def test_hours_windows_variants():
