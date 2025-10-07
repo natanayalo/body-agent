@@ -67,10 +67,52 @@ def _normalize(values: List[float]) -> List[float]:
     return [v / v_max for v in values]
 
 
+def _should_replace_candidate(
+    existing: Tuple[Dict[str, Any], float | None],
+    candidate: Tuple[Dict[str, Any], float | None],
+    travel_limit_km: float | None,
+) -> bool:
+    existing_candidate, existing_distance = existing
+    new_candidate, new_distance = candidate
+
+    if travel_limit_km is not None:
+        existing_in_range = (
+            existing_distance is not None and existing_distance <= travel_limit_km
+        )
+        new_in_range = new_distance is not None and new_distance <= travel_limit_km
+        if existing_in_range != new_in_range:
+            return new_in_range
+        if new_in_range and existing_in_range:
+            if (
+                new_distance is not None
+                and existing_distance is not None
+                and new_distance < existing_distance - 1e-6
+            ):
+                return True
+            if (
+                new_distance is not None
+                and existing_distance is not None
+                and existing_distance < new_distance - 1e-6
+            ):
+                return False
+
+    existing_score = float(existing_candidate.get("_score", 0.0))
+    new_score = float(new_candidate.get("_score", 0.0))
+    if not math.isclose(new_score, existing_score):
+        return new_score > existing_score
+
+    if (
+        new_distance is not None
+        and existing_distance is not None
+        and new_distance < existing_distance - 1e-6
+    ):
+        return True
+
+    return False
+
+
 def _get_travel_limit(prefs: Dict[str, Any]) -> float | None:
-    raw = prefs.get("max_travel_km")
-    if raw is None:
-        raw = prefs.get("max_distance_km")
+    raw = prefs.get("max_travel_km") or prefs.get("max_distance_km")
     if raw is None:
         return None
     try:
@@ -99,12 +141,11 @@ def _compute_candidate_meta(
     semantic_norm: float,
     prefs: Dict[str, Any],
     travel_limit_km: float | None,
+    distance_km: float | None,
 ) -> Tuple[float, List[str], float | None]:
     reasons: List[str] = []
     distance_norm = 0.5
-    distance_km: float | None = None
 
-    distance_km = _candidate_distance(candidate)
     if distance_km is not None:
         max_radius = travel_limit_km or DEFAULT_RADIUS_KM
         distance_norm = max(0.0, 1.0 - min(distance_km, max_radius) / max_radius)
@@ -138,25 +179,31 @@ def run(state: BodyState, es_client=None) -> BodyState:
     logger.debug(f"Searching providers for query: {q}")
     raw = search_providers(es, q, lat=TLV[0], lon=TLV[1], radius_km=DEFAULT_RADIUS_KM)
     logger.debug(f"Raw provider search results: {raw}")
-    # dedupe by (name, phone) keeping highest score
-    best: Dict[Tuple[str, str], Dict[str, Any]] = {}
+
+    prefs: Dict[str, Any] = dict(state.get("preferences") or {})
+    travel_limit_km = _get_travel_limit(prefs)
+
+    best: Dict[Tuple[str, str], Tuple[Dict[str, Any], float | None]] = {}
     for c in raw:
         name = c.get("name")
         phone = c.get("phone")
         if not name or not phone:
             continue
         key = (name, phone)
-        if key not in best or c.get("_score", 0) > best[key].get("_score", 0):
-            best[key] = c
+        candidate = c.copy()
+        distance_km = _candidate_distance(candidate)
+        pair = (candidate, distance_km)
+        existing = best.get(key)
+        if existing is None or _should_replace_candidate(
+            existing, pair, travel_limit_km
+        ):
+            best[key] = pair
 
-    candidates = list(best.values())
-    prefs: Dict[str, Any] = dict(state.get("preferences") or {})
-    travel_limit_km = _get_travel_limit(prefs)
+    candidates_with_distance = list(best.values())
 
     if travel_limit_km is not None:
-        filtered: list[Dict[str, Any]] = []
-        for candidate in candidates:
-            distance_km = _candidate_distance(candidate)
+        filtered: list[Tuple[Dict[str, Any], float | None]] = []
+        for candidate, distance_km in candidates_with_distance:
             if distance_km is not None and distance_km > travel_limit_km:
                 logger.debug(
                     "Filtered provider %s at %.2f km beyond travel limit %.2f km",
@@ -165,18 +212,20 @@ def run(state: BodyState, es_client=None) -> BodyState:
                     travel_limit_km,
                 )
                 continue
-            filtered.append(candidate)
-        candidates = filtered
+            filtered.append((candidate, distance_km))
+        candidates_with_distance = filtered
 
-    semantic_scores = [c.get("_score", 0.0) for c in candidates]
+    semantic_scores = [c.get("_score", 0.0) for c, _ in candidates_with_distance]
     semantic_norms = _normalize(semantic_scores)
     if not semantic_norms:
-        semantic_norms = [1.0 for _ in candidates]
+        semantic_norms = [1.0 for _ in candidates_with_distance]
 
     ranked: list[Dict[str, Any]] = []
-    for candidate, sem_norm in zip(candidates, semantic_norms):
+    for (candidate, distance_km), sem_norm in zip(
+        candidates_with_distance, semantic_norms
+    ):
         score, reasons, distance_km = _compute_candidate_meta(
-            candidate, sem_norm, prefs, travel_limit_km
+            candidate, sem_norm, prefs, travel_limit_km, distance_km
         )
         cand_with_meta = candidate.copy()
         cand_with_meta["score"] = round(score, 4)
