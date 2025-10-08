@@ -33,8 +33,8 @@ Use the status column to see whether an idea is already shipped, queued up in th
 
 | Status | Idea | Summary | Notes |
 | --- | --- | --- | --- |
-| 🔄 | Paraphrase onset facts (flagged) | Optional Ollama paraphrase for deterministic onset answers; no new numbers. | Planned as PR 25. See pr-stack. |
-| 🔄 | Neutral onset fallback (flagged) | Safe LLM blurb when no med fact exists (no timings/doses). | Planned as PR 26. See pr-stack. |
+| 🔄 | Paraphrase onset facts (flagged) | Optional Ollama paraphrase for deterministic onset answers; no new numbers. | Planned as PR 25. See pr-stack. **Kill if:** two evaluation runs show paraphrased outputs drift from numeric facts or increase hallucination rate. |
+| 🔄 | Neutral onset fallback (flagged) | Safe LLM blurb when no med fact exists (no timings/doses). | Planned as PR 26. See pr-stack. **Kill if:** fallback responses score <90% on safety checklist or add latency >1s after two tuning passes. |
 
 ## Backlog / To Evaluate
 
@@ -48,33 +48,33 @@ Use the status column to see whether an idea is already shipped, queued up in th
 
 | Status | Idea | Summary | Notes |
 | --- | --- | --- | --- |
-| 🧭 | CalDAV connector | Sync with self-hosted CalDAV servers behind feature flag; expose `calendar_mode`. | Ensure scrubber runs before outbound calls; consider ICS fallback. |
-| 🧭 | Google Calendar OAuth | Optional Google sync gated behind explicit env flag. | Requires secure token storage + consent flow. |
-| 🧭 | MCP adapters for health sites | Domain-restricted web search (gov/edu/WHO) behind toggle. | Must pass scrubber + rate limiting. |
-| 🧭 | Domain allow-list enforcement | Enforce and document a strict domain allow-list for any outbound web connector. | Configurable via env; fail closed. |
+| 🧭 | CalDAV connector | Sync with self-hosted CalDAV servers behind feature flag; expose `calendar_mode`. | Ensure scrubber runs before outbound calls; consider ICS fallback. **Kill if:** CalDAV sync prototype requires persistent credentials or network egress that violates privacy guardrails. |
+| 🧭 | Google Calendar OAuth | Optional Google sync gated behind explicit env flag. | Requires secure token storage + consent flow. **Kill if:** OAuth flow adds unmanaged PII storage or exceeds 100ms latency budget for planner availability lookup. |
+| 🧭 | MCP adapters for health sites | Domain-restricted web search (gov/edu/WHO) behind toggle. | Must pass scrubber + rate limiting. **Kill if:** adapter fails to keep citation provenance or the allow-list adds >3 new domains without legal review. |
+| 🧭 | Domain allow-list enforcement | Enforce and document a strict domain allow-list for any outbound web connector. | Configurable via env; fail closed. **Kill if:** connector audit demonstrates false positives >5% on vetted partners after tuning. |
 
 ### Observability & Evaluation
 
 | Status | Idea | Summary | Notes |
 | --- | --- | --- | --- |
-| 🧭 | Risk eval harness | Extend the golden tests with EN/HE prompts geared toward tuning risk thresholds. | Helps sanity-check NLI thresholds before release. |
-| 🧭 | Request-id propagation | Attach per-run UUID through logs/debug endpoints so multi-user debugging stays sane. | Works well with new trace endpoint; consider log format change. |
-| 🧭 | Structured, PII-safe logs | Emit structured application logs (no raw user text) to improve debugging without privacy risk. | Align with scrubber; document redaction guarantees. |
-| 🧭 | Risk highest-severity gating | Show only the single highest-severity ML risk banner (urgent_care > see_doctor) to avoid stacking. | Keep full scores in debug payload. |
+| 🧭 | Risk eval harness | Extend the golden tests with EN/HE prompts geared toward tuning risk thresholds. | Helps sanity-check NLI thresholds before release. **Kill if:** harness setup cannot run under 60s or fails to catch regression cases in two test sprints. |
+| 🧭 | Request-id propagation | Attach per-run UUID through logs/debug endpoints so multi-user debugging stays sane. | Works well with new trace endpoint; consider log format change. **Kill if:** propagation adds duplicate log volume >20% or leaks identifiers outside scrubbed fields. |
+| 🧭 | Structured, PII-safe logs | Emit structured application logs (no raw user text) to improve debugging without privacy risk. | Align with scrubber; document redaction guarantees. **Kill if:** structured logging cannot meet 95% redaction accuracy in QA replay. |
+| 🧭 | Risk highest-severity gating | Show only the single highest-severity ML risk banner (urgent_care > see_doctor) to avoid stacking. | Keep full scores in debug payload. **Kill if:** gating removes critical warnings in clinical QA scenarios. |
 
 ### Security & Privacy
 
 | Status | Idea | Summary | Notes |
 | --- | --- | --- | --- |
-| 🧭 | Client-side encryption plan | Encrypt `private_user_memory` values client-side (field-level) when remote storage is used. | Keys per user; ties into tenancy story.
+| 🧭 | Client-side encryption plan | Encrypt `private_user_memory` values client-side (field-level) when remote storage is used. | Keys per user; ties into tenancy story. **Kill if:** encryption prototype adds >15% latency or blocks auditing requirements. |
 
 ### Miscellaneous
 
 | Status | Idea | Summary | Notes |
 | --- | --- | --- | --- |
 | 🔄 | Preference-aware provider scoring | Blend semantic score with distance, hours fit, insurance match using configurable weights. | Planned as PR 37; expand provider metadata and scoring tests. **Kill if:** weighted scoring fails to increase top-match click-through in manual QA after two tuning passes. |
-| 🧭 | Lightweight meds registry | Small YAML of common OTC classes (uses, avoid_if, interactions) to supplement answers without dosing. | Consider after Milestone 2; overlap with med facts work. |
-| 🧭 | KB seeding & translation pipeline | Extend ingestion scripts to translate vetted symptom docs into Hebrew and store provenance. | Requires `scripts/ingest_public_kb.py` updates + seeding automation. |
+| 🧭 | Lightweight meds registry | Small YAML of common OTC classes (uses, avoid_if, interactions) to supplement answers without dosing. | Consider after Milestone 2; overlap with med facts work. **Kill if:** registry introduces dosage guidance or conflicts with deterministic med facts. |
+| 🧭 | KB seeding & translation pipeline | Extend ingestion scripts to translate vetted symptom docs into Hebrew and store provenance. | Requires `scripts/ingest_public_kb.py` updates + seeding automation. **Kill if:** translation costs exceed budget or accuracy drops below 95% in bilingual review. |
 
 When you pick up an idea:
 
