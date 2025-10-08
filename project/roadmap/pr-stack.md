@@ -31,6 +31,8 @@ Acceptance
 - Unit tests cover rationale assembly for English and Hebrew planner flows (with/without preferences).
 - Golden test validates the rationale appears alongside the selected provider in the appointment scenario.
 - Existing planner acceptance checks remain green.
+- **Kill if:** After two iterations, rationale coverage fails to improve planner satisfaction or increases message length beyond 10% without user benefit in QA review.
+  - (When abandoned, remove rationale copy from planner responses and add note to ideas.md backlog.)
 
 Pointers
 
@@ -64,6 +66,8 @@ Acceptance
 - Unit tests cover weighted scoring permutations (distance-heavy, insurance-heavy, default mix).
 - Golden or integration test shows insurance-matched provider outranks mismatch when weights favor insurance.
 - Coverage stays ≥95% overall and ≥90% per file.
+- **Kill if:** Weighted configuration still produces worse top-match click-through or increases latency >10% after two tuning passes.
+  - (If killed, document rationale in ideas.md and revert weighting config to baseline default.)
 
 Pointers
 
