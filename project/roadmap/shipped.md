@@ -8,6 +8,12 @@ Chronicles of recently completed work. Each entry mirrors the acceptance criteri
 - Documented `OUTBOUND_ALLOWLIST` expectations across contributor docs so deploys stay fail-closed by default.
 - Expanded `test_http` coverage for case/whitespace handling, partial-domain rejection, IP-validation, and redirect blocking.
 
+## PR 35 — Preference expansion (distance filter)
+
+- Normalize `max_travel_km` user preferences so memory/places share one canonical field.
+- Filter provider candidates beyond the configured travel radius while preferring in-range locations during dedupe.
+- Surface the applied travel limit in planner reasons and cover edge cases with unit + golden tests.
+
 ## PR 28 — SSE contract test
 
 - Strengthened `/api/graph/stream` integration test to assert `text/event-stream` headers, at least one streaming `delta`, and a terminal `final` event.
