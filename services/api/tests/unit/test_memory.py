@@ -60,21 +60,21 @@ def test_extract_preferences_builds_object():
     facts = [
         {"entity": "preference", "name": "preferred_kinds", "value": "lab,clinic"},
         {"entity": "preference", "name": "preferred_hours", "value": "Morning"},
-        {"entity": "preference", "name": "max_distance_km", "value": "7.5"},
+        {"entity": "preference", "name": "max_travel_km", "value": "7.5"},
         {"entity": "preference", "name": "insurance_plan", "value": "maccabi"},
     ]
 
     prefs = memory.extract_preferences(facts)
     assert prefs["preferred_kinds"] == ["lab", "clinic"]
     assert prefs["hours_window"] == "morning"
-    assert prefs["max_distance_km"] == 7.5
+    assert prefs["max_travel_km"] == 7.5
     assert prefs["insurance_plan"] == "maccabi"
 
 
 def test_extract_preferences_ignores_empty_values():
     facts = [
         {"entity": "preference", "name": "preferred_kind", "value": ""},
-        {"entity": "preference", "name": "max_distance_km", "value": "not_a_number"},
+        {"entity": "preference", "name": "max_travel_km", "value": "not_a_number"},
         {"entity": "note", "name": "foo", "value": "bar"},
         {"entity": "preference", "name": None, "value": "lab"},
     ]
@@ -93,7 +93,7 @@ def test_extract_preferences_handles_non_string_values():
     prefs = memory.extract_preferences(facts)
     assert prefs["preferred_kinds"] == ["lab", "clinic"]
     assert prefs["hours_window"] == "evening"
-    assert prefs["max_distance_km"] == 5.0
+    assert prefs["max_travel_km"] == 5.0
 
 
 def test_memory_run_sets_preferences(fake_es, monkeypatch):
@@ -112,7 +112,7 @@ def test_memory_run_sets_preferences(fake_es, monkeypatch):
                     "_source": {
                         "user_id": "demo",
                         "entity": "preference",
-                        "name": "max_distance_km",
+                        "name": "max_travel_km",
                         "value": "5",
                     }
                 },
@@ -133,4 +133,4 @@ def test_memory_run_sets_preferences(fake_es, monkeypatch):
 
     mock_embed.assert_not_called()
     assert result.get("preferences", {}).get("preferred_kinds") == ["lab"]
-    assert result["preferences"].get("max_distance_km") == 5.0
+    assert result["preferences"].get("max_travel_km") == 5.0
