@@ -4,7 +4,9 @@ Chronicles of recently completed work. Each entry mirrors the acceptance criteri
 
 ## PR 34 — Outbound domain allow-list (fail-closed)
 
-**owner:** @natanayalo • **status:** SHIPPED • **rollback/flag:** unset `OUTBOUND_ALLOWLIST` (reverts to allow-all)
+**owner:** @natanayalo
+**status:** SHIPPED
+**rollback/flag:** unset `OUTBOUND_ALLOWLIST` (reverts to allow-all)
 
 - Added `safe_request`/`safe_get` helpers that enforce a configurable outbound allow-list, cover subdomains/IPs, and fail fast on redirects.
 - Documented `OUTBOUND_ALLOWLIST` expectations across contributor docs so deploys stay fail-closed by default.
@@ -20,7 +22,9 @@ curl -s http://localhost:8000/api/graph/run \
 
 ## PR 35 — Preference expansion (distance filter)
 
-**owner:** @natanayalo • **status:** SHIPPED • **rollback/flag:** set `PREFERENCE_TRAVEL_LIMIT_ENABLED=false`
+**owner:** @natanayalo
+**status:** SHIPPED
+**rollback/flag:** set `PREFERENCE_TRAVEL_LIMIT_ENABLED=false`
 
 - Normalize `max_travel_km` user preferences so memory/places share one canonical field.
 - Filter provider candidates beyond the configured travel radius while preferring in-range locations during dedupe.

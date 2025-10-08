@@ -20,13 +20,13 @@ Why: Give users a concise explanation for why a suggested appointment slot fits 
 **status:** TODO
 **rollback/flag:** `PLANNER_RATIONALE_ENABLED=false`
 
-Scope
+**Scope**
 
 - Add short EN/HE rationale strings that reference distance/availability data when present.
 - Persist the rationale on the planner plan payload and surface it in responses (SSE + REST).
 - Ensure rationales reuse scrubbed data and never echo raw PII.
 
-Acceptance
+**Acceptance**
 
 - Unit tests cover rationale assembly for English and Hebrew planner flows (with/without preferences).
 - Golden test validates the rationale appears alongside the selected provider in the appointment scenario.
@@ -34,7 +34,7 @@ Acceptance
 - **Kill if:** After two iterations, rationale coverage fails to improve planner satisfaction or increases message length beyond 10% without user benefit in QA review.
   - (When abandoned, remove rationale copy from planner responses and add note to ideas.md backlog.)
 
-Pointers
+**Pointers**
 
 - `services/api/app/graph/nodes/planner.py`, `services/api/app/graph/nodes/places.py`, `services/api/tests/unit/test_planner.py`, `services/api/tests/golden/inputs.jsonl`.
 
@@ -54,14 +54,14 @@ Why: Balance semantic relevance with distance, hours, and insurance so top candi
 **status:** TODO
 **rollback/flag:** set `PREFERENCE_SCORING_WEIGHTS=semantic:1.0,distance:0.0,hours:0.0,insurance:0.0`
 
-Scope
+**Scope**
 
 - Introduce configurable weights for semantic, distance, hours, and insurance components (settings/env).
 - Extend provider metadata/fixtures to expose insurance participation for ranking.
 - Update ranking to apply weighted scoring while keeping rationale strings consistent with contributing factors.
 - Teach planner rationales to mention insurance match once weighting is in place.
 
-Acceptance
+**Acceptance**
 
 - Unit tests cover weighted scoring permutations (distance-heavy, insurance-heavy, default mix).
 - Golden or integration test shows insurance-matched provider outranks mismatch when weights favor insurance.
@@ -69,7 +69,7 @@ Acceptance
 - **Kill if:** Weighted configuration still produces worse top-match click-through or increases latency >10% after two tuning passes.
   - (If killed, document rationale in ideas.md and revert weighting config to baseline default.)
 
-Pointers
+**Pointers**
 
 - `services/api/app/graph/nodes/places.py`, `services/api/tests/unit/test_places.py`, `seeds/providers/`, `project/config.md`.
 
