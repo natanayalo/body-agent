@@ -4,6 +4,8 @@ Here’s a crisp next-step plan you can ship as a sequence of small PRs, each wi
 
 Refer to `project/roadmap/shipped.md` for completed slices.
 
+> **Legend:** `owner:` GitHub handle · `status:` TODO | IN-PROGRESS | REVIEW | SHIPPED
+
 # Milestone 3 — Stability & CI polish
 
 ---
@@ -13,6 +15,10 @@ Refer to `project/roadmap/shipped.md` for completed slices.
 ## PR 36 — Planner rationale templates
 
 Why: Give users a concise explanation for why a suggested appointment slot fits their preferences.
+
+**owner:** @natanayalo
+**status:** TODO
+**rollback/flag:** `PLANNER_RATIONALE_ENABLED=false`
 
 Scope
 
@@ -30,9 +36,21 @@ Pointers
 
 - `services/api/app/graph/nodes/planner.py`, `services/api/app/graph/nodes/places.py`, `services/api/tests/unit/test_planner.py`, `services/api/tests/golden/inputs.jsonl`.
 
+**Demo:**
+```bash
+curl -s http://localhost:8000/api/graph/run \
+  -H 'content-type: application/json' \
+  -d '{"user_id":"demo","query":"Please book a cardiology clinic tomorrow morning","preferences":{"max_travel_km":5}}' \
+  | jq '.state.plan.explanations'
+```
+
 ## PR 37 — Preference-aware provider scoring
 
 Why: Balance semantic relevance with distance, hours, and insurance so top candidates align with user priorities.
+
+**owner:** @natanayalo
+**status:** TODO
+**rollback/flag:** set `PREFERENCE_SCORING_WEIGHTS=semantic:1.0,distance:0.0,hours:0.0,insurance:0.0`
 
 Scope
 
@@ -50,3 +68,13 @@ Acceptance
 Pointers
 
 - `services/api/app/graph/nodes/places.py`, `services/api/tests/unit/test_places.py`, `seeds/providers/`, `project/config.md`.
+
+**Demo:**
+```bash
+curl -s http://localhost:8000/api/graph/run \
+  -H 'content-type: application/json' \
+  -d '{"user_id":"demo","query":"Find an endocrinologist","preferences":{"insurance_plan":"maccabi","max_travel_km":10}}' \
+  | jq '.state.candidates | map({name, score, reasons})'
+```
+
+> **Numbering policy:** Section titles (e.g., “PR 36/37”) indicate planned order only. Actual PR numbers are assigned by GitHub once opened.

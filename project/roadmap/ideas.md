@@ -42,7 +42,7 @@ Use the status column to see whether an idea is already shipped, queued up in th
 
 | Status | Idea | Summary | Notes |
 | --- | --- | --- | --- |
-| 🔄 | Calendar rationale templates | Add short “why this slot” explanations in EN/HE so planner output is transparent. | Planned as PR 36; leverage planner debug trace for copy hints. |
+| 🔄 | Calendar rationale templates | Add short “why this slot” explanations in EN/HE so planner output is transparent. | Planned as PR 36; leverage planner debug trace for copy hints. **Kill if:** after 2 iterations, rationales do not improve planner satisfaction scores in E2E evals. |
 
 ### Connectors & Automation
 
@@ -72,7 +72,7 @@ Use the status column to see whether an idea is already shipped, queued up in th
 
 | Status | Idea | Summary | Notes |
 | --- | --- | --- | --- |
-| 🔄 | Preference-aware provider scoring | Blend semantic score with distance, hours fit, insurance match using configurable weights. | Planned as PR 37; expand provider metadata and scoring tests. |
+| 🔄 | Preference-aware provider scoring | Blend semantic score with distance, hours fit, insurance match using configurable weights. | Planned as PR 37; expand provider metadata and scoring tests. **Kill if:** weighted scoring fails to increase top-match click-through in manual QA after two tuning passes. |
 | 🧭 | Lightweight meds registry | Small YAML of common OTC classes (uses, avoid_if, interactions) to supplement answers without dosing. | Consider after Milestone 2; overlap with med facts work. |
 | 🧭 | KB seeding & translation pipeline | Extend ingestion scripts to translate vetted symptom docs into Hebrew and store provenance. | Requires `scripts/ingest_public_kb.py` updates + seeding automation. |
 
@@ -80,3 +80,8 @@ When you pick up an idea:
 
 1. Flesh out acceptance criteria in `pr-stack.md` (or move the row into the scheduled section).
 2. Once shipped, move the row to the **Implemented** table (or archive it with a link to the PR).
+
+### Licensing & provenance
+
+- Public KB seeds: use permissively licensed health sources (e.g., NHS, Medline); link provenance in PRs that add content.
+- `med_facts.json`: human-curated; each entry must include `source_title` + `source_url`. PRs modifying facts should update citations or explain provenance.
