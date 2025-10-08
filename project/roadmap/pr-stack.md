@@ -8,7 +8,7 @@ Refer to `project/roadmap/shipped.md` for completed slices.
 
 ---
 
-# Milestone 5 — Observability & Safety connectors
+# Milestone 5 — Advanced planner features
 
 ## PR 36 — Planner rationale templates
 
@@ -16,7 +16,7 @@ Why: Give users a concise explanation for why a suggested appointment slot fits 
 
 Scope
 
-- Add short EN/HE rationale strings that reference distance/availability/insurance data when present.
+- Add short EN/HE rationale strings that reference distance/availability data when present.
 - Persist the rationale on the planner plan payload and surface it in responses (SSE + REST).
 - Ensure rationales reuse scrubbed data and never echo raw PII.
 
@@ -39,6 +39,7 @@ Scope
 - Introduce configurable weights for semantic, distance, hours, and insurance components (settings/env).
 - Extend provider metadata/fixtures to expose insurance participation for ranking.
 - Update ranking to apply weighted scoring while keeping rationale strings consistent with contributing factors.
+- Teach planner rationales to mention insurance match once weighting is in place.
 
 Acceptance
 
