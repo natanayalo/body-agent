@@ -27,6 +27,7 @@ Use the status column to see whether an idea is already shipped, queued up in th
 | ✅ | Risk gating for meds onset | Relax risk thresholds for benign onset questions while keeping red-flag escalations. | Shipped in PR 22; parametrized risk tests. |
 | ✅ | Deterministic meds onset answers | Serve onset guidance from vetted facts with localized copy and single citation. | Shipped in PR 23; med_facts helper + integration coverage. |
 | ✅ | Med interaction recall & language-aware answers | Boost BM25 combos, dedupe citations, and follow `state.language` in answers. | Shipped in PR 24; interaction flow integration updated. |
+| ✅ | Preference expansion (distance filter) | Respect user travel radius when ranking providers and expose the applied limit in planner reasons. | Shipped in PR 35; `places` node filters by `max_travel_km`. |
 
 ## Scheduled (see `pr-stack.md`)
 
@@ -41,8 +42,7 @@ Use the status column to see whether an idea is already shipped, queued up in th
 
 | Status | Idea | Summary | Notes |
 | --- | --- | --- | --- |
-| 🧭 | Preference expansion | Store `max_travel_km`, `insurance_network`, richer availability prefs; surface reasons in planner output. | Needs schema extension + planner scoring changes. |
-| 🧭 | Calendar rationale templates | Add short “why this slot” explanations in EN/HE so planner output is transparent. | Can reuse planner debug trace. |
+| 🔄 | Calendar rationale templates | Add short “why this slot” explanations in EN/HE so planner output is transparent. | Planned as PR 36; leverage planner debug trace for copy hints. |
 
 ### Connectors & Automation
 
@@ -72,7 +72,7 @@ Use the status column to see whether an idea is already shipped, queued up in th
 
 | Status | Idea | Summary | Notes |
 | --- | --- | --- | --- |
-| 🧭 | Preference-aware provider scoring | Blend semantic score with distance, hours fit, insurance match using configurable weights. | Requires more provider metadata + tests. |
+| 🔄 | Preference-aware provider scoring | Blend semantic score with distance, hours fit, insurance match using configurable weights. | Planned as PR 37; expand provider metadata and scoring tests. |
 | 🧭 | Lightweight meds registry | Small YAML of common OTC classes (uses, avoid_if, interactions) to supplement answers without dosing. | Consider after Milestone 2; overlap with med facts work. |
 | 🧭 | KB seeding & translation pipeline | Extend ingestion scripts to translate vetted symptom docs into Hebrew and store provenance. | Requires `scripts/ingest_public_kb.py` updates + seeding automation. |
 
