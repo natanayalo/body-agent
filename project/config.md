@@ -50,6 +50,10 @@ This page lists the key environment variables, defaults, and how to run in CI (s
 - `FALLBACK_TEMPLATES_PATH` (optional; default unset; example `/app/data/safety_templates.json`)
 - `FALLBACK_TEMPLATES_WATCH` (`true|false`)
 
+## Planner & provider scoring
+
+- `PREFERENCE_SCORING_WEIGHTS` (default `semantic:0.6,distance:0.25,hours:0.15,insurance:0.0`; comma-separated weights normalised at load time)
+
 ## Deterministic meds onset
 
 - `MED_FACTS_PATH` (default `/app/seeds/med_facts.json`)

@@ -12,46 +12,12 @@ Refer to `project/roadmap/shipped.md` for completed slices.
 
 # Milestone 5 — Advanced planner features
 
-## PR 36 — Planner rationale templates
-
-Why: Give users a concise explanation for why a suggested appointment slot fits their preferences.
-
-**owner:** @natanayalo
-**status:** TODO
-**rollback/flag:** `PLANNER_RATIONALE_ENABLED=false`
-
-**Scope**
-
-- Add short EN/HE rationale strings that reference distance/availability data when present.
-- Persist the rationale on the planner plan payload and surface it in responses (SSE + REST).
-- Ensure rationales reuse scrubbed data and never echo raw PII.
-
-**Acceptance**
-
-- Unit tests cover rationale assembly for English and Hebrew planner flows (with/without preferences).
-- Golden test validates the rationale appears alongside the selected provider in the appointment scenario.
-- Existing planner acceptance checks remain green.
-- **Kill if:** After two iterations, rationale coverage fails to improve planner satisfaction or increases message length beyond 10% without user benefit in QA review.
-  - (When abandoned, remove rationale copy from planner responses and add note to ideas.md backlog.)
-
-**Pointers**
-
-- `services/api/app/graph/nodes/planner.py`, `services/api/app/graph/nodes/places.py`, `services/api/tests/unit/test_planner.py`, `services/api/tests/golden/inputs.jsonl`.
-
-**Demo:**
-```bash
-curl -s http://localhost:8000/api/graph/run \
-  -H 'content-type: application/json' \
-  -d '{"user_id":"demo","query":"Please book a cardiology clinic tomorrow morning","preferences":{"max_travel_km":5}}' \
-  | jq '.state.plan.explanations'
-```
-
 ## PR 37 — Preference-aware provider scoring
 
 Why: Balance semantic relevance with distance, hours, and insurance so top candidates align with user priorities.
 
 **owner:** @natanayalo
-**status:** TODO
+**status:** IN-PROGRESS
 **rollback/flag:** set `PREFERENCE_SCORING_WEIGHTS=semantic:1.0,distance:0.0,hours:0.0,insurance:0.0`
 
 **Scope**
@@ -65,13 +31,14 @@ Why: Balance semantic relevance with distance, hours, and insurance so top candi
 
 - Unit tests cover weighted scoring permutations (distance-heavy, insurance-heavy, default mix).
 - Golden or integration test shows insurance-matched provider outranks mismatch when weights favor insurance.
+- Planner rationales surface insurance match language when reason codes indicate coverage.
 - Coverage stays ≥95% overall and ≥90% per file.
 - **Kill if:** Weighted configuration still produces worse top-match click-through or increases latency >10% after two tuning passes.
   - (If killed, document rationale in ideas.md and revert weighting config to baseline default.)
 
 **Pointers**
 
-- `services/api/app/graph/nodes/places.py`, `services/api/tests/unit/test_places.py`, `seeds/providers/`, `project/config.md`.
+- `services/api/app/graph/nodes/places.py`, `services/api/tests/unit/test_places.py`, `seeds/providers/`, `project/config.md`, `.env.example`.
 
 **Demo:**
 ```bash

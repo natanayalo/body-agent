@@ -3,6 +3,7 @@ from app.graph.nodes.rationale_codes import (
     HOURS_MATCH,
     TRAVEL_WITHIN_LIMIT,
     PREFERRED_KIND,
+    INSURANCE_MATCH,
 )
 from app.graph.state import BodyState
 from datetime import datetime, UTC
@@ -60,6 +61,7 @@ def test_planner_appointment_rationale_en(monkeypatch):
             "max_travel_km": 5,
             "hours_window": "morning",
             "preferred_kinds": ["clinic"],
+            "insurance_plan": ["Maccabi", "Clalit"],
         },
         candidates=[
             {
@@ -70,12 +72,15 @@ def test_planner_appointment_rationale_en(monkeypatch):
                     "~4.2 km away",
                     "Within your 5 km travel limit",
                     "Open during morning",
+                    "Accepts your Maccabi insurance",
                 ],
                 "reason_codes": [
                     TRAVEL_WITHIN_LIMIT,
                     HOURS_MATCH,
                     PREFERRED_KIND,
+                    INSURANCE_MATCH,
                 ],
+                "insurance_plans": ["maccabi", "leumit"],
             }
         ],
     )
@@ -89,6 +94,7 @@ def test_planner_appointment_rationale_en(monkeypatch):
     assert "within your 5.0 km travel limit" in rationale
     assert "preferred morning hours" in rationale
     assert "matches your preferred clinic" in rationale
+    assert "accepts your Maccabi insurance" in rationale
     assert plan["explanations"][0] == rationale
     assert plan["explanations"][1:] == state["candidates"][0]["reasons"]
 
@@ -103,6 +109,7 @@ def test_planner_appointment_rationale_he(monkeypatch):
         preferences={
             "max_travel_km": 3,
             "hours_window": "evening",
+            "insurance_plan": "מכבי",
         },
         candidates=[
             {
@@ -113,8 +120,10 @@ def test_planner_appointment_rationale_he(monkeypatch):
                     "~2.5 km away",
                     "Within your 3 km travel limit",
                     "Open during evening",
+                    "Accepts your מכבי insurance",
                 ],
-                "reason_codes": [TRAVEL_WITHIN_LIMIT, HOURS_MATCH],
+                "reason_codes": [TRAVEL_WITHIN_LIMIT, HOURS_MATCH, INSURANCE_MATCH],
+                "insurance_plans": ["מכבי"],
             }
         ],
     )
@@ -127,6 +136,7 @@ def test_planner_appointment_rationale_he(monkeypatch):
     assert 'מרחק של כ-2.5 ק"מ ממך' in rationale
     assert 'בתוך מגבלת הנסיעה של 3.0 ק"מ' in rationale
     assert "ערב" in rationale
+    assert "מקבל את ביטוח מכבי שלך" in rationale
     assert plan["explanations"][0] == rationale
 
 
@@ -149,3 +159,18 @@ def test_planner_appointment_rationale_default(monkeypatch):
     plan = new_state["plan"]
     assert plan["type"] == planner.APPOINTMENT_INTENT
     assert plan["rationale"] == "Best match for your saved preferences."
+
+
+def test_planner_rationale_insurance_uses_candidate_list():
+    candidate = {
+        "distance_km": 3.0,
+        "kind": "clinic",
+        "reason_codes": [TRAVEL_WITHIN_LIMIT, INSURANCE_MATCH],
+        "insurance_plans": ["Clalit"],
+    }
+    prefs = {"max_travel_km": 5}
+
+    rationale = planner._format_rationale("en", candidate, prefs)
+
+    assert "it's about 3.0 km from you" in rationale
+    assert "accepts your Clalit insurance" in rationale

@@ -1,9 +1,12 @@
+import pytest
+
 from app.graph.nodes import places
 from app.graph.nodes.places import _should_replace_candidate
 from app.graph.nodes.rationale_codes import (
     HOURS_MATCH,
     TRAVEL_WITHIN_LIMIT,
     PREFERRED_KIND,
+    INSURANCE_MATCH,
 )
 from app.graph.state import BodyState
 
@@ -217,6 +220,99 @@ def test_should_replace_candidate_rejects_out_of_range():
     existing = ({"_score": 0.9}, 4.0)
     candidate = ({"_score": 1.5}, 8.0)
     assert not _should_replace_candidate(existing, candidate, travel_limit_km=5)
+
+
+def test_places_insurance_preference_ranking(monkeypatch):
+    unmatched = {
+        "name": "Clinic Out",
+        "phone": "+972-3-999-8888",
+        "kind": "clinic",
+        "_score": 1.1,
+        "geo": {"lat": 32.18, "lon": 34.9},
+        "insurance_plans": ["clalit"],
+    }
+    matched = {
+        "name": "Insurance Center",
+        "phone": "+972-3-777-6666",
+        "kind": "clinic",
+        "_score": 0.9,
+        "geo": {"lat": 32.09, "lon": 34.78},
+        "insurance_plans": ["maccabi", "clalit"],
+    }
+
+    monkeypatch.setenv(
+        "PREFERENCE_SCORING_WEIGHTS",
+        "semantic:0.2,distance:0.2,hours:0.0,insurance:0.6",
+    )
+    monkeypatch.setattr(
+        places,
+        "search_providers",
+        lambda *args, **kwargs: [unmatched, matched],
+    )
+
+    state = BodyState(
+        user_query="insurance match",
+        user_query_redacted="insurance match",
+        preferences={"insurance_plan": "Maccabi", "max_travel_km": 20},
+    )
+
+    ranked_state = places.run(state, es_client=object())
+    top = ranked_state["candidates"][0]
+    assert top["name"] == "Insurance Center"
+    assert "Accepts your Maccabi insurance" in top.get("reasons", [])
+    codes = set(top.get("reason_codes", []))
+    assert INSURANCE_MATCH in codes
+
+
+@pytest.mark.parametrize(
+    "weights_str, expected",
+    [
+        ("semantic:0.7,distance:0.2,hours:0.0,insurance:0.1", "Semantic Specialist"),
+        ("semantic:0.1,distance:0.8,hours:0.0,insurance:0.1", "Nearby Clinic"),
+        ("semantic:0.1,distance:0.1,hours:0.0,insurance:0.8", "Insurance Match Center"),
+    ],
+)
+def test_places_scoring_weights_permutations(monkeypatch, weights_str, expected):
+    semantic = {
+        "name": "Semantic Specialist",
+        "phone": "+972-3-555-1112",
+        "kind": "clinic",
+        "_score": 1.0,
+        "geo": {"lat": 32.3, "lon": 34.9},
+        "insurance_plans": ["private"],
+    }
+    nearby = {
+        "name": "Nearby Clinic",
+        "phone": "+972-3-555-1113",
+        "kind": "clinic",
+        "_score": 0.6,
+        "geo": {"lat": 32.09, "lon": 34.78},
+        "insurance_plans": ["clalit"],
+    }
+    insurance = {
+        "name": "Insurance Match Center",
+        "phone": "+972-3-555-1114",
+        "kind": "clinic",
+        "_score": 0.6,
+        "geo": {"lat": 32.3, "lon": 35.1},
+        "insurance_plans": ["maccabi"],
+    }
+
+    monkeypatch.setenv("PREFERENCE_SCORING_WEIGHTS", weights_str)
+    monkeypatch.setattr(
+        places,
+        "search_providers",
+        lambda *args, **kwargs: [semantic, nearby, insurance],
+    )
+
+    state = BodyState(
+        user_query="find clinic",
+        user_query_redacted="find clinic",
+        preferences={"insurance_plan": "Maccabi", "max_travel_km": 50},
+    )
+
+    ranked_state = places.run(state, es_client=object())
+    assert ranked_state["candidates"][0]["name"] == expected
 
 
 def test_should_replace_candidate_prefers_closer_same_score():
