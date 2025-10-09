@@ -73,10 +73,14 @@ def test_planner_appointment_rationale_en(monkeypatch):
     new_state = planner.run(state)
     plan = new_state["plan"]
     assert plan["type"] == planner.APPOINTMENT_INTENT
-    assert plan["rationale"].startswith("Because")
-    assert "4.2 km" in plan["rationale"]
-    assert "morning" in plan["rationale"]
-    assert plan["explanations"][0] == plan["rationale"]
+    rationale = plan["rationale"]
+    assert rationale.startswith("Because ")
+    assert "4.2" in rationale
+    assert "within your 5.0 km travel limit" in rationale
+    assert "preferred morning hours" in rationale
+    assert "matches your preferred clinic" in rationale
+    assert plan["explanations"][0] == rationale
+    assert plan["explanations"][1:] == state["candidates"][0]["reasons"]
 
 
 def test_planner_appointment_rationale_he(monkeypatch):
@@ -107,9 +111,12 @@ def test_planner_appointment_rationale_he(monkeypatch):
     new_state = planner.run(state)
     plan = new_state["plan"]
     assert plan["type"] == planner.APPOINTMENT_INTENT
-    assert plan["rationale"].startswith("כי")
-    assert 'ק"מ' in plan["rationale"]
-    assert "ערב" in plan["rationale"]
+    rationale = plan["rationale"]
+    assert rationale.startswith("כי ")
+    assert 'מרחק של כ-2.5 ק"מ ממך' in rationale
+    assert 'בתוך מגבלת הנסיעה של 3.0 ק"מ' in rationale
+    assert "ערב" in rationale
+    assert plan["explanations"][0] == rationale
 
 
 def test_planner_appointment_rationale_default(monkeypatch):
@@ -130,4 +137,4 @@ def test_planner_appointment_rationale_default(monkeypatch):
     new_state = planner.run(state)
     plan = new_state["plan"]
     assert plan["type"] == planner.APPOINTMENT_INTENT
-    assert plan["rationale"].startswith("Best match")
+    assert plan["rationale"] == "Best match for your saved preferences."

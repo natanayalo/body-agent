@@ -3,9 +3,14 @@ from __future__ import annotations
 import logging
 import math
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Set
 
 from app.graph.state import BodyState
+from app.graph.nodes.rationale_codes import (
+    HOURS_MATCH,
+    TRAVEL_WITHIN_LIMIT,
+    PREFERRED_KIND,
+)
 from app.tools.geo_tools import search_providers
 from app.tools.es_client import get_es_client
 
@@ -142,8 +147,9 @@ def _compute_candidate_meta(
     prefs: Dict[str, Any],
     travel_limit_km: float | None,
     distance_km: float | None,
-) -> Tuple[float, List[str], float | None]:
+) -> Tuple[float, List[str], float | None, Set[str]]:
     reasons: List[str] = []
+    reason_codes: Set[str] = set()
     distance_norm = 0.5
 
     if distance_km is not None:
@@ -152,6 +158,9 @@ def _compute_candidate_meta(
         reasons.append(f"~{distance_km:.1f} km away")
         if travel_limit_km is not None and distance_km <= travel_limit_km:
             reasons.append(f"Within your {travel_limit_km:g} km travel limit")
+            reason_codes.add(TRAVEL_WITHIN_LIMIT)
+    elif travel_limit_km is not None:
+        reason_codes.add(TRAVEL_WITHIN_LIMIT)
 
     hours_fit = 0.5
     pref_window = prefs.get("hours_window")
@@ -160,6 +169,7 @@ def _compute_candidate_meta(
         if windows and pref_window in windows:
             hours_fit = 1.0
             reasons.append(f"Open during {pref_window}")
+            reason_codes.add(HOURS_MATCH)
         else:
             hours_fit = 0.0
 
@@ -168,9 +178,10 @@ def _compute_candidate_meta(
     if preferred_kinds and kind in preferred_kinds:
         semantic_norm = min(1.0, semantic_norm + 0.1)
         reasons.append(f"Matches preferred kind ({kind})")
+        reason_codes.add(PREFERRED_KIND)
 
     score = 0.6 * semantic_norm + 0.25 * distance_norm + 0.15 * hours_fit
-    return score, reasons, distance_km
+    return score, reasons, distance_km, reason_codes
 
 
 def run(state: BodyState, es_client=None) -> BodyState:
@@ -224,7 +235,7 @@ def run(state: BodyState, es_client=None) -> BodyState:
     for (candidate, distance_km), sem_norm in zip(
         candidates_with_distance, semantic_norms
     ):
-        score, reasons, distance_km = _compute_candidate_meta(
+        score, reasons, distance_km, reason_codes = _compute_candidate_meta(
             candidate, sem_norm, prefs, travel_limit_km, distance_km
         )
         cand_with_meta = candidate.copy()
@@ -232,6 +243,8 @@ def run(state: BodyState, es_client=None) -> BodyState:
         if distance_km is not None:
             cand_with_meta["distance_km"] = round(distance_km, 2)
         cand_with_meta["reasons"] = reasons
+        if reason_codes:
+            cand_with_meta["reason_codes"] = list(reason_codes)
         ranked.append(cand_with_meta)
 
     ranked.sort(key=lambda c: c.get("score", 0.0), reverse=True)
