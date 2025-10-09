@@ -4,15 +4,39 @@ Chronicles of recently completed work. Each entry mirrors the acceptance criteri
 
 ## PR 34 — Outbound domain allow-list (fail-closed)
 
+**owner:** @natanayalo
+**status:** SHIPPED
+**rollback/flag:** unset `OUTBOUND_ALLOWLIST` (reverts to allow-all)
+
 - Added `safe_request`/`safe_get` helpers that enforce a configurable outbound allow-list, cover subdomains/IPs, and fail fast on redirects.
 - Documented `OUTBOUND_ALLOWLIST` expectations across contributor docs so deploys stay fail-closed by default.
 - Expanded `test_http` coverage for case/whitespace handling, partial-domain rejection, IP-validation, and redirect blocking.
 
+**Demo:**
+```bash
+curl -s http://localhost:8000/api/graph/run \
+  -H 'content-type: application/json' \
+  -d '{"user_id":"demo","query":"Check my provider list"}' \
+  | jq '.state.debug.http_guard'
+```
+
 ## PR 35 — Preference expansion (distance filter)
+
+**owner:** @natanayalo
+**status:** SHIPPED
+**rollback/flag:** set `PREFERENCE_TRAVEL_LIMIT_ENABLED=false`
 
 - Normalize `max_travel_km` user preferences so memory/places share one canonical field.
 - Filter provider candidates beyond the configured travel radius while preferring in-range locations during dedupe.
 - Surface the applied travel limit in planner reasons and cover edge cases with unit + golden tests.
+
+**Demo:**
+```bash
+curl -s http://localhost:8000/api/graph/run \
+  -H 'content-type: application/json' \
+  -d '{"user_id":"demo","query":"Find a cardiology clinic","preferences":{"max_travel_km":5}}' \
+  | jq '.state.candidates | map({name, distance_km, reasons})'
+```
 
 ## PR 28 — SSE contract test
 
