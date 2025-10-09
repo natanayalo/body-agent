@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import re
 from typing import Any, Dict, List, Tuple, Set
 
@@ -10,6 +11,7 @@ from app.graph.nodes.rationale_codes import (
     HOURS_MATCH,
     TRAVEL_WITHIN_LIMIT,
     PREFERRED_KIND,
+    INSURANCE_MATCH,
 )
 from app.tools.geo_tools import search_providers
 from app.tools.es_client import get_es_client
@@ -20,11 +22,79 @@ logger = logging.getLogger(__name__)
 TLV = (32.0853, 34.7818)
 DEFAULT_RADIUS_KM = 10.0
 
+DEFAULT_WEIGHTS = {
+    "semantic": 0.6,
+    "distance": 0.25,
+    "hours": 0.15,
+    "insurance": 0.0,
+}
+
 WINDOW_RANGES = {
     "morning": range(5, 12),
     "afternoon": range(12, 17),
     "evening": range(17, 24),
 }
+
+
+def _extract_plan_map(value: Any) -> tuple[Dict[str, str], str | None]:
+    plans: Dict[str, str] = {}
+    display: str | None = None
+    if isinstance(value, str):
+        cleaned = value.strip()
+        if cleaned:
+            key = cleaned.lower()
+            plans[key] = cleaned
+            display = cleaned
+    elif isinstance(value, (list, tuple, set)):
+        for item in value:
+            if not isinstance(item, str):
+                continue
+            cleaned = item.strip()
+            if not cleaned:
+                continue
+            key = cleaned.lower()
+            if key not in plans:
+                plans[key] = cleaned
+                if display is None:
+                    display = cleaned
+    return plans, display
+
+
+def _get_scoring_weights() -> Dict[str, float]:
+    weights = DEFAULT_WEIGHTS.copy()
+    raw = os.getenv("PREFERENCE_SCORING_WEIGHTS")
+    if not raw:
+        return weights
+
+    parsed: Dict[str, float] = {}
+    for chunk in raw.split(","):
+        if ":" not in chunk:
+            continue
+        key, value = chunk.split(":", 1)
+        norm_key = key.strip().lower()
+        if norm_key not in weights:
+            continue
+        try:
+            val = float(value)
+        except ValueError:
+            continue
+        if val >= 0:
+            parsed[norm_key] = val
+
+    if not parsed:
+        return weights
+
+    for key, val in parsed.items():
+        weights[key] = val
+
+    total = sum(weights.values())
+    if total <= 0:
+        logger.warning(
+            "Invalid PREFERENCE_SCORING_WEIGHTS provided (%s); using defaults.", raw
+        )
+        return DEFAULT_WEIGHTS.copy()
+
+    return {key: weights[key] / total for key in weights}
 
 
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -147,10 +217,12 @@ def _compute_candidate_meta(
     prefs: Dict[str, Any],
     travel_limit_km: float | None,
     distance_km: float | None,
+    weights: Dict[str, float],
 ) -> Tuple[float, List[str], float | None, Set[str]]:
     reasons: List[str] = []
     reason_codes: Set[str] = set()
     distance_norm = 0.5
+    candidate.pop("matched_insurance_label", None)
 
     if distance_km is not None:
         max_radius = travel_limit_km or DEFAULT_RADIUS_KM
@@ -180,7 +252,38 @@ def _compute_candidate_meta(
         reasons.append(f"Matches preferred kind ({kind})")
         reason_codes.add(PREFERRED_KIND)
 
-    score = 0.6 * semantic_norm + 0.25 * distance_norm + 0.15 * hours_fit
+    insurance_fit = 0.5
+    pref_plans_map, pref_display = _extract_plan_map(prefs.get("insurance_plan"))
+    candidate_plans_map, candidate_display = _extract_plan_map(
+        candidate.get("insurance_plans") or candidate.get("insurance")
+    )
+    if pref_plans_map:
+        if candidate_plans_map:
+            matches = set(pref_plans_map) & set(candidate_plans_map)
+            if matches:
+                insurance_fit = 1.0
+                reason_codes.add(INSURANCE_MATCH)
+                match_key = sorted(matches)[0]
+                plan_label = (
+                    pref_plans_map.get(match_key)
+                    or candidate_plans_map.get(match_key)
+                    or pref_display
+                    or candidate_display
+                )
+                if plan_label:
+                    candidate["matched_insurance_label"] = plan_label
+                    reasons.append(f"Accepts your {plan_label} insurance")
+            else:
+                insurance_fit = 0.0
+        else:
+            insurance_fit = 0.25
+
+    score = (
+        weights["semantic"] * semantic_norm
+        + weights["distance"] * distance_norm
+        + weights["hours"] * hours_fit
+        + weights["insurance"] * insurance_fit
+    )
     return score, reasons, distance_km, reason_codes
 
 
@@ -193,6 +296,7 @@ def run(state: BodyState, es_client=None) -> BodyState:
 
     prefs: Dict[str, Any] = dict(state.get("preferences") or {})
     travel_limit_km = _get_travel_limit(prefs)
+    weights = _get_scoring_weights()
 
     best: Dict[Tuple[str, str], Tuple[Dict[str, Any], float | None]] = {}
     for c in raw:
@@ -236,7 +340,7 @@ def run(state: BodyState, es_client=None) -> BodyState:
         candidates_with_distance, semantic_norms
     ):
         score, reasons, distance_km, reason_codes = _compute_candidate_meta(
-            candidate, sem_norm, prefs, travel_limit_km, distance_km
+            candidate, sem_norm, prefs, travel_limit_km, distance_km, weights
         )
         cand_with_meta = candidate.copy()
         cand_with_meta["score"] = round(score, 4)

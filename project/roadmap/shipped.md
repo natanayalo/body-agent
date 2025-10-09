@@ -2,6 +2,44 @@
 
 Chronicles of recently completed work. Each entry mirrors the acceptance criteria that were previously tracked in `pr-stack.md`.
 
+## PR 36 — Planner rationale templates
+
+**owner:** @natanayalo
+**status:** SHIPPED
+**rollback/flag:** `PLANNER_RATIONALE_ENABLED=false`
+
+- Added localized EN/HE rationale strings summarizing distance, travel limits, hours, and preferred kinds when matching providers are suggested.
+- Persisted rationale text on the planner plan payload and surfaced it as the primary explanation entry for REST/SSE responses without exposing raw PII.
+- Extended planner, places, and golden tests to cover rationale assembly across preference/no-preference flows while keeping existing acceptance checks green.
+
+**Demo:**
+```bash
+curl -s http://localhost:8000/api/graph/run \
+  -H 'content-type: application/json' \
+  -d '{"user_id":"demo","query":"Please book a cardiology clinic tomorrow morning","preferences":{"max_travel_km":5}}' \
+  | jq '.state.plan.explanations'
+```
+
+
+## PR 37 — Preference-aware provider scoring
+
+**owner:** @natanayalo
+**status:** SHIPPED
+**rollback/flag:** set `PREFERENCE_SCORING_WEIGHTS=semantic:1.0,distance:0.0,hours:0.0,insurance:0.0`
+
+- Introduced configurable weighting for semantic, distance, hours, and insurance factors with normalized parsing + safe fallbacks.
+- Places node emits structured `matched_insurance_label`, and planner rationales surface insurance matches in EN/HE without duplicating logic.
+- Expanded unit + golden tests covering weight permutations, insurance fallbacks, and preference fetching to keep coverage ≥95%.
+
+**Demo:**
+```bash
+curl -s http://localhost:8000/api/graph/run \
+  -H 'content-type: application/json' \
+  -d '{"user_id":"demo","query":"Find an endocrinologist","preferences":{"insurance_plan":"maccabi","max_travel_km":10}}' \
+  | jq '.state.candidates | map({name, score, reasons})'
+```
+
+
 ## PR 34 — Outbound domain allow-list (fail-closed)
 
 **owner:** @natanayalo

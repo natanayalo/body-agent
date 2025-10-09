@@ -8,6 +8,7 @@ from app.graph.nodes.rationale_codes import (
     HOURS_MATCH,
     TRAVEL_WITHIN_LIMIT,
     PREFERRED_KIND,
+    INSURANCE_MATCH,
 )
 from app.graph.state import BodyState, SubIntent
 from app.tools.calendar_tools import CalendarEvent, create_event
@@ -32,6 +33,7 @@ RATIONALE_STRINGS = {
         "travel_limit_only": "honors your {travel_limit:.1f} km travel limit",
         "hours": "open during your preferred {window} hours",
         "preferred_kind": "matches your preferred {kind}",
+        "insurance": "accepts your {insurance} insurance",
         "default": "Best match for your saved preferences.",
         "separator": "; ",
         "terminator": ".",
@@ -43,6 +45,7 @@ RATIONALE_STRINGS = {
         "travel_limit_only": 'מכבדת מגבלת נסיעה של {travel_limit:.1f} ק"מ',
         "hours": "פתוח במהלך שעות ה{window} שהעדפת",
         "preferred_kind": "מתאים לסוג שהעדפת ({kind})",
+        "insurance": "מקבל את ביטוח {insurance} שלך",
         "default": "ההתאמה הטובה ביותר להעדפותיך.",
         "separator": "; ",
         "terminator": ".",
@@ -102,6 +105,31 @@ def _format_rationale(
                 kind=candidate_kind_display or candidate_kind
             )
         )
+
+    if INSURANCE_MATCH in reason_codes:
+        insurance_display = candidate.get("matched_insurance_label")
+        if not insurance_display:
+            pref_plans = prefs.get("insurance_plan")
+            if isinstance(pref_plans, str):
+                insurance_display = pref_plans.strip() or None
+            elif isinstance(pref_plans, (list, tuple, set)):
+                for item in pref_plans:
+                    if isinstance(item, str) and item.strip():
+                        insurance_display = item.strip()
+                        break
+        if not insurance_display:
+            candidate_plans = candidate.get("insurance_plans") or candidate.get(
+                "insurance"
+            )
+            if isinstance(candidate_plans, str):
+                insurance_display = candidate_plans.strip() or None
+            elif isinstance(candidate_plans, (list, tuple, set)):
+                for item in candidate_plans:
+                    if isinstance(item, str) and item.strip():
+                        insurance_display = item.strip()
+                        break
+        if insurance_display:
+            fragments.append(strings["insurance"].format(insurance=insurance_display))
 
     if not fragments:
         return strings["default"]
