@@ -71,7 +71,6 @@ def _format_rationale(
     prefs = preferences or {}
     fragments: list[str] = []
     reason_codes = {str(reason).lower() for reason in candidate.get("reason_codes", [])}
-    reasons = candidate.get("reasons", []) or []
 
     def _fmt(limit: float | None) -> float | None:
         if limit is None:
@@ -85,29 +84,19 @@ def _format_rationale(
 
     if distance_km is not None:
         fragments.append(strings["distance"].format(distance_km=distance_km))
-        if travel_limit is not None and (
-            TRAVEL_WITHIN_LIMIT in reason_codes or distance_km <= travel_limit + 1e-6
-        ):
+        if travel_limit is not None and TRAVEL_WITHIN_LIMIT in reason_codes:
             fragments.append(strings["within_limit"].format(travel_limit=travel_limit))
     elif travel_limit is not None and TRAVEL_WITHIN_LIMIT in reason_codes:
         fragments.append(strings["travel_limit_only"].format(travel_limit=travel_limit))
 
     pref_window = (prefs.get("hours_window") or "").lower()
-    hours_match = HOURS_MATCH in reason_codes or any(
-        "open during" in str(r).lower() for r in reasons
-    )
-    if pref_window and hours_match:
+    if pref_window and HOURS_MATCH in reason_codes:
         window_text = _translate_window(pref_window, lang)
         fragments.append(strings["hours"].format(window=window_text))
 
     candidate_kind_display = candidate.get("kind") or ""
-    preferred_kinds = {
-        str(k).lower() for k in (prefs.get("preferred_kinds") or []) if str(k).strip()
-    }
     candidate_kind = (candidate_kind_display or "").lower()
-    if PREFERRED_KIND in reason_codes or (
-        preferred_kinds and candidate_kind in preferred_kinds
-    ):
+    if PREFERRED_KIND in reason_codes:
         fragments.append(
             strings["preferred_kind"].format(
                 kind=candidate_kind_display or candidate_kind

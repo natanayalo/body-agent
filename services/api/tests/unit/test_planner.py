@@ -1,4 +1,9 @@
 from app.graph.nodes import planner
+from app.graph.nodes.rationale_codes import (
+    HOURS_MATCH,
+    TRAVEL_WITHIN_LIMIT,
+    PREFERRED_KIND,
+)
 from app.graph.state import BodyState
 from datetime import datetime, UTC
 
@@ -66,6 +71,11 @@ def test_planner_appointment_rationale_en(monkeypatch):
                     "Within your 5 km travel limit",
                     "Open during morning",
                 ],
+                "reason_codes": [
+                    TRAVEL_WITHIN_LIMIT,
+                    HOURS_MATCH,
+                    PREFERRED_KIND,
+                ],
             }
         ],
     )
@@ -104,6 +114,7 @@ def test_planner_appointment_rationale_he(monkeypatch):
                     "Within your 3 km travel limit",
                     "Open during evening",
                 ],
+                "reason_codes": [TRAVEL_WITHIN_LIMIT, HOURS_MATCH],
             }
         ],
     )
