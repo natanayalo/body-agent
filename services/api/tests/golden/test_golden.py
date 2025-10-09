@@ -129,3 +129,7 @@ def test_golden_cases(
             )
             for snippet in plan_expect["reasons_contains"]:
                 assert snippet in reasons_text
+        if "rationale_contains" in plan_expect:
+            rationale = plan.get("rationale", "")
+            for snippet in plan_expect["rationale_contains"]:
+                assert snippet in rationale

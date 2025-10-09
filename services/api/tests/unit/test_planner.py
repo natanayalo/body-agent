@@ -42,3 +42,92 @@ def test_planner_meds_non_schedule_gets_none_plan():
     new_state = planner.run(state)
 
     assert new_state["plan"] == {"type": planner.PLAN_TYPE_NONE}
+
+
+def test_planner_appointment_rationale_en(monkeypatch):
+    monkeypatch.setattr(planner, "create_event", lambda event: "/tmp/mock.ics")
+    state = BodyState(
+        intent=planner.APPOINTMENT_INTENT,
+        user_query="book appointment",
+        user_query_redacted="book appointment",
+        language="en",
+        preferences={
+            "max_travel_km": 5,
+            "hours_window": "morning",
+            "preferred_kinds": ["clinic"],
+        },
+        candidates=[
+            {
+                "name": "Morning Clinic",
+                "distance_km": 4.2,
+                "kind": "clinic",
+                "reasons": [
+                    "~4.2 km away",
+                    "Within your 5 km travel limit",
+                    "Open during morning",
+                ],
+            }
+        ],
+    )
+
+    new_state = planner.run(state)
+    plan = new_state["plan"]
+    assert plan["type"] == planner.APPOINTMENT_INTENT
+    assert plan["rationale"].startswith("Because")
+    assert "4.2 km" in plan["rationale"]
+    assert "morning" in plan["rationale"]
+    assert plan["explanations"][0] == plan["rationale"]
+
+
+def test_planner_appointment_rationale_he(monkeypatch):
+    monkeypatch.setattr(planner, "create_event", lambda event: "/tmp/mock.ics")
+    state = BodyState(
+        intent=planner.APPOINTMENT_INTENT,
+        user_query="קבע תור",
+        user_query_redacted="קבע תור",
+        language="he",
+        preferences={
+            "max_travel_km": 3,
+            "hours_window": "evening",
+        },
+        candidates=[
+            {
+                "name": "Evening Clinic",
+                "distance_km": 2.5,
+                "kind": "clinic",
+                "reasons": [
+                    "~2.5 km away",
+                    "Within your 3 km travel limit",
+                    "Open during evening",
+                ],
+            }
+        ],
+    )
+
+    new_state = planner.run(state)
+    plan = new_state["plan"]
+    assert plan["type"] == planner.APPOINTMENT_INTENT
+    assert plan["rationale"].startswith("כי")
+    assert 'ק"מ' in plan["rationale"]
+    assert "ערב" in plan["rationale"]
+
+
+def test_planner_appointment_rationale_default(monkeypatch):
+    monkeypatch.setattr(planner, "create_event", lambda event: "/tmp/mock.ics")
+    state = BodyState(
+        intent=planner.APPOINTMENT_INTENT,
+        user_query="book appointment",
+        user_query_redacted="book appointment",
+        language="en",
+        candidates=[
+            {
+                "name": "Clinic",
+                "reasons": [],
+            }
+        ],
+    )
+
+    new_state = planner.run(state)
+    plan = new_state["plan"]
+    assert plan["type"] == planner.APPOINTMENT_INTENT
+    assert plan["rationale"].startswith("Best match")
