@@ -21,6 +21,25 @@ curl -s http://localhost:8000/api/graph/run \
 ```
 
 
+## PR 37 — Preference-aware provider scoring
+
+**owner:** @natanayalo
+**status:** SHIPPED
+**rollback/flag:** set `PREFERENCE_SCORING_WEIGHTS=semantic:1.0,distance:0.0,hours:0.0,insurance:0.0`
+
+- Introduced configurable weighting for semantic, distance, hours, and insurance factors with normalized parsing + safe fallbacks.
+- Places node emits structured `matched_insurance_label`, and planner rationales surface insurance matches in EN/HE without duplicating logic.
+- Expanded unit + golden tests covering weight permutations, insurance fallbacks, and preference fetching to keep coverage ≥95%.
+
+**Demo:**
+```bash
+curl -s http://localhost:8000/api/graph/run \
+  -H 'content-type: application/json' \
+  -d '{"user_id":"demo","query":"Find an endocrinologist","preferences":{"insurance_plan":"maccabi","max_travel_km":10}}' \
+  | jq '.state.candidates | map({name, score, reasons})'
+```
+
+
 ## PR 34 — Outbound domain allow-list (fail-closed)
 
 **owner:** @natanayalo
