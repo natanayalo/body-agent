@@ -81,6 +81,7 @@ def test_planner_appointment_rationale_en(monkeypatch):
                     INSURANCE_MATCH,
                 ],
                 "insurance_plans": ["maccabi", "leumit"],
+                "matched_insurance_label": "Maccabi",
             }
         ],
     )
@@ -124,6 +125,7 @@ def test_planner_appointment_rationale_he(monkeypatch):
                 ],
                 "reason_codes": [TRAVEL_WITHIN_LIMIT, HOURS_MATCH, INSURANCE_MATCH],
                 "insurance_plans": ["מכבי"],
+                "matched_insurance_label": "מכבי",
             }
         ],
     )
@@ -167,6 +169,7 @@ def test_planner_rationale_insurance_uses_candidate_list():
         "kind": "clinic",
         "reason_codes": [TRAVEL_WITHIN_LIMIT, INSURANCE_MATCH],
         "insurance_plans": ["Clalit"],
+        "matched_insurance_label": "Clalit",
     }
     prefs = {"max_travel_km": 5}
 
@@ -174,3 +177,56 @@ def test_planner_rationale_insurance_uses_candidate_list():
 
     assert "it's about 3.0 km from you" in rationale
     assert "accepts your Clalit insurance" in rationale
+
+
+def test_planner_rationale_insurance_prefers_pref_display():
+    candidate = {
+        "distance_km": None,
+        "kind": "clinic",
+        "reason_codes": [INSURANCE_MATCH],
+        "insurance_plans": [],
+    }
+    prefs = {"insurance_plan": "Meuhedet"}
+
+    rationale = planner._format_rationale("en", candidate, prefs)
+
+    assert "Meuhedet" in rationale
+
+
+def test_planner_rationale_insurance_pref_display_when_no_match():
+    candidate = {
+        "distance_km": None,
+        "kind": "clinic",
+        "reason_codes": [INSURANCE_MATCH],
+        "insurance_plans": ["Meuhedet"],
+    }
+    prefs = {"insurance_plan": ["Leumit"]}
+
+    rationale = planner._format_rationale("en", candidate, prefs)
+
+    assert "Leumit" in rationale
+
+
+def test_planner_rationale_travel_limit_only_phrase():
+    candidate = {
+        "reason_codes": [TRAVEL_WITHIN_LIMIT],
+    }
+    prefs = {"max_travel_km": 7}
+
+    rationale = planner._format_rationale("en", candidate, prefs)
+
+    assert rationale == "Because honors your 7.0 km travel limit."
+
+
+def test_planner_rationale_handles_invalid_travel_limit():
+    candidate = {
+        "distance_km": 2.0,
+        "reason_codes": [TRAVEL_WITHIN_LIMIT],
+    }
+    prefs = {"max_travel_km": "not-a-number"}
+
+    rationale = planner._format_rationale("en", candidate, prefs)
+
+    # Falls back to distance fragment without travel limit copy
+    assert rationale.startswith("Because it's about 2.0 km from you")
+    assert "travel limit" not in rationale

@@ -107,42 +107,27 @@ def _format_rationale(
         )
 
     if INSURANCE_MATCH in reason_codes:
-
-        def _collect(value: Any) -> tuple[dict[str, str], str | None]:
-            plans: dict[str, str] = {}
-            display: str | None = None
-            if isinstance(value, str):
-                cleaned = value.strip()
-                if cleaned:
-                    key = cleaned.lower()
-                    plans[key] = cleaned
-                    display = cleaned
-            elif isinstance(value, (list, tuple, set)):
-                for item in value:
-                    if not isinstance(item, str):
-                        continue
-                    cleaned = item.strip()
-                    if not cleaned:
-                        continue
-                    key = cleaned.lower()
-                    if key not in plans:
-                        plans[key] = cleaned
-                        if display is None:
-                            display = cleaned
-            return plans, display
-
-        pref_map, pref_display = _collect(prefs.get("insurance_plan"))
-        cand_map, cand_display = _collect(
-            candidate.get("insurance_plans") or candidate.get("insurance")
-        )
-        insurance_display = None
-        if pref_map and cand_map:
-            matches = set(pref_map) & set(cand_map)
-            if matches:
-                key = sorted(matches)[0]
-                insurance_display = pref_map.get(key) or cand_map.get(key)
-        if insurance_display is None:
-            insurance_display = pref_display or cand_display
+        insurance_display = candidate.get("matched_insurance_label")
+        if not insurance_display:
+            pref_plans = prefs.get("insurance_plan")
+            if isinstance(pref_plans, str):
+                insurance_display = pref_plans.strip() or None
+            elif isinstance(pref_plans, (list, tuple, set)):
+                for item in pref_plans:
+                    if isinstance(item, str) and item.strip():
+                        insurance_display = item.strip()
+                        break
+        if not insurance_display:
+            candidate_plans = candidate.get("insurance_plans") or candidate.get(
+                "insurance"
+            )
+            if isinstance(candidate_plans, str):
+                insurance_display = candidate_plans.strip() or None
+            elif isinstance(candidate_plans, (list, tuple, set)):
+                for item in candidate_plans:
+                    if isinstance(item, str) and item.strip():
+                        insurance_display = item.strip()
+                        break
         if insurance_display:
             fragments.append(strings["insurance"].format(insurance=insurance_display))
 

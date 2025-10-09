@@ -262,6 +262,7 @@ def test_places_insurance_preference_ranking(monkeypatch):
     assert "Accepts your Maccabi insurance" in top.get("reasons", [])
     codes = set(top.get("reason_codes", []))
     assert INSURANCE_MATCH in codes
+    assert top.get("matched_insurance_label") == "Maccabi"
 
 
 @pytest.mark.parametrize(
@@ -313,6 +314,147 @@ def test_places_scoring_weights_permutations(monkeypatch, weights_str, expected)
 
     ranked_state = places.run(state, es_client=object())
     assert ranked_state["candidates"][0]["name"] == expected
+
+
+def test_places_scoring_weights_defaults_when_unset(monkeypatch):
+    monkeypatch.delenv("PREFERENCE_SCORING_WEIGHTS", raising=False)
+    weights = places._get_scoring_weights()
+    assert weights == places.DEFAULT_WEIGHTS
+
+
+def test_places_scoring_weights_parses_and_normalizes(monkeypatch):
+    monkeypatch.setenv(
+        "PREFERENCE_SCORING_WEIGHTS",
+        "semantic:2.0, distance:1.0, hours:0.0, insurance:1.0,ignored,-foo:-1",
+    )
+    weights = places._get_scoring_weights()
+    total = sum(weights.values())
+    assert pytest.approx(total, rel=1e-6) == 1.0
+    assert pytest.approx(weights["semantic"], rel=1e-6) == 0.5
+    assert pytest.approx(weights["distance"], rel=1e-6) == 0.25
+    assert pytest.approx(weights["insurance"], rel=1e-6) == 0.25
+    assert pytest.approx(weights["hours"], rel=1e-6) == 0.0
+
+
+def test_places_extract_plan_map_handles_iterables():
+    plans, display = places._extract_plan_map([" Maccabi ", "clalit", "maccabi"])
+    assert plans == {"maccabi": "Maccabi", "clalit": "clalit"}
+    assert display == "Maccabi"
+
+
+def test_places_extract_plan_map_from_string():
+    plans, display = places._extract_plan_map(" Meuhedet ")
+    assert plans == {"meuhedet": "Meuhedet"}
+    assert display == "Meuhedet"
+
+
+def test_places_extract_plan_map_from_set():
+    plans, display = places._extract_plan_map({" Clalit ", "Meuhedet"})
+    assert plans[display.lower()] == display
+    assert set(plans.keys()) == {"clalit", "meuhedet"}
+
+
+def test_places_insurance_reason_not_added_without_candidate_data(monkeypatch):
+    # Candidate lacks insurance info, so reason code should not be set
+    monkeypatch.setenv(
+        "PREFERENCE_SCORING_WEIGHTS",
+        "semantic:0.6,distance:0.3,hours:0.1,insurance:0.0",
+    )
+
+    candidate = {
+        "name": "No Insurance Clinic",
+        "phone": "+972-3-111-2222",
+        "kind": "clinic",
+        "_score": 0.9,
+        "geo": {"lat": 32.1, "lon": 34.8},
+    }
+
+    monkeypatch.setattr(
+        places,
+        "search_providers",
+        lambda *args, **kwargs: [candidate],
+    )
+
+    state = BodyState(
+        user_query="clinic",
+        user_query_redacted="clinic",
+        preferences={"insurance_plan": "Maccabi", "max_travel_km": 10},
+    )
+
+    ranked_state = places.run(state, es_client=object())
+    top = ranked_state["candidates"][0]
+    assert "reason_codes" not in top or INSURANCE_MATCH not in set(
+        top.get("reason_codes", [])
+    )
+    assert "matched_insurance_label" not in top
+
+
+def test_places_hours_mismatch_zeroes_hours_fit():
+    # Directly exercise meta computation to check hours mismatch path
+    candidate = {
+        "name": "Clinic",
+        "phone": "+972-3-222-3333",
+        "kind": "clinic",
+        "_score": 1.0,
+        "hours": "Sun-Thu 08:00-12:00",
+    }
+    semantic_norm = 1.0
+    prefs = {"hours_window": "evening", "preferred_kinds": []}
+    travel_limit = None
+    distance = 2.0
+    weights = places._get_scoring_weights()
+
+    score, reasons, _distance, reason_codes = places._compute_candidate_meta(
+        candidate, semantic_norm, prefs, travel_limit, distance, weights
+    )
+
+    assert not any("Open during" in r for r in reasons)
+    assert HOURS_MATCH not in reason_codes
+    assert score < semantic_norm  # hours penalty applied
+
+
+def test_places_scoring_weights_negative_values_removed(monkeypatch):
+    monkeypatch.setenv(
+        "PREFERENCE_SCORING_WEIGHTS",
+        "semantic:1.0,insurance:-1.0,distance:1.0,hours:0.0",
+    )
+    weights = places._get_scoring_weights()
+    assert weights["insurance"] == pytest.approx(0.0)
+    assert sum(weights.values()) == pytest.approx(1.0)
+
+
+def test_places_travel_limit_only_reason():
+    weights = places._get_scoring_weights()
+    candidate = {"name": "Clinic", "phone": "+972", "kind": "clinic"}
+    prefs = {"preferred_kinds": []}
+    score, reasons, distance, reason_codes = places._compute_candidate_meta(
+        candidate,
+        semantic_norm=0.5,
+        prefs=prefs,
+        travel_limit_km=5,
+        distance_km=None,
+        weights=weights,
+    )
+    assert TRAVEL_WITHIN_LIMIT in reason_codes
+    assert all("travel limit" not in r for r in reasons)
+    assert "matched_insurance_label" not in candidate
+    assert distance is None
+
+
+def test_places_scoring_weights_invalid_falls_back(monkeypatch):
+    monkeypatch.setenv(
+        "PREFERENCE_SCORING_WEIGHTS",
+        "semantic:0,distance:0,hours:0,insurance:0",
+    )
+    called = {}
+
+    def _warn(message, *_args, **_kwargs):
+        called["warned"] = message
+
+    monkeypatch.setattr(places.logger, "warning", _warn)
+    weights = places._get_scoring_weights()
+    assert weights == places.DEFAULT_WEIGHTS
+    assert "Invalid PREFERENCE_SCORING_WEIGHTS" in called["warned"]
 
 
 def test_should_replace_candidate_prefers_closer_same_score():

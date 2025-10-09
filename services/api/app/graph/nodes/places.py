@@ -75,11 +75,11 @@ def _get_scoring_weights() -> Dict[str, float]:
         if norm_key not in weights:
             continue
         try:
-            parsed[norm_key] = float(value)
+            val = float(value)
         except ValueError:
             continue
-        if parsed[norm_key] < 0:
-            parsed.pop(norm_key)
+        if val >= 0:
+            parsed[norm_key] = val
 
     if not parsed:
         return weights
@@ -222,6 +222,7 @@ def _compute_candidate_meta(
     reasons: List[str] = []
     reason_codes: Set[str] = set()
     distance_norm = 0.5
+    candidate.pop("matched_insurance_label", None)
 
     if distance_km is not None:
         max_radius = travel_limit_km or DEFAULT_RADIUS_KM
@@ -270,6 +271,7 @@ def _compute_candidate_meta(
                     or candidate_display
                 )
                 if plan_label:
+                    candidate["matched_insurance_label"] = plan_label
                     reasons.append(f"Accepts your {plan_label} insurance")
             else:
                 insurance_fit = 0.0
