@@ -207,6 +207,34 @@ def test_planner_rationale_insurance_pref_display_when_no_match():
     assert "Leumit" in rationale
 
 
+def test_planner_rationale_insurance_candidate_fallback_list():
+    candidate = {
+        "distance_km": None,
+        "kind": "clinic",
+        "reason_codes": [INSURANCE_MATCH],
+        "insurance_plans": ["Clalit", "Meuhedet"],
+    }
+    prefs = {}
+
+    rationale = planner._format_rationale("en", candidate, prefs)
+
+    assert "Clalit" in rationale
+
+
+def test_planner_rationale_insurance_candidate_fallback_str():
+    candidate = {
+        "distance_km": None,
+        "kind": "clinic",
+        "reason_codes": [INSURANCE_MATCH],
+        "insurance_plans": "Meuhedet",
+    }
+    prefs = {}
+
+    rationale = planner._format_rationale("en", candidate, prefs)
+
+    assert "Meuhedet" in rationale
+
+
 def test_planner_rationale_travel_limit_only_phrase():
     candidate = {
         "reason_codes": [TRAVEL_WITHIN_LIMIT],
@@ -230,3 +258,47 @@ def test_planner_rationale_handles_invalid_travel_limit():
     # Falls back to distance fragment without travel limit copy
     assert rationale.startswith("Because it's about 2.0 km from you")
     assert "travel limit" not in rationale
+
+
+def test_planner_fetches_preferences_when_missing(monkeypatch):
+    class DummyES:
+        def __init__(self):
+            self.called = False
+
+        def search(self, *args, **kwargs):
+            self.called = True
+            return {
+                "hits": {
+                    "hits": [
+                        {"_source": {"name": "preferred_kinds", "value": "clinic"}}
+                    ]
+                }
+            }
+
+    dummy_es = DummyES()
+
+    monkeypatch.setattr(
+        planner,
+        "extract_preferences",
+        lambda facts: {"preferred_kinds": ["clinic"], "max_travel_km": 10},
+    )
+
+    state = BodyState(
+        intent=planner.APPOINTMENT_INTENT,
+        user_id="user-123",
+        candidates=[
+            {
+                "name": "Clinic Pref",
+                "distance_km": 2.0,
+                "kind": "clinic",
+                "reasons": ["~2.0 km away"],
+                "reason_codes": [TRAVEL_WITHIN_LIMIT],
+            }
+        ],
+    )
+
+    new_state = planner.run(state, es_client=dummy_es)
+
+    assert dummy_es.called
+    assert new_state["preferences"]["preferred_kinds"] == ["clinic"]
+    assert new_state["plan"]["provider"]["name"] == "Clinic Pref"
