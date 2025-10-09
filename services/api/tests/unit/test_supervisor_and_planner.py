@@ -89,8 +89,8 @@ def test_planner_appointment_no_preferences():
     plan = out.get("plan", {})
     assert plan.get("type") == planner.APPOINTMENT_INTENT
     assert plan.get("provider", {}).get("name") == "Clinic A"
-    assert plan.get("reasons") == ""
-    assert plan.get("explanations", []) == []
+    assert plan.get("rationale") == "Best match for your saved preferences."
+    assert plan.get("explanations", [])[0] == plan["rationale"]
 
 
 def test_planner_fallback_intent():
@@ -111,8 +111,8 @@ def test_planner_appointment_no_user_id():
     plan = out.get("plan", {})
     assert plan.get("type") == planner.APPOINTMENT_INTENT
     assert plan.get("provider", {}).get("name") == "Clinic A"
-    assert plan.get("reasons") == ""
-    assert plan.get("explanations", []) == []
+    assert plan.get("rationale") == "Best match for your saved preferences."
+    assert plan.get("explanations", [])[0] == plan["rationale"]
 
 
 def test_planner_appointment_user_id_no_prefs():
@@ -128,8 +128,8 @@ def test_planner_appointment_user_id_no_prefs():
     plan = out.get("plan", {})
     assert plan.get("type") == planner.APPOINTMENT_INTENT
     assert plan.get("provider", {}).get("name") == "Clinic A"
-    assert plan.get("reasons") == ""
-    assert plan.get("explanations", []) == []
+    assert plan.get("rationale") == "Best match for your saved preferences."
+    assert plan.get("explanations", [])[0] == plan["rationale"]
 
 
 def test_planner_appointment_candidate_no_hours():
@@ -146,5 +146,5 @@ def test_planner_appointment_candidate_no_hours():
     plan = out.get("plan", {})
     assert plan.get("type") == planner.APPOINTMENT_INTENT
     assert plan.get("provider", {}).get("name") in ["Clinic A", "Clinic B"]
-    assert plan.get("reasons") == ""
-    assert plan.get("explanations", []) == []
+    assert plan.get("rationale") == "Best match for your saved preferences."
+    assert plan.get("explanations", [])[0] == plan["rationale"]

@@ -1,4 +1,9 @@
 from app.graph.nodes import planner
+from app.graph.nodes.rationale_codes import (
+    HOURS_MATCH,
+    TRAVEL_WITHIN_LIMIT,
+    PREFERRED_KIND,
+)
 from app.graph.state import BodyState
 from datetime import datetime, UTC
 
@@ -42,3 +47,105 @@ def test_planner_meds_non_schedule_gets_none_plan():
     new_state = planner.run(state)
 
     assert new_state["plan"] == {"type": planner.PLAN_TYPE_NONE}
+
+
+def test_planner_appointment_rationale_en(monkeypatch):
+    monkeypatch.setattr(planner, "create_event", lambda event: "/tmp/mock.ics")
+    state = BodyState(
+        intent=planner.APPOINTMENT_INTENT,
+        user_query="book appointment",
+        user_query_redacted="book appointment",
+        language="en",
+        preferences={
+            "max_travel_km": 5,
+            "hours_window": "morning",
+            "preferred_kinds": ["clinic"],
+        },
+        candidates=[
+            {
+                "name": "Morning Clinic",
+                "distance_km": 4.2,
+                "kind": "clinic",
+                "reasons": [
+                    "~4.2 km away",
+                    "Within your 5 km travel limit",
+                    "Open during morning",
+                ],
+                "reason_codes": [
+                    TRAVEL_WITHIN_LIMIT,
+                    HOURS_MATCH,
+                    PREFERRED_KIND,
+                ],
+            }
+        ],
+    )
+
+    new_state = planner.run(state)
+    plan = new_state["plan"]
+    assert plan["type"] == planner.APPOINTMENT_INTENT
+    rationale = plan["rationale"]
+    assert rationale.startswith("Because ")
+    assert "4.2" in rationale
+    assert "within your 5.0 km travel limit" in rationale
+    assert "preferred morning hours" in rationale
+    assert "matches your preferred clinic" in rationale
+    assert plan["explanations"][0] == rationale
+    assert plan["explanations"][1:] == state["candidates"][0]["reasons"]
+
+
+def test_planner_appointment_rationale_he(monkeypatch):
+    monkeypatch.setattr(planner, "create_event", lambda event: "/tmp/mock.ics")
+    state = BodyState(
+        intent=planner.APPOINTMENT_INTENT,
+        user_query="קבע תור",
+        user_query_redacted="קבע תור",
+        language="he",
+        preferences={
+            "max_travel_km": 3,
+            "hours_window": "evening",
+        },
+        candidates=[
+            {
+                "name": "Evening Clinic",
+                "distance_km": 2.5,
+                "kind": "clinic",
+                "reasons": [
+                    "~2.5 km away",
+                    "Within your 3 km travel limit",
+                    "Open during evening",
+                ],
+                "reason_codes": [TRAVEL_WITHIN_LIMIT, HOURS_MATCH],
+            }
+        ],
+    )
+
+    new_state = planner.run(state)
+    plan = new_state["plan"]
+    assert plan["type"] == planner.APPOINTMENT_INTENT
+    rationale = plan["rationale"]
+    assert rationale.startswith("כי ")
+    assert 'מרחק של כ-2.5 ק"מ ממך' in rationale
+    assert 'בתוך מגבלת הנסיעה של 3.0 ק"מ' in rationale
+    assert "ערב" in rationale
+    assert plan["explanations"][0] == rationale
+
+
+def test_planner_appointment_rationale_default(monkeypatch):
+    monkeypatch.setattr(planner, "create_event", lambda event: "/tmp/mock.ics")
+    state = BodyState(
+        intent=planner.APPOINTMENT_INTENT,
+        user_query="book appointment",
+        user_query_redacted="book appointment",
+        language="en",
+        candidates=[
+            {
+                "name": "Clinic",
+                "reasons": [],
+            }
+        ],
+    )
+
+    new_state = planner.run(state)
+    plan = new_state["plan"]
+    assert plan["type"] == planner.APPOINTMENT_INTENT
+    assert plan["rationale"] == "Best match for your saved preferences."

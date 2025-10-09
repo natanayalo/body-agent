@@ -4,6 +4,11 @@ import os
 from typing import Any, Dict, List
 
 from app.graph.nodes.memory import extract_preferences
+from app.graph.nodes.rationale_codes import (
+    HOURS_MATCH,
+    TRAVEL_WITHIN_LIMIT,
+    PREFERRED_KIND,
+)
 from app.graph.state import BodyState, SubIntent
 from app.tools.calendar_tools import CalendarEvent, create_event
 from app.tools.es_client import get_es_client
@@ -16,6 +21,97 @@ APPOINTMENT_INTENT = "appointment"
 PLAN_TYPE_MED_SCHEDULE = "med_schedule"
 PLAN_TYPE_NONE = "none"
 SUB_INTENT_SCHEDULE: SubIntent = "schedule"
+
+_DEFAULT_LANGUAGE = "en"
+
+RATIONALE_STRINGS = {
+    "en": {
+        "prefix": "Because ",
+        "distance": "it's about {distance_km:.1f} km from you",
+        "within_limit": "within your {travel_limit:.1f} km travel limit",
+        "travel_limit_only": "honors your {travel_limit:.1f} km travel limit",
+        "hours": "open during your preferred {window} hours",
+        "preferred_kind": "matches your preferred {kind}",
+        "default": "Best match for your saved preferences.",
+        "separator": "; ",
+        "terminator": ".",
+    },
+    "he": {
+        "prefix": "כי ",
+        "distance": 'מרחק של כ-{distance_km:.1f} ק"מ ממך',
+        "within_limit": 'בתוך מגבלת הנסיעה של {travel_limit:.1f} ק"מ',
+        "travel_limit_only": 'מכבדת מגבלת נסיעה של {travel_limit:.1f} ק"מ',
+        "hours": "פתוח במהלך שעות ה{window} שהעדפת",
+        "preferred_kind": "מתאים לסוג שהעדפת ({kind})",
+        "default": "ההתאמה הטובה ביותר להעדפותיך.",
+        "separator": "; ",
+        "terminator": ".",
+    },
+}
+
+
+def _translate_window(value: str, language: str) -> str:
+    window = value.lower()
+    labels = {
+        "morning": {"en": "morning", "he": "בוקר"},
+        "afternoon": {"en": "afternoon", "he": "צהריים"},
+        "evening": {"en": "evening", "he": "ערב"},
+    }
+    return labels.get(window, {}).get(language, window)
+
+
+def _format_rationale(
+    language: str,
+    candidate: Dict[str, Any],
+    preferences: Dict[str, Any],
+) -> str:
+    lang = language if language in RATIONALE_STRINGS else _DEFAULT_LANGUAGE
+    strings = RATIONALE_STRINGS.get(lang, RATIONALE_STRINGS[_DEFAULT_LANGUAGE])
+    distance_km = candidate.get("distance_km")
+    prefs = preferences or {}
+    fragments: list[str] = []
+    reason_codes = {str(reason).lower() for reason in candidate.get("reason_codes", [])}
+
+    def _fmt(limit: float | None) -> float | None:
+        if limit is None:
+            return None
+        try:
+            return float(limit)
+        except (TypeError, ValueError):
+            return None
+
+    travel_limit = _fmt(prefs.get("max_travel_km"))
+
+    if distance_km is not None:
+        fragments.append(strings["distance"].format(distance_km=distance_km))
+        if travel_limit is not None and TRAVEL_WITHIN_LIMIT in reason_codes:
+            fragments.append(strings["within_limit"].format(travel_limit=travel_limit))
+    elif travel_limit is not None and TRAVEL_WITHIN_LIMIT in reason_codes:
+        fragments.append(strings["travel_limit_only"].format(travel_limit=travel_limit))
+
+    pref_window = (prefs.get("hours_window") or "").lower()
+    if pref_window and HOURS_MATCH in reason_codes:
+        window_text = _translate_window(pref_window, lang)
+        fragments.append(strings["hours"].format(window=window_text))
+
+    candidate_kind_display = candidate.get("kind") or ""
+    candidate_kind = (candidate_kind_display or "").lower()
+    if PREFERRED_KIND in reason_codes:
+        fragments.append(
+            strings["preferred_kind"].format(
+                kind=candidate_kind_display or candidate_kind
+            )
+        )
+
+    if not fragments:
+        return strings["default"]
+
+    body = strings["separator"].join(fragments)
+    sentence = f"{strings['prefix']}{body}"
+    terminator = strings.get("terminator", ".")
+    if not sentence.endswith(terminator):
+        sentence = f"{sentence}{terminator}"
+    return sentence
 
 
 def run(state: BodyState, es_client: Any = None) -> BodyState:
@@ -80,6 +176,8 @@ def run(state: BodyState, es_client: Any = None) -> BodyState:
             reasons = best.get("reasons", []) or []
             logger.debug(f"Planner: Best candidate: {best}")
 
+            rationale = _format_rationale(state.get("language", "en"), best, prefs)
+
             # Pick top candidate and create 1h slot tomorrow at 09:00Z
             start = datetime(now.year, now.month, now.day) + timedelta(days=1, hours=9)
             evt = CalendarEvent(
@@ -90,7 +188,8 @@ def run(state: BodyState, es_client: Any = None) -> BodyState:
             )
             path = create_event(evt)
             logger.debug(f"Planner: Event path created: {path}")
-            explanations = list(reasons)
+            explanations = [rationale] if rationale else []
+            explanations.extend(reasons)
             reasons_str = ", ".join(explanations)
             state["plan"] = {
                 "type": APPOINTMENT_INTENT,
@@ -98,6 +197,7 @@ def run(state: BodyState, es_client: Any = None) -> BodyState:
                 "provider": best,
                 "reasons": reasons_str,
                 "explanations": explanations,
+                "rationale": rationale,
             }
             return state
 

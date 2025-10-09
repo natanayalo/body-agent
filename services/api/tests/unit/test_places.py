@@ -1,5 +1,10 @@
 from app.graph.nodes import places
 from app.graph.nodes.places import _should_replace_candidate
+from app.graph.nodes.rationale_codes import (
+    HOURS_MATCH,
+    TRAVEL_WITHIN_LIMIT,
+    PREFERRED_KIND,
+)
 from app.graph.state import BodyState
 
 
@@ -40,12 +45,16 @@ def test_places_ranking_respects_preferred_kind(monkeypatch):
     candidates = ranked_state["candidates"]
     assert candidates[0]["name"] == "Dizengoff Lab Center"
     assert any("preferred" in r for r in candidates[0].get("reasons", []))
+    codes = set(candidates[0].get("reason_codes", []))
+    assert PREFERRED_KIND in codes
+    assert HOURS_MATCH in codes
 
     # Change preference to clinic and ensure ordering flips deterministically
     state["preferences"] = {"preferred_kinds": ["clinic"]}
     ranked_state = places.run(state, es_client=dummy_es)
     candidates = ranked_state["candidates"]
     assert candidates[0]["name"] == "Clinic A"
+    assert PREFERRED_KIND in set(candidates[0].get("reason_codes", []))
 
 
 def test_places_filters_by_travel_limit(monkeypatch):
@@ -84,6 +93,7 @@ def test_places_filters_by_travel_limit(monkeypatch):
     assert candidates[0]["name"] == "Nearby Clinic"
     reasons = candidates[0].get("reasons", [])
     assert any("travel limit" in reason for reason in reasons)
+    assert TRAVEL_WITHIN_LIMIT in set(candidates[0].get("reason_codes", []))
 
 
 def test_places_dedupe_prefers_in_range(monkeypatch):
@@ -122,6 +132,7 @@ def test_places_dedupe_prefers_in_range(monkeypatch):
     assert candidates[0]["phone"] == far["phone"]
     assert candidates[0]["_score"] == 0.8
     assert candidates[0]["distance_km"] < 5
+    assert TRAVEL_WITHIN_LIMIT in set(candidates[0].get("reason_codes", []))
 
 
 def test_places_dedupe_prefers_closer_on_tie(monkeypatch):
@@ -285,6 +296,7 @@ def test_places_handles_missing_geo(monkeypatch):
     candidates = ranked_state["candidates"]
     assert len(candidates) == 1
     assert "distance_km" not in candidates[0]
+    assert TRAVEL_WITHIN_LIMIT in set(candidates[0].get("reason_codes", []))
 
 
 def test_places_handles_invalid_geo(monkeypatch):
@@ -313,6 +325,7 @@ def test_places_handles_invalid_geo(monkeypatch):
     candidates = ranked_state["candidates"]
     assert len(candidates) == 1
     assert "distance_km" not in candidates[0]
+    assert "reason_codes" not in candidates[0]
 
 
 def test_places_skips_candidates_without_name_or_phone(monkeypatch):
